@@ -14,7 +14,8 @@ import { comingSoon, garmentArt, garmentLook, productName, sportGarmentTiles, sp
 import { customName } from '../customChoice';
 import type { GarmentTile } from '../api';
 import type { Draft } from '../App';
-import { OwnPatterns, isPatternPicture, modeOf } from '../components/OwnPatterns';
+import { OwnPatterns, isPatternPicture, modeOf, preparePattern } from '../components/OwnPatterns';
+import { kitFrontLayer, wantsPictureOnKit } from '../accessoryArt';
 import { ArtworkPanel, PresetPanel, checkDrawing, checkPrintLayout, designSignature, ownPatch, patternNames, readAsset, readImage, type ArtworkDrop, type OwnDesign, type ShelvedLayouts } from '../components/StudioArtwork';
 import { defaultDesign } from '../types';
 import { onAssist } from '../assistBridge';
@@ -511,9 +512,33 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
     edit(r.motif ? { ...r.design, patternImage: null } : r.design, r.motif ? { patternMotif: r.motif } : {});
     return r.reply + (r.motif ? ' Creating the new print now…' : '');
   }
+  /**
+   * The picture attached in the Ask 3DEEZI bar put on the kit as the customer's own artwork (ARTUP, client 2026-11-18
+   * "the upload artwork doesn't work": "put my logo on the front" with the logo attached came back as an AI-made print).
+   * On the front as an image object (moved and resized like any artwork), or printed all over when asked. No AI, no sign-in.
+   */
+  async function putPicture(image: string, how: 'front' | 'allover', said = '') {
+    setAskImage(null); setAsk('');
+    const done = how === 'allover' ? 'Your picture is printed all over the kit. Undo takes it off.' : 'Your artwork is on the front of the kit. Drag and resize it on the kit or in the 2D panels.';
+    try {
+      if (how === 'allover') edit({ pattern: 'Solid', patternImage: await preparePattern(image, 'full'), patternScale: 0.16, zones: {} }, { patternMotif: undefined });
+      else {
+        const img = new Image(); img.src = image; await img.decode().catch(() => undefined);
+        const layers = latest.current.design.layers ?? [];
+        if (layers.length >= 40) { onNotice('A design can contain up to 40 artwork layers.'); return; }
+        const layer = kitFrontLayer(latest.current.design.garment, image, 'My artwork', (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1));
+        edit({ layers: [...layers, layer] }); setSelectedLayer(layer.id); viewer.current?.select(layer.id);
+      }
+      setChat(c => [...c, { from: 'you', text: said || 'Put my picture on the kit' }, { from: '3deezi', text: done }]);
+      onNotice(done);
+    } catch (e) { onNotice(`Your picture could not go on the kit: ${(e as Error).message}`); }
+  }
   async function askAi(text = ask) {
     const instruction = text.trim();
     if (!instruction || asking) return;
+    // "Put my logo on the front" with a picture attached: the picture itself, never redrawn by the AI.
+    const how = askImage ? wantsPictureOnKit(instruction) : null;
+    if (askImage && how) { await putPicture(askImage, how, instruction); return; }
     if (!aiEnabled) { onNotice('AI is not connected on this server.'); return; }
     setAsking(true); setAsk(''); setChat(c => [...c, { from: 'you', text: instruction }]);
     const image = askImage; setAskImage(null);
@@ -708,10 +733,11 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
       <aside className="dyo-garments" aria-label="Garments" data-sport={railSport?.id}>{railItems.map(g => <button key={g.key} className={g.soon ? 'soon' : g.on ? 'selected' : ''} disabled={g.soon} title={g.soon ? 'Coming soon' : undefined} onClick={g.open} aria-pressed={g.soon ? undefined : g.on} data-tile={g.name}><img src={g.art} alt="" onError={e => { const fb = garmentArt('jersey'); if (!e.currentTarget.src.endsWith(fb)) e.currentTarget.src = fb; }} /><span>{g.name}</span>{g.soon && <small>SOON</small>}</button>)}</aside>
     </div>
 
-    <form className="dyo-prompt" onSubmit={e => { e.preventDefault(); requireAuth(() => askAi()); }}>
-      <button type="button" className="round-button" aria-label="Attach a reference image" title="Attach a reference image" onClick={() => askUpload.current?.click()}><ImagePlus size={18} /></button>
+    <form className="dyo-prompt" onSubmit={e => { e.preventDefault(); if (askImage && wantsPictureOnKit(ask)) void askAi(); else requireAuth(() => askAi()); }}>
+      <button type="button" className="round-button" aria-label="Attach a reference image" title="Attach a picture: put it on the kit, or send it to the AI as a reference" onClick={() => askUpload.current?.click()}><ImagePlus size={18} /></button>
       <button type="button" className="round-button" aria-label="Add your logo" title="Add your logo" onClick={() => setTool('logos')}><Plus size={18} /></button>
       {askImage && <span className="ask-image"><img src={askImage} alt="Reference" /><button type="button" onClick={() => setAskImage(null)} aria-label="Remove image"><X size={12} /></button></span>}
+      {askImage && <button type="button" className="ask-image-put" title="Put this picture on the kit as your own artwork (no AI)" onClick={() => void putPicture(askImage, wantsPictureOnKit(ask) ?? 'front', ask.trim())}>Put on kit</button>}
       <input value={ask} onChange={e => setAsk(e.target.value)} placeholder={aiEnabled ? (narrow ? 'Ask 3DEEZI…' : 'Ask 3DEEZI to change anything…') : (narrow ? 'AI not connected' : 'AI is not connected on this server')} disabled={!aiEnabled || asking} maxLength={600} aria-label="Ask 3DEEZI to change anything" />
       <button className="send-button" disabled={!aiEnabled || asking || !ask.trim()} aria-label="Send">{asking ? <LoaderCircle className="spin" size={18} /> : <SendHorizontal size={18} />}</button>
       <button type="button" className="round-button" aria-label="Open the AI panel" title="AI panel" onClick={() => setTool('ai')}><SlidersHorizontal size={18} /></button>

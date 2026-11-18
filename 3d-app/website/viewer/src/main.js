@@ -428,6 +428,11 @@ const HEX6 = /^#[0-9a-f]{6}$/i;
 // model, as on a real garment, never on the made shape (MODELQ4 2026-11-17, user 575): `drawnOn`.)
 const drawnOn = (part) => !!layout?.drawing && layout.garment === part;
 const bballSinglet = () => (!layout || drawnOn('singlet')) && HEX6.test(design.zoneColors?.bballSinglet ?? '');
+// The Basketball > Basketball kit tile (BBTILES 2026-11-18, the client: "it should have Singlet, basketball kit"): the Full kit
+// with both basketball models' flags (zoneColors.bballSinglet and bballBand) is the basketball singlet over the basketball
+// shorts, each on its own ready-made model; every other Full kit keeps the made jersey and shorts. (Not on a print layout.)
+const BBALL_KIT = ['bballshorts', 'singlet'];
+const bballKitOn = () => !layout && design.garment === 'fullkit' && HEX6.test(design.zoneColors?.bballSinglet ?? '') && HEX6.test(design.zoneColors?.bballBand ?? '');
 // Models added by the shared recipe (viewer/models/<name>.json, viewer/tripo-add.mjs; recipemodels.js is made from those
 // settings): the model a part is shown in when its look's flag (design.zoneColors[flag]) is set, never on a print layout.
 // (A `wide` model (settings `wide`, 2026-11-16: the polo, the training tee) is on every tile of its garment with the tile's own
@@ -525,6 +530,8 @@ function buildKit(kind) {
   // The basketball shorts (the Basketball shorts tile, FN3 2026-10-30): the shorts with the royal blue band across their
   // side panels (design.zoneColors.bballBand) are cut long and loose as that picture, with its own print (bballshorts.js).
   if (kind === 'shorts' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? '')) list = PARTS.bballshorts;
+  // (The Basketball kit: the basketball singlet over the basketball shorts, both on their models: BBTILES.)
+  if (kind === 'fullkit' && bballKitOn()) list = BBALL_KIT;
   // (Ready-made full-length pants and leggings added by the shared recipe (MODELQ2 2026-11-16: models with part
   // 'trackpants' and garment 'shorts'): a Shorts tile whose look sets such a model's flag shows those pants alone, as the
   // track pants' part and print (trackpants.js), on their own model.)
@@ -949,7 +956,7 @@ function buildKit(kind) {
     // Look 2: a garment shown on a form with legs (the netball dress) stands a little higher (garment.js lift).
     group.position.y = base + (LOOK2 ? garment.lift : 0);
     // (The tracksuit's jacket over its pants' waistband, FN10.)
-    base += partKind === 'shorts' || partKind === 'trackpants' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
+    base += partKind === 'shorts' || partKind === 'trackpants' || partKind === 'bballshorts' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
     kit.add(group);
     group.add(glow);
     parts.push({ plains, insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo });
@@ -1022,7 +1029,7 @@ function dressMannequin(list) {
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
     const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))
-      : buildMannequin(part.tripo?.wearer ?? part.garment, mannequinMat, { over: list.includes('shorts') && part.painter.kind !== 'shorts', legOpenings: !!RECIPE_MODELS[tripoOf(part.painter.kind) ?? ''] });
+      : buildMannequin(part.tripo?.wearer ?? part.garment, mannequinMat, { over: (list.includes('shorts') || list.includes('bballshorts')) && part.painter.kind !== 'shorts', legOpenings: !!RECIPE_MODELS[tripoOf(part.painter.kind) ?? ''] });
     if (!form) continue;
     group.add(form);
     const s = group.scale.y;
@@ -1198,6 +1205,8 @@ async function paintAll() {
   for (const part of PARTS[design.garment] ?? []) if (tripoOf(part)) { step('loading the 3D garment model'); await loadTripo(tripoOf(part)); }
   // (The basketball shorts are the Shorts with the bballBand look, buildKit: their model too.)
   if (design.garment === 'shorts' && !layout && HEX6.test(design.zoneColors?.bballBand ?? '')) { step('loading the 3D garment model'); await loadTripo(TRIPO_PARTS.bballshorts); }
+  // (The Basketball kit: both basketball models, BBTILES.)
+  if (bballKitOn()) for (const part of BBALL_KIT) { step('loading the 3D garment model'); await loadTripo(tripoOf(part)); }
   step('building the 3D garment');
   buildKit(design.garment);
   // (The Rugby League shorts' model: its even light; any other kit: the stage's own.)
@@ -1248,7 +1257,8 @@ async function paintAll() {
     // (The basketball singlet's model: its inside one even colour, the Reverse side's (zoneColors.reverseSide) else the
     // Main, as its facings are printed (texture.js paintModelSwatches).)
     if (part.painter.model?.insert) {
-      part.inside.color.set(HEX6.test(design.zoneColors?.reverseSide ?? '') ? design.zoneColors.reverseSide : design.main).multiplyScalar(0.9);
+      // (Under a design picture: the picture's own inside colour, as its facings are printed then: texture.js layoutSwatch.)
+      part.inside.color.set(layout && part.painter.layoutSwatch ? part.painter.layoutSwatch.inside ?? design.main : HEX6.test(design.zoneColors?.reverseSide ?? '') ? design.zoneColors.reverseSide : design.main).multiplyScalar(0.9);
       part.insideFront?.color.copy(part.inside.color);
     }
     if (part.plains) paintPlains(part, design);
@@ -1550,10 +1560,13 @@ function warpParts() {
     part.layoutInside = main ? mainColour(layout.image, main) : null;
     // (A ready-made model (MODELQ4): its bands take the drawing's own binding colour (bindingColour), else the neckline's.)
     part.layoutBand = null;
-    if (layout.drawing && main && part.tripo?.partKeys) {
+    // (And a model printed from its swatches (its bindings' and inside's plain colours: the basketball singlet, the netball
+    // bib; MODELQ6 2026-11-17): its bindings the drawing's binding colour, its inside the drawing's own colour (texture.js).)
+    if (layout.drawing && main && (part.tripo?.partKeys || painter.model?.swatch?.length)) {
       const w = main.x1 - main.x0, middle = [(main.x0 + main.x1) / 2, (main.y0 + main.y1) / 2], neckline = drawingSides(main.outline, !!DRAWN[layout.garment]?.CT).sides[0];
       part.layoutBand = bindingColour(layout.image, main, lineColour(layout.image, neckline, middle, Math.max(8, 0.06 * w))) ?? part.layoutRim;
     }
+    painter.layoutSwatch = layout.drawing && painter.model?.swatch?.length && !painter.model.keys ? { band: part.layoutBand ?? part.layoutRim, inside: part.layoutInside ?? painter.layoutFill } : null;
     // The trim colour (the neck trim's), for the shorts' eyelets and cord tips.
     part.layoutAccent = byRole.neck ? panelColour(layout.image, byRole.neck) : null;
   }

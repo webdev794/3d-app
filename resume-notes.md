@@ -30,6 +30,7 @@ Session limit ~90%: user said focus on ONE model (Football jersey); all other ag
 - Finished list gets each model only after QATEST pass + my look.
 
 ## Decisions by the user (moved from questions.md, 17 Nov)
+- 18 Nov (my suggested answers, Basketball page task): Basketball kit tile = new kit type with our singlet + basketball shorts models (viewer change through the gate); new tile pictures rendered from our models on a lighter backdrop; Reversible training singlet opens our singlet model in its own black/blue; Basketball singlet picture yellow/charcoal like its look. Create Order Form page gets the AI look (we had restyled the Order Form Maker by mistake).
 - 17 Nov: after the AFL guernsey is merged (new method proven): add ONLY 1 extra fixer (2 fixers + tester), max 2 test browsers at once, a browser only when free RAM >= 2 GB; coordinator watches memory/speed and drops back to 1 fixer if anything waits or slows (user: only if it gives faster output, no hanging).
 - 17 Nov: colour by the model's own lines: each area between the model's lines is one cloth part; take where the colour changes from the reference picture and colour each part (user). Gate loosening for pants tiles: not approved; those tiles wait. First prove ONE new model with this method; improve the rest only after approval (user).
 - 16 Nov: V-necks on round-neck models = hide the cloth inside the V (not drawn, nothing moved/removed) + our band on the V edge (user: "Do suggested, I want quick solutions too").

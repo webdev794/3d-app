@@ -224,6 +224,13 @@ $look = function (string $name, array $extra = []): array {
         'fitnessTop' => ['zones' => $solid('sides'), 'zoneColors' => ['fitnessTop' => '#ffffff'], 'layers' => []],
         'aflGuernsey' => ['main' => '#d6b13a', 'secondary' => '#1f3f8a', 'accent' => '#1e2758', 'patternColor' => '#1e2758', 'number' => '1', 'zoneColors' => ['aflGuernsey' => '#3e71aa'], 'marks' => ['top_wordmark' => ['x' => -0.085, 'y' => 0.6, 'scale' => 0.4], 'top_crest' => ['x' => 0.085, 'y' => 0.6, 'scale' => 0.28], 'top_frontNumber' => ['x' => 0, 'y' => 0.15, 'scale' => 1.1], 'top_number' => ['x' => 0, 'y' => 0.2, 'scale' => 1]], 'layers' => [['type' => 'shape', 'id' => 'tile-band', 'name' => 'Chest band', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => 0.48, 'shape' => 'rectangle', 'w' => 0.6, 'h' => 0.155, 'colorFrom' => 'secondary'], ['type' => 'shape', 'id' => 'tile-band-back', 'name' => 'Chest band (back)', 'part' => 'top', 'side' => 'back', 'x' => 0, 'y' => 0.48, 'shape' => 'rectangle', 'w' => 0.6, 'h' => 0.155, 'colorFrom' => 'secondary']], 'parts' => ['collar' => ['colour' => '#3e71aa']]],
         'bballSinglet' => ['main' => '#e4bf00', 'secondary' => '#42444c', 'accent' => '#42444c', 'patternColor' => '#42444c', 'zoneColors' => ['bballSinglet' => '#42444c'], 'marks' => ['top_crest' => ['x' => -0.1, 'y' => 0.6, 'scale' => 0.3], 'top_wordmark' => ['x' => 0, 'y' => 0.45, 'scale' => 0.75]]],
+        // (BBTILES 2026-11-18: the Reversible training singlet on the basketball singlet's model in the Singlet picture's black
+        // and blue look (singletTile), its black binding the model's flag colour.)
+        // (BBTILES 2026-11-18: the Basketball kit: the singlet's golden yellow with its charcoal binding, the shorts in the
+        // same yellow with charcoal side panels, band, waistband and hem stripes; the singlet's marks, the shorts' "3" and
+        // upright wordmark as on the Basketball shorts.)
+        'bballKit' => ['main' => '#e4bf00', 'secondary' => '#42444c', 'accent' => '#42444c', 'patternColor' => '#42444c', 'zoneColors' => ['bballSinglet' => '#42444c', 'bballBand' => '#42444c', 'bballTrim1' => '#42444c', 'bballTrim2' => '#42444c'], 'marks' => ['top_crest' => ['x' => -0.1, 'y' => 0.6, 'scale' => 0.3], 'top_wordmark' => ['x' => 0, 'y' => 0.45, 'scale' => 0.75], 'shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.185, 'y' => 0.115, 'scale' => 2.8], 'shorts_wordmark' => ['x' => 0.195, 'y' => 0.205, 'scale' => 2.8, 'rot' => -90]]],
+        'bballTrainingSinglet' => ['secondary' => '#27282a', 'zoneColors' => ['flow' => '#2a78c8', 'flowLight' => '#5ab4e4', 'flowDeep' => '#1c58c8', 'bballSinglet' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.505], 'top_crest' => ['scale' => 0.7]]],
         // (NBBIB 2026-11-13, the user: the Netball bibs tile's own 3D model (Tripo; viewer zoneColors.netballBib shows it,
         // every other singlet keeps the made one) starts as the booklet's "Netball bib" (Yellow Images 37504): a royal blue
         // bib with a yellow neck binding (the Neck trim), our big white position letters centred front and back (the
@@ -303,14 +310,21 @@ $sports = [
         $tile('Football socks', 'Match socks with team bands.', 'socks'),
     ]],
     ['id' => 'basketball', 'name' => 'Basketball', 'description' => 'Court-ready looks for a different kind of game.', 'group' => 'sports', 'tiles' => [
-        $tile('Basketball singlet', 'Game singlet with a big number.', 'singlet') + ['design' => $look('bballSinglet')],
-        $tile('Basketball shorts', 'Long, loose game shorts.', 'shorts', 'basketball-shorts'),
-        $tile('Shooting shirt', 'Warm-up shirt for the shoot-around.', 'shooting-shirt'),
-        $tile('Reversible training singlet', 'Light singlet for practice games.', 'singlet'),
-        $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
-        $tile('Warm-up hoodie', 'Warm hoodie for the bench and travel.', 'hoodie', 'team-hoodie'),
-        $tile('Tracksuit', 'Full-zip jacket and matching pants.', 'trackjacket', 'tracksuit'),
-        $tile('Varsity jacket', 'Letterman jacket for the team.', 'varsity'),
+        // (BBTILES 2026-11-18, the client: the singlet pictures were the wrong mockup and the black garments were lost on the
+        // dark page: every Basketball tile has its own picture, garment-bb-*.webp, on a light grey-blue studio backdrop; the
+        // singlet pictures are rendered from our basketball singlet model as each tile opens it. The Reversible training
+        // singlet opens on that model too, in its own black and blue look.)
+        $tile('Basketball singlet', 'Game singlet with a big number.', 'singlet', 'bb-singlet') + ['design' => $look('bballSinglet')],
+        // (The Basketball kit: the Full kit as the basketball singlet over the basketball shorts, each on its own model, shown
+        // by both models' flags (viewer main.js bballKitOn), in one matching look.)
+        $tile('Basketball kit', 'Singlet and shorts, designed together.', 'fullkit', 'bb-kit') + ['design' => $look('bballKit')],
+        $tile('Basketball shorts', 'Long, loose game shorts.', 'shorts', 'bb-shorts'),
+        $tile('Shooting shirt', 'Warm-up shirt for the shoot-around.', 'shooting-shirt', 'bb-shooting-shirt'),
+        $tile('Reversible training singlet', 'Light singlet for practice games.', 'singlet', 'bb-training-singlet') + ['design' => $look('bballTrainingSinglet')],
+        $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee', 'bb-tee'),
+        $tile('Warm-up hoodie', 'Warm hoodie for the bench and travel.', 'hoodie', 'bb-hoodie'),
+        $tile('Tracksuit', 'Full-zip jacket and matching pants.', 'trackjacket', 'bb-tracksuit'),
+        $tile('Varsity jacket', 'Letterman jacket for the team.', 'varsity', 'bb-varsity'),
     ]],
     // The client's own list, words and pictures (images/157.jpg; garment-netball-*.webp). Netball has no player names or
     // numbers: bibs carry the playing position letters (client 2026-10-26, images/175.jpg).
@@ -423,7 +437,10 @@ $sports = [
         ]],
     ['id' => 'darts', 'name' => 'Darts & Pool', 'description' => 'Your name on your back, every leg and frame.', 'group' => 'sports',
         'prompt' => 'darts and pool: a sublimated polo with a chest pocket, the player\'s name across the back shoulders and sponsors on the back and sleeves', 'tiles' => [
-            $tile('Darts shirt', 'Polo with a chest pocket and your name on the back.', 'pocketpolo'),
+            // (Client 2026-11-17, 582: polos first, each on the ready-made polo model (polo-shirt.glb, the `polo` garment):
+            // the Darts shirt keeps its picture.)
+            // (Its marks as the Pool polo's (poloZip): the pocket polo's big wordmark ran off the model's chest, QATEST 2026-11-18.)
+            $tile('Darts shirt', 'Polo with a chest pocket and your name on the back.', 'polo', 'pocketpolo') + ['design' => $look('poloZip')],
             $tile('Pool polo', 'Sublimated polo for league nights.', 'polo'),
             $tile('Team tee', 'Soft tee for the team.', 'tee'),
             $tile('Team hoodie', 'Warm hoodie for the walk-on.', 'hoodie', 'team-hoodie'),
@@ -681,6 +698,8 @@ $pictureExtras = [
     'shorts' => $shortsWord, 'rugby-shorts' => $shortsWord, 'rugby-training-shorts' => $shortsWord, 'nfl-training-shorts' => $shortsWord,
 ];
 $pictureLooks += ['varsity' => 'varsity', 'nfl-varsity' => 'nflVarsity'];
+// (BBTILES 2026-11-18: the Basketball tiles' own pictures on the light backdrop keep their pictures' looks.)
+$pictureLooks += ['bb-shorts' => 'bballShorts', 'bb-shooting-shirt' => 'shooting', 'bb-tee' => 'teeTile', 'bb-hoodie' => 'hoodie', 'bb-tracksuit' => 'bballTracksuit', 'bb-varsity' => 'varsity'];
 foreach ($sports as &$sport) {
     foreach ($sport['tiles'] as &$t) {
         if ($t['fit'] === 'soon') continue;

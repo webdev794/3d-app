@@ -252,6 +252,14 @@ const pictureLooks = {
   'nfl-cap': 'capSweep',
   'netball-skirt': 'skirt',
   'basketball-shorts': 'bballShorts',
+  // (BBTILES 2026-11-18: the Basketball tiles' own pictures on the light
+  // backdrop keep their pictures' looks.)
+  'bb-shorts': 'bballShorts',
+  'bb-shooting-shirt': 'shooting',
+  'bb-tee': 'teeTile',
+  'bb-hoodie': 'hoodie',
+  'bb-tracksuit': 'bballTracksuit',
+  'bb-varsity': 'varsity',
   'bucket-hat': 'hatShards',
   'nfl-bucket-hat': 'hat',
   'rugby-bucket-hat': 'hat',
@@ -1153,6 +1161,45 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'top_wordmark': {'x': 0, 'y': 0.45, 'scale': 0.75},
       },
     },
+    // BBTILES 2026-11-18: the Reversible training singlet on the basketball
+    // singlet's model in the Singlet picture's black and blue look
+    // (singletTile), its black binding the model's flag colour.
+    // BBTILES 2026-11-18: the Basketball kit: the singlet's golden yellow with
+    // its charcoal binding, the shorts in the same yellow with charcoal side
+    // panels, band, waistband and hem stripes; the singlet's marks, the
+    // shorts' "3" and upright wordmark as on the Basketball shorts.
+    'bballKit': {
+      'main': '#e4bf00',
+      'secondary': '#42444c',
+      'accent': '#42444c',
+      'patternColor': '#42444c',
+      'zoneColors': {
+        'bballSinglet': '#42444c',
+        'bballBand': '#42444c',
+        'bballTrim1': '#42444c',
+        'bballTrim2': '#42444c',
+      },
+      'marks': {
+        'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.3},
+        'top_wordmark': {'x': 0, 'y': 0.45, 'scale': 0.75},
+        'shorts_number': {'hidden': true},
+        'shorts_crest': {'x': -0.185, 'y': 0.115, 'scale': 2.8},
+        'shorts_wordmark': {'x': 0.195, 'y': 0.205, 'scale': 2.8, 'rot': -90},
+      },
+    },
+    'bballTrainingSinglet': {
+      'secondary': '#27282a',
+      'zoneColors': {
+        'flow': '#2a78c8',
+        'flowLight': '#5ab4e4',
+        'flowDeep': '#1c58c8',
+        'bballSinglet': '#27282a',
+      },
+      'marks': {
+        'top_wordmark': {'y': 0.505},
+        'top_crest': {'scale': 0.7},
+      },
+    },
     // NBBIB 2026-11-13 (the user): the Netball bibs tile's own 3D model
     // (Tripo; viewer zoneColors.netballBib shows it, every other singlet keeps
     // the made one) starts as the booklet's "Netball bib" (Yellow Images
@@ -1478,50 +1525,69 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
     GarmentTile('Football socks', 'Match socks with team bands.', 'Socks'),
   ],
+  // BBTILES 2026-11-18 (the client): every Basketball tile has its own
+  // picture, garment-bb-*.webp, on a light grey-blue studio backdrop; the
+  // singlet pictures are rendered from our basketball singlet model, and the
+  // Reversible training singlet opens on that model in its black and blue look.
   'basketball': [
     GarmentTile(
       'Basketball singlet',
       'Game singlet with a big number.',
       'Singlet',
+      image: 'bb-singlet',
       look: 'bballSinglet',
+    ),
+    // The Basketball kit: the Full kit as the basketball singlet over the
+    // basketball shorts, each on its own model (viewer main.js bballKitOn).
+    GarmentTile(
+      'Basketball kit',
+      'Singlet and shorts, designed together.',
+      'Full Kit',
+      image: 'bb-kit',
+      look: 'bballKit',
     ),
     GarmentTile(
       'Basketball shorts',
       'Long, loose game shorts.',
       'Shorts',
-      image: 'basketball-shorts',
+      image: 'bb-shorts',
     ),
     GarmentTile(
       'Shooting shirt',
       'Warm-up shirt for the shoot-around.',
       'Shooting shirt',
+      image: 'bb-shooting-shirt',
     ),
     GarmentTile(
       'Reversible training singlet',
       'Light singlet for practice games.',
       'Singlet',
+      image: 'bb-training-singlet',
+      look: 'bballTrainingSinglet',
     ),
     GarmentTile(
       'Training tee',
       'Breathable tee for training and warm-ups.',
       'Training Tee',
+      image: 'bb-tee',
     ),
     GarmentTile(
       'Warm-up hoodie',
       'Warm hoodie for the bench and travel.',
       'Hoodie',
-      image: 'team-hoodie',
+      image: 'bb-hoodie',
     ),
     GarmentTile(
       'Tracksuit',
       'Full-zip jacket and matching pants.',
       'Track jacket',
-      image: 'tracksuit',
+      image: 'bb-tracksuit',
     ),
     GarmentTile(
       'Varsity jacket',
       'Letterman jacket for the team.',
       'Varsity jacket',
+      image: 'bb-varsity',
     ),
   ],
   'netball': [
@@ -1877,10 +1943,15 @@ const _sportTiles = <String, List<GarmentTile>>{
     GarmentTile('Deck polo', 'Smart polo for coaches and officials.', 'Polo'),
   ],
   'darts': [
+    // (Client 2026-11-17, 582: on the ready-made polo model, its picture kept.)
     GarmentTile(
       'Darts shirt',
       'Polo with a chest pocket and your name on the back.',
-      'Polo with pocket',
+      'Polo',
+      image: 'pocketpolo',
+      // (The Pool polo's marks: the pocket polo's big wordmark ran off the
+      // model's chest, QATEST 2026-11-18.)
+      look: 'poloZip',
     ),
     GarmentTile('Pool polo', 'Sublimated polo for league nights.', 'Polo'),
     GarmentTile('Team tee', 'Soft tee for the team.', 'Training Tee'),
@@ -2246,19 +2317,20 @@ const _sportTiles = <String, List<GarmentTile>>{
   'gymwear': [
     GarmentTile('Muscle singlet', 'Muscle-fit singlet for lifting.', 'Singlet'),
     GarmentTile('Gym tee', 'Fitted tee for every session.', 'Training Tee'),
-    GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts'),
-    GarmentTile.soon(
-      'Leggings',
-      'Squat-proof leggings and tights.',
-      'tights',
-      'leggings',
-    ),
+    // (In the website's order: config/catalog.php gymwear.)
     GarmentTile(
       "Women's fitness top",
       'Cropped long-sleeve fitness top in stretch fabric.',
       'Compression top',
       image: 'nfl-compression-top',
       look: 'fitnessTop',
+    ),
+    GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts'),
+    GarmentTile.soon(
+      'Leggings',
+      'Squat-proof leggings and tights.',
+      'tights',
+      'leggings',
     ),
     GarmentTile(
       'Hoodie',

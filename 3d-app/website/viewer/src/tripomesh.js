@@ -786,14 +786,16 @@ function roundFill(name) {
   }
   {
     const W = [0, 1, 1, 0.85, 0.6, 0.3, 0], used = new Set(idx), cloth = [];
-    for (const i of used) if (bands[i] === 0 && pos[i * 3 + 1] > 0.66) cloth.push(i);
+    // (The model's own band points under ours too (MODELQ6 2026-11-17, image 558: bits of its band and cloth came out
+    // through our band's lower edge as dark flecks): our band's face is lifted clear of every point of the model there.)
+    for (const i of used) if ((bands[i] === 0 || bands[i] === 1) && pos[i * 3 + 1] > 0.66) cloth.push(i);
     const need = loop.map((o, k) => {
       const C = o.p, rows = [];
       for (let r = 0; r <= 6; r++) { const q = [0, 1, 2].map((j) => cpos[(k * RN + r) * 3 + j] - C[j]); rows.push([q[0] * o.v[0] + q[1] * o.v[1] + q[2] * o.v[2], q[0] * o.N[0] + q[1] * o.N[1] + q[2] * o.N[2]]); }
       let m = 0;
       for (const i of cloth) {
         const q = [pos[i * 3] - C[0], pos[i * 3 + 1] - C[1], pos[i * 3 + 2] - C[2]];
-        if (Math.abs(q[0] * o.T[0] + q[1] * o.T[1] + q[2] * o.T[2]) > 0.003) continue;
+        if (Math.abs(q[0] * o.T[0] + q[1] * o.T[1] + q[2] * o.T[2]) > 0.005) continue;
         const a = q[0] * o.v[0] + q[1] * o.v[1] + q[2] * o.v[2], h = q[0] * o.N[0] + q[1] * o.N[1] + q[2] * o.N[2];
         for (let r = 1; r < 6; r++) {
           const [a0, h0] = rows[r], [a1, h1] = rows[r + 1];

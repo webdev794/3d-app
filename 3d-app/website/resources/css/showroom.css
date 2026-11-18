@@ -173,6 +173,8 @@
 .send-button{width:48px;height:48px;border-radius:50%;border:0;background:linear-gradient(120deg,#04c6f3,#7560ff);color:#fff;display:grid;place-items:center;box-shadow:0 0 14px #04c6f388;flex:none}
 .ask-image{position:relative;flex:none}.ask-image img{width:40px;height:40px;border-radius:8px;object-fit:cover;border:1px solid #00d9ed88}
 .ask-image button{position:absolute;top:-6px;right:-6px;width:18px;height:18px;border-radius:50%;border:0;background:#e5484d;color:#fff;display:grid;place-items:center;padding:0}
+.ask-image-put{flex:none;height:32px;padding:0 10px;border-radius:16px;border:1px solid #00d9ed88;background:#00d9ed1f;color:#e6fdff;font-family:inherit;font-weight:700;font-size:12px;white-space:nowrap;cursor:pointer}.ask-image-put:hover{background:#00d9ed3a}
+@media (max-width:600px){.ask-image-put{padding:0 8px;font-size:11px}}
 
 /* ---------- Colour wheel */
 .color-wheel{display:flex;flex-direction:column;gap:14px}
@@ -587,7 +589,7 @@ button.kit-shot:hover{border-color:#00d9ed88}
 /* The product photos (no 3D garment of their own yet) sit on a dark square: its edges fade into the tile. */
 .garment-tile img.tile-photo{-webkit-mask-image:radial-gradient(farthest-side,#000 78%,transparent 100%);mask-image:radial-gradient(farthest-side,#000 78%,transparent 100%)}
 /* The client's own Rugby and Netball tiles (images/161.jpg, 157.jpg) are cut out (transparent): no fade. */
-.garment-tile img.tile-photo:is([src*="/garment-rugby-"],[src*="/garment-netball-"]){-webkit-mask-image:none;mask-image:none}
+.garment-tile img.tile-photo:is([src*="/garment-rugby-"],[src*="/garment-netball-"],[src*="/garment-bb-"]){-webkit-mask-image:none;mask-image:none}
 .garment-tile strong{font-family:var(--heading);text-transform:uppercase;letter-spacing:.04em;font-size:17px;line-height:1.15}
 .garment-tile small{font-size:12.5px;line-height:1.35;color:#b7c6d6}
 .garment-tile .tile-note{font-style:normal;font-size:11px;color:#5fdcea;opacity:.85}

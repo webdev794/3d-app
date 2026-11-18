@@ -508,3 +508,33 @@ Map<String, dynamic> accessoryParts(AccessoryReading r) {
     _ => <String, dynamic>{},
   };
 }
+
+/// Words typed with a picture attached in the Studio's "Ask 3DEEZI" bar that
+/// ask to put THAT picture on the kit ("put my logo on the front"), as the
+/// website's wantsPictureOnKit (ARTUP, client 2026-11-18 "the upload artwork
+/// doesn't work"): 'front' or 'allover', the picture itself and never redrawn
+/// by the AI; null when the picture is a reference for the AI ("colours like
+/// this", "a pattern in this style").
+String? wantsPictureOnKit(String text) {
+  final t = text.toLowerCase();
+  bool has(String pattern) => RegExp(pattern).hasMatch(t);
+  if (has(
+    r'\b(reference|inspir\w*|in (the|this|that) style|style of|similar|based on|like (this|that|it)|match\w*|vibe|mood|colou?rs? (from|of|like|in)|take the colou?rs?)\b',
+  )) {
+    return null;
+  }
+  final verb = has(
+    r'\b(put|add|place|apply|print|stick|upload|use|insert|show|set|slap|pop)\b',
+  );
+  final picture =
+      has(
+        r'\b(this|that|these|my|our|the|attached|uploaded|own)\s+(own\s+)?(club\s+|team\s+)?(logo|artwork|art|image|picture|pic|photo|design|crest|badge|emblem|graphic|file|print|pattern)s?\b',
+      ) ||
+      has(r'\b(it|this|that)\s+(on|onto|to|in|at|as)\b');
+  if (!verb || !picture) return null;
+  return has(
+            r'\b(all[\s-]?over|repeat\w*|tiled?|as (a|the) pattern|whole (kit|shirt|garment|body|top))\b|\b(this|that|my|our|the|attached|uploaded|own)\s+(own\s+)?pattern\b',
+          )
+      ? 'allover'
+      : 'front';
+}

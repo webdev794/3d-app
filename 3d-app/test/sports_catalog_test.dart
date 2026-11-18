@@ -13,7 +13,14 @@ import 'package:three_deezi/widgets/category_icon.dart';
 void main() {
   // The website's sports (config/catalog.php): id, group, style hint, heading,
   // "More teamwear" and the garment tiles ($tile, $near and $soon calls).
-  final php = File('website/config/catalog.php').readAsStringSync();
+  // (A name with an apostrophe is written in double quotes there, as
+  // "Women's fitness top": read as the single-quoted form.)
+  final php = File('website/config/catalog.php')
+      .readAsStringSync()
+      .replaceAllMapped(
+        RegExp(r'"([^"\$]*)"'),
+        (m) => "'${m[1]!.replaceAll("'", r"\'")}'",
+      );
   final block = php.substring(
     php.indexOf(r'$sports = ['),
     php.indexOf('\nreturn ['),

@@ -173,3 +173,28 @@ export function accessoryFrontLayer(garment: string, src: string, name: string, 
   const w = Math.min(place.w, place.maxH * aspect);
   return { id: crypto.randomUUID(), type: 'image', name, src, part: 'top', side: 'front', x: place.x, y: place.y, w: Number(w.toFixed(4)) };
 }
+
+/**
+ * The customer's own logo or artwork on the front of any garment (ARTUP, client 2026-11-18 "the upload artwork doesn't
+ * work"): an image object on the chest of a top (ready-made models too), on the left leg of shorts, or on the front
+ * panels of a cap or other accessory; moved and resized in the Studio like any other artwork.
+ */
+export function kitFrontLayer(garment: string, src: string, name: string, aspect = 1): ArtworkLayer {
+  if (isAccessory(garment)) { const layer = accessoryFrontLayer(garment, src, name, aspect); if (layer) return layer; }
+  if (garment === 'shorts') return { id: crypto.randomUUID(), type: 'image', name, src, part: 'shorts', side: 'front', x: 0.15, y: 0.2, w: 0.1 };
+  return { id: crypto.randomUUID(), type: 'image', name, src, part: 'top', side: 'front', x: 0, y: 0.42, w: 0.24 };
+}
+
+/**
+ * Words typed with a picture attached in the Studio's "Ask 3DEEZI" bar that ask to put THAT picture on the kit
+ * ("put my logo on the front", "add this to the chest"): the picture goes on as the customer's own artwork, never
+ * redrawn by the AI. A picture sent as a reference ("colours like this", "a pattern in this style") still goes to the AI.
+ */
+export function wantsPictureOnKit(text: string): 'front' | 'allover' | null {
+  const t = text.toLowerCase();
+  if (/\b(reference|inspir\w*|in (the|this|that) style|style of|similar|based on|like (this|that|it)|match\w*|vibe|mood|colou?rs? (from|of|like|in)|take the colou?rs?)\b/.test(t)) return null;
+  const verb = /\b(put|add|place|apply|print|stick|upload|use|insert|show|set|slap|pop)\b/.test(t);
+  const picture = /\b(this|that|these|my|our|the|attached|uploaded|own)\s+(own\s+)?(club\s+|team\s+)?(logo|artwork|art|image|picture|pic|photo|design|crest|badge|emblem|graphic|file|print|pattern)s?\b/.test(t) || /\b(it|this|that)\s+(on|onto|to|in|at|as)\b/.test(t);
+  if (!verb || !picture) return null;
+  return /\b(all[\s-]?over|repeat\w*|tiled?|as (a|the) pattern|whole (kit|shirt|garment|body|top))\b|\b(this|that|my|our|the|attached|uploaded|own)\s+(own\s+)?pattern\b/.test(t) ? 'allover' : 'front';
+}

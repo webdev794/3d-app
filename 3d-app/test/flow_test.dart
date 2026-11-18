@@ -94,15 +94,15 @@ void main() {
     expect(c.screen, AppScreen.garment);
 
     await tester.pumpAndSettle();
-    // Basketball's own garments (task 9.99): its first one is chosen; the
-    // Full Kit is under More teamwear.
+    // Basketball's own garments (task 9.99): its first one is chosen; its
+    // Basketball kit is the Full Kit (BBTILES 2026-11-18: the singlet over
+    // the basketball shorts).
     expect(find.text('BASKETBALL UNIFORMS & TEAMWEAR'), findsOneWidget);
     expect(c.productName, 'Basketball singlet');
-    await revealTap(tester, 'More teamwear');
-    await revealTap(tester, 'FULL KIT');
+    await revealTap(tester, 'BASKETBALL KIT');
     await tester.pumpAndSettle();
     expect(c.garment, 'Full Kit');
-    expect(c.productName, isEmpty);
+    expect(c.productName, 'Basketball kit');
     await tapText(tester, 'CONTINUE TO STUDIO');
     expect(c.screen, AppScreen.studio);
     for (final tool in ['Colours', 'Patterns', 'Logos', 'Text', 'Garment']) {

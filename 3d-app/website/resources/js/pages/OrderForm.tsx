@@ -998,8 +998,8 @@ ${text}`.slice(0, 4000) : f.notes) });
     // The invoice made for the order (payments-api.md §2): "Pay now" only while one can be paid (none while payments are off).
     const pay: Payment | null = order.invoice ?? order.payment ?? null;
     const payable = !!pay?.invoice_number && !!pay.can_pay;
-    return <OrderPageLayout className="of-page is-done"
-      header={<ReviewApproveHeader step="sent" firstStep="Order details" subtitle="Thank you. Your order is with the 3DEEZI team." />}
+    return <OrderPageLayout className="of-page of-ai is-done"
+      header={<>{aiBackground}<ReviewApproveHeader step="sent" firstStep="Order details" subtitle="Thank you. Your order is with the 3DEEZI team." /></>}
       main={<OrderSentPanel number={order.number} name={user?.name.split(' ')[0]} message="We’ll check your order and send you the design to approve. You can follow every step in My Orders."
         onView={() => navigate(`/orders?order=${order.id}`, { state: { order: order.id, number: order.number } })}
         pay={payable ? { label: <><CreditCard size={18} /> Pay now{pay!.amount_due != null ? ` · ${money(String(pay!.amount_due), pay!.currency || 'AUD')}` : ''}</>, onClick: () => navigate(`/invoices/${encodeURIComponent(pay!.invoice_number!)}`) } : null}
@@ -1039,8 +1039,8 @@ ${text}`.slice(0, 4000) : f.notes) });
       setPageState(0);
       requestAnimationFrame(() => requestAnimationFrame(() => (id ? document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) : window.scrollTo({ top: 0, behavior: 'smooth' }))));
     };
-    return <OrderPageLayout className="of-page is-review"
-      header={<ReviewApproveHeader step="review" firstStep="Garments & artwork" layout={layout} />}
+    return <OrderPageLayout className="of-page of-ai is-review"
+      header={<>{aiBackground}<ReviewApproveHeader step="review" firstStep="Garments & artwork" layout={layout} /></>}
       main={<>
 {<div id="of-contact"><ContactDetailsCard number={1} title="Your details" team={false} value={form.contact} onChange={contact => setForm(f => ({ ...f, contact }))} errors={shownErrors} phone={{ label: 'Mobile', placeholder: 'e.g. 0412 345 678', required: true }}>
         <DeliveryFieldsCard value={form.delivery} errors={(tried ? problems : {}) as DeliveryErrors} leadWeeks={leadWeeks} onChange={next => setForm(f => ({ ...f, delivery: { ...f.delivery, ...next },
@@ -1172,12 +1172,21 @@ ${text}`.slice(0, 4000) : f.notes) });
       </OrderSection>}
     </>;
 
-  return <OrderPageLayout className="of-page"
-    header={<><OrderPageHeader current="Create Order Form" title="Create order form" subtitle="Build your order step by step." />
+  return <OrderPageLayout className="of-page of-ai"
+    header={<>{aiBackground}<OrderPageHeader current="Create Order Form" title={<><img className="of-logo" src={media('images/brand-final.png')} alt="" aria-hidden="true" width={1712} height={272} /><span>Create order form</span></>} subtitle="Build your order step by step." />
       <OrderSteps steps={[{ label: 'Garments & artwork', target: 'of-garments' }, { label: 'Details & review' }]} current={0} onGo={goTo} onReview={() => void review()} /></>}
     main={main} side={side}
     bar={<OrderBottomBar secondary={{ label: 'Save draft', onClick: () => void saveDraft(), busy: saving }} extra={user ? { label: 'Copy form link', onClick: () => void copyFormLink() } : undefined} primary={{ label: 'Next: details & review', onClick: () => void review() }} note="Step 1 of 2" status={statusText} />} />;
 }
+
+/**
+ * The AI section's look (client 2026-11-18, 584: "our create a form section ... looks like the AI section"): the AI
+ * designer's studio picture behind the page, as on /create/ai and the Order Form Maker (styles: order-form.css .of-ai).
+ */
+const aiBackground = <picture className="of-ai-bg" aria-hidden="true">
+  <source media="(max-aspect-ratio: 4/5)" type="image/webp" srcSet={`${media('images/ai-designer/bg-tall-640.webp')} 640w, ${media('images/ai-designer/bg-tall-1024.webp')} 1024w`} sizes="100vw" />
+  <img src={media('images/ai-designer/bg-1440.webp')} srcSet={`${media('images/ai-designer/bg-960.webp')} 960w, ${media('images/ai-designer/bg-1440.webp')} 1440w, ${media('images/ai-designer/bg-2048.webp')} 2048w`} sizes="100vw" alt="" decoding="async" />
+</picture>;
 
 /* ================================================================================================ a garment */
 

@@ -1840,6 +1840,13 @@ export class KitPainter {
         this.stitches(back, this.tailoring(back).stitches);
         g.restore();
       }
+      // (A model printed from its swatches under a design picture (main.js layoutSwatch, MODELQ6 2026-11-17): its bindings in
+      // the picture's binding colour, its inside facings in the picture's own colour, never what the warped picture has there.)
+      if (this.layoutSwatch && this.model?.swatch?.length) {
+        this.side(false);
+        this.model.swatch.forEach(([x, y], which) => { g.fillStyle = which <= 1 || (which === 3 && !this.model.insert) ? this.layoutSwatch.band : this.layoutSwatch.inside; g.fillRect(x - 0.02, y - 0.02, 0.04, 0.04); });
+        g.setTransform(1, 0, 0, 1, 0, 0);
+      }
       this.marks = [];
       await this.paintLayers(design);
       g.setTransform(1, 0, 0, 1, 0, 0);

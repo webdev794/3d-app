@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert' show base64Encode;
 import 'dart:math' as math;
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../accessory_art.dart' show accessoryFrontLayer, isAccessory, wantsPictureOnKit;
 import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../own_patterns.dart';
@@ -422,8 +424,64 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     if (mounted) showToast(context, 'Logo placed on the chest.');
   }
 
+  /// The picture attached in the Ask 3DEEZI bar put on the kit as the
+  /// customer's own artwork (ARTUP, client 2026-11-18 "the upload artwork
+  /// doesn't work": "put my logo on the front" with the logo attached came
+  /// back as an AI-made print): on the front as an image layer (moved and
+  /// resized like any artwork), or printed all over when asked. No AI.
+  Future<void> _putPicture(Uint8List image, String how) async {
+    setState(() => _askImage = null);
+    _prompt.clear();
+    try {
+      final type = image.length > 3 && image[0] == 0x89 && image[1] == 0x50
+          ? 'image/png'
+          : image.length > 11 && image[8] == 0x57 && image[9] == 0x45
+          ? 'image/webp'
+          : 'image/jpeg';
+      final raw = 'data:$type;base64,${base64Encode(image)}';
+      final process = c.processArtwork;
+      final src = process == null ? raw : await process(raw, maxSize: 1600);
+      if (how == 'allover') {
+        await c.placeArtwork(src, 'My artwork', allOver: true);
+      } else if (isAccessory(c.garment)) {
+        var aspect = 1.0;
+        try {
+          final shown = await decodeImageFromList(image);
+          aspect = shown.width / math.max(1, shown.height);
+        } on Object {
+          aspect = 1;
+        }
+        final layer = accessoryFrontLayer(c.garment, src, 'My artwork', aspect);
+        if (layer != null) {
+          c.addLayer(layer);
+        } else {
+          c.edit(() => c.logoImage = image);
+        }
+      } else {
+        await c.placeArtwork(src, 'My artwork');
+      }
+      if (mounted) {
+        showToast(
+          context,
+          how == 'allover'
+              ? 'Your picture is printed all over the kit. Undo takes it off.'
+              : 'Your artwork is on the front of the kit. Drag and resize it in the 2D panels.',
+        );
+      }
+    } on Object {
+      if (mounted) showToast(context, 'Your picture could not go on the kit.');
+    }
+  }
+
   void _send() {
     final text = _prompt.text.trim();
+    final picture = _askImage;
+    final how = picture == null ? null : wantsPictureOnKit(text);
+    if (picture != null && how != null) {
+      FocusScope.of(context).unfocus();
+      _putPicture(picture, how);
+      return;
+    }
     if (text.isEmpty) {
       showToast(context, 'Describe a change, e.g. "make the collar gold".');
       return;
@@ -831,7 +889,7 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                       child: Row(
                         children: [
                           IconButton(
-                            tooltip: 'Attach a reference image',
+                            tooltip: 'Attach a picture: put it on the kit, or send it to the AI as a reference',
                             visualDensity: VisualDensity.compact,
                             onPressed: _busy != null
                                 ? null
@@ -856,6 +914,28 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                                     ),
                                   ),
                           ),
+                          if (_askImage != null)
+                            TextButton(
+                              onPressed: _busy != null
+                                  ? null
+                                  : () => _putPicture(
+                                      _askImage!,
+                                      wantsPictureOnKit(_prompt.text) ??
+                                          'front',
+                                    ),
+                              style: TextButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                ),
+                                foregroundColor: Palette.cyan,
+                                textStyle: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              child: const Text('Put on kit'),
+                            ),
                           Expanded(
                             child: TextField(
                               controller: _prompt,

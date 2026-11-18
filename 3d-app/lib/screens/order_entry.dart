@@ -3035,179 +3035,183 @@ class _OrderFormScreenState extends State<OrderFormScreen> with _OrderEntry {
   /// "Paste your order here" (ORDERPASTE 2026-11-13, as the website): one
   /// box, Paste, Add a screenshot or photo, and one Fill my order button;
   /// then what was filled, what to check, and Undo.
-  Widget _notesBox() => Container(
+  // (Client 2026-11-18, 584: "looks like the AI section": the box is the AI
+  // designer's glowing prompt bar, GlassRim, as ai_designer.dart _bar.)
+  Widget _notesBox() => Padding(
     key: const Key('notes-box'),
-    margin: const EdgeInsets.only(bottom: 14),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: const Color(0xff1d6a8a), width: 1.5),
-      color: const Color(0xff04101c),
+    padding: const EdgeInsets.only(bottom: 14),
+    child: GlassRim(
+      radius: 22,
+      width: 4.5,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          color: const Color(0xd9061019),
+        ),
+        child: _notesBody(),
+      ),
     ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Row(
-          children: [
-            Icon(Icons.content_paste, size: 20, color: Color(0xff5cc8ec)),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'PASTE YOUR ORDER HERE',
+  );
+
+  Widget _notesBody() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const Row(
+        children: [
+          Icon(Icons.content_paste, size: 20, color: Color(0xff5cc8ec)),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'PASTE YOUR ORDER HERE',
+              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.2),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 4),
+      const Text(
+        'Paste or type it any way you like: "XS x 3, S x 5, M x 5…", names with numbers and sizes, or cells copied from a spreadsheet. Or add a screenshot or photo. 3DEEZI AI fills in your order; you just check it.',
+        style: TextStyle(color: Palette.muted, fontSize: 12.5),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        key: const Key('notes-text'),
+        controller: notes,
+        minLines: 5,
+        maxLines: 10,
+        decoration: const InputDecoration(
+          hintText:
+              'e.g. XS x 3, S x 5, M x 5, L x 5, XL x 8\nor a list of players: Smith 7 M, Jones 10 L',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      Wrap(
+        spacing: 8,
+        runSpacing: 4,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          TextButton.icon(
+            key: const Key('notes-paste'),
+            onPressed: building
+                ? null
+                : () async {
+                    final data = await Clipboard.getData(Clipboard.kTextPlain);
+                    final text = data?.text ?? '';
+                    if (!mounted) return;
+                    setState(() {
+                      if (text.trim().isEmpty) {
+                        notesNote =
+                            'Nothing to paste: copy your order first, or add a screenshot or photo of it.';
+                        return;
+                      }
+                      notes.text = notes.text.trim().isEmpty
+                          ? text
+                          : '${notes.text}\n$text';
+                    });
+                  },
+            icon: const Icon(Icons.content_paste_go, size: 18),
+            label: const Text('Paste'),
+          ),
+          TextButton.icon(
+            key: const Key('notes-upload-file'),
+            onPressed: building
+                ? null
+                : () {
+                    notesFile = true;
+                    unawaited(addFile('order_form', picture: true));
+                  },
+            icon: const Icon(Icons.add_a_photo_outlined, size: 18),
+            label: const Text('Add a screenshot or photo'),
+          ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      FilledButton.icon(
+        key: const Key('build-form'),
+        onPressed: building ? null : () => unawaited(buildFromNotes()),
+        icon: building
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.auto_awesome, size: 18),
+        label: const Text('Fill my order'),
+      ),
+      if (notesNote != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 10),
+          child: Text(
+            notesNote!,
+            key: const Key('notes-status'),
+            style: const TextStyle(
+              color: Color(0xffd7ffe6),
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      for (final line in filledLines)
+        Padding(
+          padding: const EdgeInsets.only(top: 4, left: 4),
+          child: Text(
+            '• $line',
+            key: const Key('filled-line'),
+            style: const TextStyle(fontSize: 13),
+          ),
+        ),
+      if (filledDetails.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            'Also filled in: ${filledDetails.join(', ')}.',
+            style: const TextStyle(color: Palette.muted, fontSize: 12.5),
+          ),
+        ),
+      if (filledCheck.isNotEmpty)
+        Container(
+          key: const Key('notes-check'),
+          margin: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xffb7862a)),
+            color: const Color(0xff2a2009),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please check',
                 style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
+                  color: Color(0xffffe6b0),
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Paste or type it any way you like: "XS x 3, S x 5, M x 5…", names with numbers and sizes, or cells copied from a spreadsheet. Or add a screenshot or photo. 3DEEZI AI fills in your order; you just check it.',
-          style: TextStyle(color: Palette.muted, fontSize: 12.5),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          key: const Key('notes-text'),
-          controller: notes,
-          minLines: 5,
-          maxLines: 10,
-          decoration: const InputDecoration(
-            hintText:
-                'e.g. XS x 3, S x 5, M x 5, L x 5, XL x 8\nor a list of players: Smith 7 M, Jones 10 L',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 4,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            TextButton.icon(
-              key: const Key('notes-paste'),
-              onPressed: building
-                  ? null
-                  : () async {
-                      final data = await Clipboard.getData(
-                        Clipboard.kTextPlain,
-                      );
-                      final text = data?.text ?? '';
-                      if (!mounted) return;
-                      setState(() {
-                        if (text.trim().isEmpty) {
-                          notesNote =
-                              'Nothing to paste: copy your order first, or add a screenshot or photo of it.';
-                          return;
-                        }
-                        notes.text = notes.text.trim().isEmpty
-                            ? text
-                            : '${notes.text}\n$text';
-                      });
-                    },
-              icon: const Icon(Icons.content_paste_go, size: 18),
-              label: const Text('Paste'),
-            ),
-            TextButton.icon(
-              key: const Key('notes-upload-file'),
-              onPressed: building
-                  ? null
-                  : () {
-                      notesFile = true;
-                      unawaited(addFile('order_form', picture: true));
-                    },
-              icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-              label: const Text('Add a screenshot or photo'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        FilledButton.icon(
-          key: const Key('build-form'),
-          onPressed: building ? null : () => unawaited(buildFromNotes()),
-          icon: building
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.auto_awesome, size: 18),
-          label: const Text('Fill my order'),
-        ),
-        if (notesNote != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 10),
-            child: Text(
-              notesNote!,
-              key: const Key('notes-status'),
-              style: const TextStyle(
-                color: Color(0xffd7ffe6),
-                fontSize: 13.5,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        for (final line in filledLines)
-          Padding(
-            padding: const EdgeInsets.only(top: 4, left: 4),
-            child: Text(
-              '• $line',
-              key: const Key('filled-line'),
-              style: const TextStyle(fontSize: 13),
-            ),
-          ),
-        if (filledDetails.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 6),
-            child: Text(
-              'Also filled in: ${filledDetails.join(', ')}.',
-              style: const TextStyle(color: Palette.muted, fontSize: 12.5),
-            ),
-          ),
-        if (filledCheck.isNotEmpty)
-          Container(
-            key: const Key('notes-check'),
-            margin: const EdgeInsets.only(top: 8),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xffb7862a)),
-              color: const Color(0xff2a2009),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Please check',
-                  style: TextStyle(
+              for (final line in filledCheck)
+                Text(
+                  '• $line',
+                  style: const TextStyle(
                     color: Color(0xffffe6b0),
-                    fontWeight: FontWeight.w700,
+                    fontSize: 12.5,
                   ),
                 ),
-                for (final line in filledCheck)
-                  Text(
-                    '• $line',
-                    style: const TextStyle(
-                      color: Color(0xffffe6b0),
-                      fontSize: 12.5,
-                    ),
-                  ),
-              ],
-            ),
+            ],
           ),
-        if (beforeFill != null && !building)
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              key: const Key('undo-fill'),
-              onPressed: undoLastFill,
-              icon: const Icon(Icons.undo, size: 18),
-              label: const Text('Undo'),
-            ),
+        ),
+      if (beforeFill != null && !building)
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            key: const Key('undo-fill'),
+            onPressed: undoLastFill,
+            icon: const Icon(Icons.undo, size: 18),
+            label: const Text('Undo'),
           ),
-      ],
-    ),
+        ),
+    ],
   );
 
   /// "Have an order sheet?" (.pdf .xlsx .xls): read like Upload order; sizes come into the garments.

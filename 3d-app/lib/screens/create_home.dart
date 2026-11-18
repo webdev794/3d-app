@@ -3182,6 +3182,68 @@ Future<void> convertFlow(
   }
 }
 
+/// The AI preview picture of Artwork to 3D: the artwork's colours and a name
+/// read by the AI (no print is made from it); null when the reading failed,
+/// and the artwork still goes on the kit.
+Future<DesignSpec?> _readArtworkColours(
+  BuildContext context,
+  AppController c,
+  Uint8List image,
+  ({_ArtworkKind kind, String sport, String garment, String product, bool ai})
+  choice,
+) async {
+  final navigator = Navigator.of(context);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const PopScope(
+      canPop: false,
+      child: Dialog(
+        backgroundColor: Palette.surface,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(22, 26, 22, 26),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ScreenTitle('Reading your artwork…', size: 21),
+              SizedBox(height: 6),
+              Text(
+                'Its colours and name. Your artwork then goes on the kit.',
+                style: TextStyle(color: Palette.muted, fontSize: 12),
+              ),
+              SizedBox(height: 18),
+              EmblemLoader(size: 180),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+  try {
+    return await c.ai.planDesign(
+      sport: choice.sport,
+      garment: choice.product.isNotEmpty ? choice.product : choice.garment,
+      brief:
+          'Read the attached artwork: its main, secondary and accent colours '
+          'and a short name for the design. The artwork itself goes on the '
+          'garment as it is.',
+      reference: image,
+    );
+  } on Object catch (e) {
+    if (context.mounted) {
+      showToast(
+        context,
+        e is AiException
+            ? '${e.message} Your artwork goes on the kit without the AI colours.'
+            : 'The AI could not read the colours: your artwork goes on the kit as it is.',
+      );
+    }
+    return null;
+  } finally {
+    navigator.pop();
+  }
+}
+
 /// What the user's artwork is (Artwork to 3D, task 9.153).
 enum _ArtworkKind { layout, front, allOver, garment }
 
@@ -3285,10 +3347,6 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
   final accessoryAi =
       isAccessory(choice.garment) &&
       (choice.ai || choice.kind == _ArtworkKind.garment);
-  if (choice.ai && !accessoryAi) {
-    await convertFlow(context, c, picture: bytes);
-    return;
-  }
   if (!c.signedIn &&
       (choice.kind == _ArtworkKind.layout ||
           choice.kind == _ArtworkKind.garment)) {
@@ -3298,6 +3356,15 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
     );
     c.go(AppScreen.auth);
     return;
+  }
+  // AI preview picture: the AI reads the artwork's colours and a name, then
+  // the artwork ITSELF goes on the kit as chosen (ARTUP, client 2026-11-18
+  // "the upload artwork doesn't work": before, only an AI-made print from
+  // the reading went on, never the customer's artwork).
+  DesignSpec? read;
+  if (choice.ai && !accessoryAi) {
+    read = await _readArtworkColours(context, c, bytes, choice);
+    if (!context.mounted) return;
   }
   final messenger = ScaffoldMessenger.of(context);
   void say(String text) {
@@ -3316,10 +3383,24 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
   c.startArtworkKit(
     choice.sport,
     choice.garment,
-    name.replaceFirst(RegExp(r'\.[^.]*$'), ''),
+    read != null && read.designName.trim().isNotEmpty
+        ? read.designName.trim()
+        : name.replaceFirst(RegExp(r'\.[^.]*$'), ''),
   );
   // A garment typed in "Custom…" names the kit (its 3D garment the nearest).
-  if (choice.product.isNotEmpty) c.productName = choice.product;
+  if (choice.product.isNotEmpty) {
+    c.productName = choice.product;
+  } else {
+    // On the sport's own tile: its ready-made 3D model and look, as choosing
+    // the tile does (ARTUP 2026-11-18: the basketball singlet opened on the
+    // plain code-made singlet).
+    for (final t in sportNamed(choice.sport)?.tiles ?? const <GarmentTile>[]) {
+      if (!t.soon && t.garment == choice.garment) {
+        GarmentScreen.choose(c, t);
+        break;
+      }
+    }
+  }
   // The side panels and trims take the artwork's main colour (not the
   // default cyan); a logo's kit stays plain, its sides matching the body.
   final main = look.main;
@@ -3328,6 +3409,12 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
   } else if (main != null) {
     c.secondaryColor = main;
     if (choice.kind == _ArtworkKind.allOver) c.mainColor = main;
+  }
+  // The AI preview's colours (never its print: the artwork is the design).
+  if (read != null) {
+    c.mainColor = read.mainColor;
+    c.secondaryColor = read.secondaryColor;
+    c.accentColor = read.accentColor;
   }
   // The Studio's 3D kit starts first.
   for (

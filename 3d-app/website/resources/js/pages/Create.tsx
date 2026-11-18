@@ -14,7 +14,7 @@ import { preparePattern } from '../components/OwnPatterns';
 import { PlayerShotButton } from '../components/PlayerShot';
 import { RecentDesigns, writeLocalSession, type AiSessionFull, type AiSessionOption, type AiSessionSummary, type LocalAiSession } from '../components/RecentDesigns';
 import { CUSTOM, CUSTOM_MAX, CUSTOM_PLACEHOLDER, customName, customSportId, nearestGarment, typedName } from '../customChoice';
-import { accessoryBackMarks, accessoryDesign, accessoryFrontLayer, accessoryGarments, isAccessory, type AccessoryReading } from '../accessoryArt';
+import { accessoryBackMarks, accessoryDesign, accessoryFrontLayer, accessoryGarments, isAccessory, kitFrontLayer, type AccessoryReading } from '../accessoryArt';
 import '../../css/ai-designer.css';
 
 export const kitArt = (sport: string) => media(`showroom/kit-${sport}.webp`);
@@ -1166,15 +1166,23 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
   }
 
   /** The artwork on the real 3D garment, then the Studio (where a print layout's panels are checked first). */
-  async function toStudio() {
+  /**
+   * [read]: the AI preview's name and colours (OPEN AI PREVIEW IN 3D STUDIO). The artwork itself still goes on the kit as
+   * chosen in step 1, never an AI-made print in its place (ARTUP, client 2026-11-18 "the upload artwork doesn't work").
+   */
+  async function toStudio(read?: { name: string; colours: Partial<Design> }) {
     if (!art) return;
     setPlacing(true); setError('');
     try {
-      const base = { ...draft, id: undefined, version: undefined, name: draft.name === 'Untitled kit' ? art.name.replace(/\.[a-z]+$/i, '').slice(0, 60) || 'My design' : draft.name, sport: sportId, garment: garment3d, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
+      const base = { ...draft, id: undefined, version: undefined, name: read?.name || (draft.name === 'Untitled kit' ? art.name.replace(/\.[a-z]+$/i, '').slice(0, 60) || 'My design' : draft.name), sport: sportId, garment: garment3d, mode: 'dyo' as const, patternMotif: undefined, pendingDrawing: undefined };
       // A fresh kit for the artwork (an earlier design's logos, print or layout are not carried over).
       // The side panels and trims take the artwork's main colour (not the default kit's cyan); a logo's kit stays plain.
       const look = art.look;
-      const design: Design = { ...defaultDesign, garment: garment3d as Design['garment'], layout: null, layers: [], patternImage: null, secondary: kind === 'front' ? defaultDesign.main : look.main, ...(kind === 'allover' ? { main: look.main } : {}), ...typed };
+      // On the sport's own tile (its ready-made 3D model and look, as choosing the tile does), else the plain garment.
+      const tile = customGarment ? undefined : tiles.find(t => t.garment === garment3d && t.fit !== 'soon');
+      const tileDesign = tile ? { trackStyle: undefined, neck: undefined, fit: undefined, ...tile.design } as Partial<Design> : null;
+      const start: Design = { ...defaultDesign, ...(tileDesign ? { ...tileDesign, ...tileMarks(defaultDesign, tileDesign as Design, garment3d), productName: tile!.name } : {}) };
+      const design: Design = { ...start, garment: garment3d as Design['garment'], layout: null, layers: start.layers ?? [], patternImage: null, secondary: kind === 'front' ? start.main : look.main, ...(kind === 'allover' ? { main: look.main } : {}), ...(read?.colours ?? {}), ...typed };
       if (kind === 'garment') { await fromGarmentPicture(base, design); return; }
       if (kind === 'layout') {
         const form = new FormData(); form.append('file', art.file); form.append('name', art.name.slice(0, 120)); form.append('type', 'layout');
@@ -1191,7 +1199,7 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
           const marks = layer ? accessoryBackMarks(garment3d) : null;
           onChange({ ...base, design: { ...design, ...(layer ? { layers: [layer] } : { logoImage: src }), ...(marks ? { logoText: '3DEEZI', marks: { ...(design.marks ?? {}), ...marks } } : {}) } });
         } else {
-          const layer = { id: crypto.randomUUID(), type: 'image' as const, name: art.name.slice(0, 120), src, side: 'front' as const, part: 'top' as const, x: 0, y: 0.42, w: 0.24 };
+          const layer = kitFrontLayer(garment3d, src, art.name.slice(0, 120));
           onChange({ ...base, design: { ...design, layers: [...(design.layers ?? []).filter(l => l.type !== 'image' || l.src !== src), layer] } });
         }
       }
@@ -1283,7 +1291,12 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
       })();
       return;
     }
-    openStudioWith({ ...draft, id: undefined, version: undefined, name: result.name || 'My design', sport: result.sport || sportId, garment: result.garment, mode: 'ai', design: { ...draft.design, ...result.design, patternImage: null, layout: null, productName: undefined }, patternMotif: result.motif || undefined, pendingDrawing: undefined });
+    // The customer's own artwork on the kit (as chosen in step 1, on the garment chosen in step 2), in the colours the
+    // AI read from it. Before (ARTUP, client 2026-11-18): only an AI-made print from the reading went on, never the artwork.
+    const d = result.design;
+    const colours: Partial<Design> = { main: d.main, secondary: d.secondary, accent: d.accent, ...(d.patternColor ? { patternColor: d.patternColor } : {}) };
+    setOpening(false);
+    requireAuth(() => { setOpening(true); void toStudio({ name: result.name || 'My design', colours }).finally(() => setOpening(false)); });
   };
   const modelName = (g: string) => catalog?.garments.find(c => c.id === g)?.name ?? garmentLabels[g] ?? g;
 
@@ -1311,10 +1324,13 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
           {/* What happens next (the space under the buttons was empty, client picture 294.jpg). */}
           <div className="convert-next" role="status">
             <span className="eyebrow">OPENS ON</span>
-            <strong>{modelName(result.garment)}</strong>
+            <strong>{modelName(isAccessory(result.garment) ? result.garment : garment3d)}</strong>
             <small>{(placing || opening) && isAccessory(result.garment) ? 'Cutting your logos out of the artwork and putting them on the 3D model…'
               : isAccessory(result.garment) ? 'Your front logo goes on the front panels, the back logo on the back and the side labels on the sides, in your artwork’s colours. Move, resize or recolour them in the Studio.'
-              : 'The 3D kit takes the colours, pattern and lettering read from your artwork.'}</small>
+              : kind === 'front' ? 'Your artwork goes on the front of the kit, in the colours read from it. Move and resize it in the Studio.'
+              : kind === 'allover' ? 'Your artwork is printed all over the kit, in the colours read from it.'
+              : kind === 'layout' ? 'Each panel of your print layout goes on its part of the garment: check them in the Studio.'
+              : 'Your design is drawn flat and put on the kit as drawn (AI, about 30 seconds): check it in the Studio.'}</small>
           </div>
           {error && <p className="error-message" role="alert">{error}</p>}</>
           : <><span className="eyebrow">1 · WHAT IS IT?</span>

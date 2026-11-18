@@ -275,3 +275,37 @@ p.of-helper-result.is-ok{color:#9af0cd}
 .of-notes-built .of-notes-status .is-ok{color:#3ddc84;flex:none}
 .of-filled{margin:10px 0 0;padding-left:20px;color:#e9f6ff;font-size:14.5px;line-height:1.5}
 .of-filled-also{margin:8px 0 0;color:var(--op-light);font-size:13.5px}
+
+/* The AI section's look (client 2026-11-18, 584: "looks like the AI section"; as /create/ai and the Order Form Maker):
+   the AI designer's studio picture behind the page, the logo and widely spaced heading, the paste box as the glowing
+   prompt bar, the cards as dark glass, the cyan buttons. Layout and every control unchanged. */
+.op-page.of-ai{position:relative;isolation:isolate;background:#02060b}
+.of-ai-bg{position:absolute;inset:0 0 auto;z-index:-2;height:min(100vh,980px);pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 50%,transparent);mask-image:linear-gradient(180deg,#000 50%,transparent)}
+.of-ai-bg img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 58%}
+.op-page.of-ai::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 42% 30% at 50% 16%,#02060bc4,#02060b5c 62%,transparent),linear-gradient(180deg,#02060b80,#02060b33 22%,#02060b99 70vh,#02060b 100vh)}
+.of-ai .op-head{text-align:center}
+.of-ai .op-head-bar{text-align:left}
+.of-ai .op-head h1{font:600 clamp(16px,1.7vw,28px)/1.2 var(--heading);letter-spacing:.42em;margin-right:-.42em;color:#e8eef5;text-shadow:0 2px 16px #000}
+.of-ai .of-logo{display:block;width:clamp(200px,24vw,400px);height:auto;margin:4px auto 18px;mix-blend-mode:screen;filter:drop-shadow(0 8px 30px #000)}
+.of-ai .op-head p{margin-top:10px;color:#b9c7d4;text-shadow:0 1px 8px #000}
+.of-ai .op-card{border:1.5px solid #19d6ea59;border-radius:22px;background:linear-gradient(180deg,#07131ecc,#030a12e6);box-shadow:0 0 22px #00d9ed1f,inset 0 0 18px #00d9ed0d;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.of-ai .op-section-head{border-radius:21px 21px 0 0;background:linear-gradient(90deg,#0b2232cc,#07131e66)}
+.of-ai .op-input{border-radius:10px;border-color:#ffffff2b;background-color:#0a141ecc}
+.of-ai .op-input:focus{border-color:#3fe6f5;box-shadow:0 0 0 1px #00d9ed4d,0 0 14px #00d9ed33}
+/* "Paste your order here": the AI designer's prompt bar. */
+.of-ai .of-paste-box{border:1.5px solid #19d6eacc;border-radius:28px;box-shadow:0 0 0 1px #00d9ed1f,0 0 22px #00d9ed3d,inset 0 0 18px #00d9ed12;transition:border-color .2s,box-shadow .2s}
+.of-ai .of-paste-box:focus-within{border-color:#3fe6f5;box-shadow:0 0 0 1px #00d9ed4d,0 0 30px #00d9ed5c,inset 0 0 18px #00d9ed1c}
+.of-ai .of-paste-box h2{letter-spacing:.24em}
+.of-ai .of-paste-box .of-notes-text{border:0;border-radius:14px;background:#0a141e80;box-shadow:none;font-size:clamp(15px,1.06vw,17px);line-height:1.45}
+.of-ai .of-btn{border-radius:12px;border:1.5px solid #19d6ea8c;background:#04101acc}
+.of-ai .of-btn:not(:disabled):hover{border-color:#3fe6f5;background:#0b2636}
+.of-ai .of-btn.is-primary{border:0;background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;box-shadow:0 0 22px #00d9ed4d}
+.of-ai .of-fill-btn{border-radius:999px;min-height:46px;background:#14d8ec;color:#021219;font-weight:700;box-shadow:0 0 18px #00d9ed80}
+.of-ai .of-fill-btn:not(:disabled):hover{background:#3fe6f5;box-shadow:0 0 24px #00d9edaa;filter:none}
+.of-ai .op-bar{border-top:1px solid #19d6ea59;background:linear-gradient(180deg,#030a12e6,#02060bf2);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.of-ai .op-bar-secondary{border-radius:14px;border-color:#19d6eacc;background:#04101acc}
+.of-ai .op-bar-primary{background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;box-shadow:0 0 22px #00d9ed4d}
+/* This step has its own 3DEEZI ASSIST card (as Upload Your Order, order-upload.css): it replaces the floating button,
+   which covered the card's rows (client 2026-11-18, 584). Its "Ask for help" box still opens the chat; the review and
+   sent steps, with no card, keep the floating button. */
+body:has(.of-page:not(.is-review):not(.is-done)) .assist-launcher{display:none}
