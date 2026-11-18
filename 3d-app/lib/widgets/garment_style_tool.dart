@@ -72,7 +72,57 @@ class GarmentStyleTool extends StatelessWidget {
             ],
           ),
         ),
-        if (!hasNeckStyle(c.garment))
+        // (The Darts & Pool polos, client 2026-11-17 582: Button-up is the
+        // polo model's own; Zip-up its own model, coming soon.)
+        if (hasPoloCollar(c.sport, c.garment)) ...[
+          const SectionLabel('Collar'),
+          Row(
+            children: [
+              for (final (id, label) in const [
+                ('polo-button', 'BUTTON-UP COLLAR'),
+                ('polo-zip', 'ZIP-UP COLLAR'),
+              ])
+                Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: id == 'polo-button' ? 10 : 0,
+                    ),
+                    child: _NeckCard(
+                      key: ValueKey('collar-$id'),
+                      id: id,
+                      label: label,
+                      selected: (id == 'polo-zip') == isZipPolo(c.zoneColors),
+                      soon: id == 'polo-zip' && !poloZipReady,
+                      c: c,
+                      onTap: () => c.edit(() {
+                        c.zoneColors = {
+                          for (final e in c.zoneColors.entries)
+                            if (e.key != 'poloZip') e.key: e.value,
+                          if (id == 'polo-zip') 'poloZip': _trim,
+                        };
+                      }),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(top: 10),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Palette.cyan, size: 17),
+                const SizedBox(width: 6),
+                Text(
+                  '${isZipPolo(c.zoneColors) ? 'Zip-up' : 'Button-up'} collar selected',
+                  style: const TextStyle(
+                    color: Palette.cyan,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ] else if (!hasNeckStyle(c.garment))
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: Text(
@@ -275,24 +325,29 @@ class _NeckCard extends StatelessWidget {
     required this.selected,
     required this.c,
     required this.onTap,
+    this.soon = false,
   });
   final String id, label;
   final bool selected;
+
+  /// A collar still to come (the Darts & Pool polos' zip-up): shown, not chosen.
+  final bool soon;
   final AppController c;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final own = c.partStyleOf('collar').colour;
-    return Semantics(
+    final card = Semantics(
       selected: selected,
       button: true,
-      label: label,
+      enabled: !soon,
+      label: soon ? '$label, coming soon' : label,
       child: GlowCard(
         radius: 10,
         glow: false,
         selected: selected,
-        onTap: onTap,
+        onTap: soon ? null : onTap,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
           child: Column(
@@ -322,11 +377,21 @@ class _NeckCard extends StatelessWidget {
                   letterSpacing: .5,
                 ),
               ),
+              if (soon)
+                const Text(
+                  'COMING SOON',
+                  style: TextStyle(
+                    fontSize: 9,
+                    letterSpacing: 1.1,
+                    color: Color(0xff7fdcf0),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
+    return soon ? Opacity(opacity: .55, child: card) : card;
   }
 }
 
@@ -347,7 +412,8 @@ class _NeckArt extends CustomPainter {
     canvas.scale(size.width / 120, size.height / 80);
     final v = id == 'v' || id == 'rc004' || id == 'rc007';
     final shallow = id == 'shallow-v';
-    final fold = id == 'rc008' || id == 'rc009' || id == 'rc010';
+    final fold =
+        id == 'rc008' || id == 'rc009' || id == 'rc010' || id == 'polo-button';
     final band = switch (id) {
       'rc001' || 'rc003' || 'shallow-v' => 9.0,
       'rc005' => 8.0,
@@ -393,9 +459,28 @@ class _NeckArt extends CustomPainter {
         Paint()..color = accent,
       );
     }
-    if (id == 'rc006' || id == 'rc007' || id == 'rc008' || id == 'rc009') {
+    if (id == 'polo-zip') {
+      final zip = Paint()
+        ..color = const Color(0xffcfd6dc)
+        ..strokeWidth = 2;
+      for (var y = 8.0; y < 80; y += 3.6) {
+        canvas.drawLine(Offset(60, y), Offset(60, y + 2), zip);
+      }
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(56.5, 30, 7, 12),
+          const Radius.circular(2),
+        ),
+        zip,
+      );
+    }
+    if (id == 'rc006' ||
+        id == 'rc007' ||
+        id == 'rc008' ||
+        id == 'rc009' ||
+        id == 'polo-button') {
       final top = id == 'rc007' ? 60.0 : 36.0;
-      final n = id == 'rc008' ? 3 : 1;
+      final n = id == 'rc008' || id == 'polo-button' ? 3 : 1;
       canvas.drawRect(
         Rect.fromLTWH(56, top, 8, n > 1 ? 34 : 22),
         Paint()..color = accent,

@@ -269,7 +269,7 @@ function addNeck(garment, add) {
  * The mannequin for one garment part (garment.body from buildGarment with detail on). `over`: a top worn over shorts
  * (the shorts' own form carries the hips). Returns a group in the garment's coordinates, or null.
  */
-export function buildMannequin(garment, material, { over = false } = {}) {
+export function buildMannequin(garment, material, { over = false, legOpenings = false } = {}) {
   const body = garment.body;
   if (!body) return null;
   const { n, positions, sleeve } = body;
@@ -298,10 +298,15 @@ export function buildMannequin(garment, material, { over = false } = {}) {
     // Shorts: the hips from the crotch to the waist, then each thigh, on past the leg opening.
     const hips = horizontalRings(trunk, body.crotch + 0.01, maxY - 0.008, 0.007);
     if (hips.length) { roundEnd(hips, up, 0.02); add(hips, () => INSIDE); }
+    // (A ready-made model added by the recipe (`legOpenings`, main.js: its own cloth, garment.geometry): each thigh ends above
+    // the top of its leg opening, a side split's top included, so the form never shows through or past the split (user 579,
+    // MODELQ2 2026-11-17).)
+    const openTop = legOpenings && garment.geometry ? legOpeningTops(garment.geometry, body.crotch) : null;
     for (const sg of [1, -1]) {
       // (FN4 2026-10-30: the thighs end just inside the leg openings, so no stubs show under the hems, as on every
       // shorts picture; the stand goes up into one of them.)
-      const leg = horizontalRings(trunk, minY + 0.022, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
+      const legFoot = Math.max(minY + 0.022, openTop?.[sg > 0 ? 1 : 0] != null ? openTop[sg > 0 ? 1 : 0] + 0.012 : -Infinity);
+      const leg = horizontalRings(trunk, legFoot, body.crotch + 0.03, 0.007, (p) => Math.sign(p.x) === sg).reverse();
       if (leg.length < 2) continue;
       roundEnd(leg, down, 0.01);
       add(leg, below(minY));
@@ -392,7 +397,66 @@ export function buildMannequin(garment, material, { over = false } = {}) {
       add(rings, (ring, i) => (body.long || body.pads || i < inSleeve - 2 ? INSIDE : i < inSleeve ? 0.5 : 0.85));
     }
   }
+  // (A ready-made model (its own cloth, garment.geometry: tripomesh.js wearer): every point of the form kept at least
+  // KEEP_IN inside the model's cloth near it, so none of it comes out through the cloth where the model folds in (user
+  // 2026-11-16: the black form showed through the Training tee's and the Football jersey's cloth). Only the form moves.)
+  if (garment.geometry && body.shoulderFit && group.children.length) keepInside(group, garment.geometry);
   return group.children.length ? group : null;
+}
+
+/** A model's leg openings: per side ([0] the wearer's right, x < 0; [1] the left) the highest point of the cloth's free edge
+ * below the crotch (a hem, a side split's top), or null. The cloth's points at one place welded first (its print copies). */
+function legOpeningTops(cloth, crotch) {
+  const P = cloth.getAttribute('position').array, I = cloth.index?.array;
+  if (!I) return null;
+  const at = new Map(), weld = new Int32Array(P.length / 3);
+  for (let i = 0; i < P.length / 3; i++) { const k = `${Math.round(P[i * 3] * 1e4)},${Math.round(P[i * 3 + 1] * 1e4)},${Math.round(P[i * 3 + 2] * 1e4)}`; if (!at.has(k)) at.set(k, i); weld[i] = at.get(k); }
+  const count = new Map();
+  for (let t = 0; t < I.length; t += 3) for (let e = 0; e < 3; e++) { const a = weld[I[t + e]], b = weld[I[t + (e + 1) % 3]], key = a < b ? a * 4194304 + b : b * 4194304 + a; count.set(key, (count.get(key) ?? 0) + 1); }
+  const top = [null, null];
+  for (const [key, c] of count) {
+    if (c !== 1) continue;
+    for (const v of [Math.floor(key / 4194304), key % 4194304]) {
+      const y = P[v * 3 + 1]; if (y >= crotch) continue;
+      const s = P[v * 3] >= 0 ? 1 : 0; if (top[s] == null || y > top[s]) top[s] = y;
+    }
+  }
+  return top;
+}
+
+const KEEP_IN = 0.005;
+/** Moves each point of the form that is less than KEEP_IN inside the nearest cloth (within 3 cm) in along that cloth's
+ * normal, twice (a point between folds meets the next one). The cloth's normals face out (its triangles are drawn front side
+ * out). */
+function keepInside(group, cloth) {
+  const P = cloth.getAttribute('position').array, N = cloth.getAttribute('normal').array, C = 0.01, cells = new Map();
+  const key = (x, y, z) => `${Math.floor(x / C)},${Math.floor(y / C)},${Math.floor(z / C)}`;
+  for (let i = 0; i < P.length / 3; i++) { const k = key(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]); (cells.get(k) ?? cells.set(k, []).get(k)).push(i); }
+  const nearest = (x, y, z) => {
+    let best = -1, bd = 0.03 * 0.03;
+    const cx = Math.floor(x / C), cy = Math.floor(y / C), cz = Math.floor(z / C);
+    for (let a = -3; a <= 3; a++) for (let b = -3; b <= 3; b++) for (let c = -3; c <= 3; c++) {
+      for (const i of cells.get(`${cx + a},${cy + b},${cz + c}`) ?? []) { const d = (P[i * 3] - x) ** 2 + (P[i * 3 + 1] - y) ** 2 + (P[i * 3 + 2] - z) ** 2; if (d < bd) { bd = d; best = i; } }
+    }
+    return best;
+  };
+  for (const mesh of group.children) {
+    const pos = mesh.geometry?.getAttribute('position');
+    if (!pos) continue;
+    let moved = false;
+    for (let pass = 0; pass < 2; pass++) for (let v = 0; v < pos.count; v++) {
+      const x = pos.getX(v), y = pos.getY(v), z = pos.getZ(v), i = nearest(x, y, z);
+      if (i < 0) continue;
+      const nx = N[i * 3], ny = N[i * 3 + 1], nz = N[i * 3 + 2], out = (x - P[i * 3]) * nx + (y - P[i * 3 + 1]) * ny + (z - P[i * 3 + 2]) * nz + KEEP_IN;
+      if (out <= 0) continue;
+      // (Only ever in towards the middle: a facing inside the cloth faces the body, and must not push the form out.)
+      const qx = x - nx * out, qz = z - nz * out;
+      if (Math.hypot(qx, qz) >= Math.hypot(x, z)) continue;
+      pos.setXYZ(v, qx, y - ny * out, qz);
+      moved = true;
+    }
+    if (moved) { pos.needsUpdate = true; mesh.geometry.computeVertexNormals(); mesh.geometry.computeBoundingBox(); mesh.geometry.computeBoundingSphere(); }
+  }
 }
 
 /**

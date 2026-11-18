@@ -754,3 +754,6 @@ Goal (client): upload the final vector print layout and 3DEEZI makes the perfect
 - [ ] App AI "YOUR DESIGNS": loading animation too small, make it big (client 16 Nov, image 566); agent FORMLOOK
 - [ ] App AI "YOUR DESIGNS": cannot zoom, should be able to zoom in (client 16 Nov, image 567); agent FORMLOOK
 - [ ] Mannequin/stand (black) shows through the cloth on the Training tee and Football jersey models (user 16 Nov); MODELQ3 a4542e4e09ebb74f6, fix once for all model tiles
+- [ ] Football jersey shows the old round-neck shape with no border while "V-neck selected" (user 16 Nov, image 571): saved designs without the model flag must still open on the model; FORMLOOK aa29959e394f046c2
+- [ ] AI designer design pictures / print layouts show on the OLD made garment instead of the ready-made model (user 17 Nov, images 574/575; viewer main.js recipeFor/bballSinglet/fbJerseyOn skip models when a layout is set). Fix in shared code, proven on the AFL guernsey first; MODELQ4 af917fafd6c684223
+- [ ] Darts & Pool (client 17 Nov, image 582): polos first (Darts shirt, Pool polo) on the polo model; collar choice Button-up (polo-shirt.glb) / Zip-up (polo-zip.glb, user makes it in Tripo); tee/hoodie/zip hoodie/cap stay as defaults. MODELQ5 ae434fc2bf40a0f09 in its polo step

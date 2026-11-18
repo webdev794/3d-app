@@ -76,6 +76,11 @@ async function check() {
     await page.addInitScript(() => { window.Viewer = { postMessage: () => {} }; });
     await page.goto(url.pathToFileURL(html).href + '?host=t&still&debug');
     await page.waitForFunction(() => document.body.classList.contains('ready') && window.__v, null, { timeout: 180000 });
+    // (MODELQ3 2026-11-17: the kit held at its rest height for the whole check. The viewer floats it (frame():
+    // kit.position.y = 0.0025 sin 0.7t), and frameKit measured it part-way through that float, so every load framed it a
+    // little differently and every capture caught it at another height: picture differences on untouched tiles of the
+    // same build (self-test FAIL, 25 tiles). Held, the same build gives the same pixels, load after load.)
+    await page.evaluate(() => Object.defineProperty(window.__v.kit.position, 'y', { get: () => 0, set: () => {}, configurable: true }));
     // The empty stage (kit hidden), to measure how much of a picture the garment covers.
     const bg = await page.evaluate(async () => { window.__v.kit.visible = false; const d = window.viewer.captureDataUrl('Front'); window.__v.kit.visible = true; return d; });
     const res = {};

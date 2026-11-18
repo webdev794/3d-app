@@ -243,8 +243,8 @@ const pictureLooks = {
   'nfl-varsity': 'nflVarsity',
   'shorts': 'shortsPlainTile',
   'rugby-shorts': 'rugbyShortsTile',
-  'rugby-training-shorts': 'shortsTile',
-  'nfl-training-shorts': 'shortsTile',
+  'rugby-training-shorts': 'trainingShorts',
+  'nfl-training-shorts': 'trainingShorts',
   'socks': 'socksHeel',
   'rugby-socks': 'rugbySocks',
   'nfl-socks': 'gameSocks',
@@ -857,6 +857,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'stripe': cyan,
         'zip': cyan,
         'pantsStripe': cyan,
+        'tsPants': '#27282a',
       },
       'marks': {
         'top_wordmark': {'x': -0.105, 'y': 0.575, 'scale': 1.0},
@@ -873,6 +874,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'stripe': cyan,
         'zip': '#27282a',
         'pantsStripe': cyan,
+        'tsPants': '#27282a',
       },
       'marks': {
         'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6},
@@ -1132,11 +1134,14 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'tsPants': {'zoneColors': {'shoulder': '#27282a', 'side': '#16b4f0', 'sideBlade': '#0a5ae6', 'stripe': '#16b4f0', 'zip': '#27282a', 'pantsStripe': '#16b4f0', 'tsPants': '#27282a'}, 'marks': {'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6}, 'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75}, 'shorts_crest': {'x': 0.17, 'y': 0.84}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802}}},
+    'womenRugbyShorts': {'secondary': '#00a2e8', 'zones': {'sides': 'Solid'}, 'parts': {'waistband': {'colour': '#27282a'}, 'shortsHem': {'colour': '#27282a'}}, 'zoneColors': {'cordTips': '#27282a', 'shortsPlain': '#27282a', 'shortsNarrow': '#27282a', 'womenRugbyShorts': '#27282a'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.13, 'y': 0.115, 'scale': 0.85}}},
+    'trainingShorts': {'main': '#e3ca3b', 'secondary': '#2a52a8', 'accent': '#2a52a8', 'patternColor': '#2a52a8', 'parts': {'waistband': {'colour': '#2a52a8'}}, 'zoneColors': {'trainingShorts': '#2a52a8'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.13, 'y': 0.075, 'scale': 0.85}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.06, 'scale': 0.5}}, 'layers': []},
     'rashGuard': {'zoneColors': {'rashGuard': '#ffffff'},  'pattern': 'Blades', 'patternColor': '#1672f5', 'parts': {'sides': {'colour': '#27282a', 'pattern': 'Blades'}}},
     'trainingTee': {'main': '#a9cbe8', 'secondary': '#f2e52a', 'accent': '#1e2a44', 'patternColor': '#1e2a44', 'number': '', 'zoneColors': {'trainingTee': '#f2e52a'}, 'parts': {'collar': {'colour': '#f2e52a'}}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.3}, 'top_number': {'hidden': true}, 'top_name': {'side': 'back', 'x': 0, 'y': 0.66, 'scale': 0.5}}, 'layers': []},
     'poloShirt': {'main': '#dbe3ed', 'secondary': '#2b2c30', 'accent': '#2b2c30', 'patternColor': '#2b2c30', 'number': '', 'zoneColors': {'poloShirt': '#2b2c30'}, 'parts': {'collar': {'colour': '#2b2c30'}}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'hidden': true}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
     'fitnessTop': {'zoneColors': {'fitnessTop': '#ffffff'},  'zones': solid(['sides']), 'layers': <Map<String, dynamic>>[]},
-    'aflGuernsey': {'main': '#d6b13a', 'secondary': '#1f3f8a', 'accent': '#1e2758', 'patternColor': '#1e2758', 'number': '1', 'zoneColors': {'aflGuernsey': '#3e71aa'}, 'marks': {'top_wordmark': {'x': -0.085, 'y': 0.6, 'scale': 0.4}, 'top_crest': {'x': 0.085, 'y': 0.6, 'scale': 0.28}, 'top_frontNumber': {'x': 0, 'y': 0.15, 'scale': 1.1}}, 'layers': <Map<String, dynamic>>[{'type': 'shape', 'id': 'tile-band', 'name': 'Chest band', 'part': 'top', 'side': 'front', 'x': 0, 'y': 0.451, 'shape': 'rectangle', 'w': 0.6, 'h': 0.21, 'colorFrom': 'secondary'}, {'type': 'shape', 'id': 'tile-band-back-l', 'name': 'Chest band (round the side)', 'part': 'top', 'side': 'back', 'x': 0.26, 'y': 0.451, 'shape': 'rectangle', 'w': 0.2, 'h': 0.21, 'colorFrom': 'secondary'}, {'type': 'shape', 'id': 'tile-band-back-r', 'name': 'Chest band (round the side)', 'part': 'top', 'side': 'back', 'x': -0.26, 'y': 0.451, 'shape': 'rectangle', 'w': 0.2, 'h': 0.21, 'colorFrom': 'secondary'}], 'parts': {'collar': {'colour': '#3e71aa'}}},
+    'aflGuernsey': {'main': '#d6b13a', 'secondary': '#1f3f8a', 'accent': '#1e2758', 'patternColor': '#1e2758', 'number': '1', 'zoneColors': {'aflGuernsey': '#3e71aa'}, 'marks': {'top_wordmark': {'x': -0.085, 'y': 0.6, 'scale': 0.4}, 'top_crest': {'x': 0.085, 'y': 0.6, 'scale': 0.28}, 'top_frontNumber': {'x': 0, 'y': 0.15, 'scale': 1.1}, 'top_number': {'x': 0, 'y': 0.2, 'scale': 1}}, 'layers': <Map<String, dynamic>>[{'type': 'shape', 'id': 'tile-band', 'name': 'Chest band', 'part': 'top', 'side': 'front', 'x': 0, 'y': 0.48, 'shape': 'rectangle', 'w': 0.6, 'h': 0.155, 'colorFrom': 'secondary'}, {'type': 'shape', 'id': 'tile-band-back', 'name': 'Chest band (back)', 'part': 'top', 'side': 'back', 'x': 0, 'y': 0.48, 'shape': 'rectangle', 'w': 0.6, 'h': 0.155, 'colorFrom': 'secondary'}], 'parts': {'collar': {'colour': '#3e71aa'}}},
     'bballSinglet': {
       'main': '#e4bf00',
       'secondary': '#42444c',
@@ -1385,6 +1390,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Durable rugby shorts.',
       'Shorts',
       image: 'rugby-shorts',
+    ),
+    GarmentTile(
+      "Women's rugby shorts",
+      "Fitted women's rugby shorts.",
+      'Shorts',
+      image: 'rugby-shorts',
+      look: 'womenRugbyShorts',
     ),
     GarmentTile(
       'Socks',
@@ -1940,7 +1952,13 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
     GarmentTile('Training tee', 'Breathable tee for practice.', 'Training Tee'),
     GarmentTile('Club polo', 'Smart polo for coaches.', 'Polo'),
-    GarmentTile('Training shorts', 'Light shorts for practice.', 'Shorts'),
+    GarmentTile(
+      'Training shorts',
+      'Light shorts for practice.',
+      'Shorts',
+      image: 'shorts',
+      look: 'trainingShorts',
+    ),
     GarmentTile(
       'Hoodie',
       'Warm hoodie for the dugout.',
@@ -2116,6 +2134,8 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Training shorts',
       'Light shorts that move with you.',
       'Shorts',
+      image: 'shorts',
+      look: 'trainingShorts',
     ),
     GarmentTile('Training polo', 'Smart polo for coaches and staff.', 'Polo'),
     GarmentTile(

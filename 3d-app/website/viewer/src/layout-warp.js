@@ -725,9 +725,20 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
       }
       return out;
     }
-    const N = both(at.N), S = both(at.S), U = both(at.U), H = both(at.H), T = g.near(...at.T);
+    // (A ready-made model split into pieces (MODELQ4 2026-11-17): the drawing's front neckline is laid a little up into the
+    // model's own neck band (`neckRise`), so the drawing's printed neck trim lies under the band (which takes the trim's
+    // colour) and never shows as a second line just below it.)
+    const fg = painter.model?.pieces && at.N ? garment({ outline: painter.outline.map((p) => {
+      const [xN, yN] = at.N, rise = painter.model.neckRise ?? 0.015;
+      return Math.abs(p.x) < xN && p.y < yN && p.y > yN - 0.25 ? { x: p.x, y: Math.min(yN, p.y + rise * (1 - Math.abs(p.x) / xN)) } : p;
+    }) }) : g;
+    const N = both(at.N), S = both(at.S), U = both(at.U), H = both(at.H), T = g.near(...at.T); // (the same points in order on both outlines)
     // From the viewer's left: the front as seen from the front (the wearer's right, x < 0, first), the back from behind.
-    const sides = (l, r) => [g.edge(N[l], N[r]), g.edge(N[r], S[r]), g.edge(S[r], U[r]), g.edge(U[r], H[r]), g.edge(H[r], H[l]), g.edge(H[l], U[l]), g.edge(U[l], S[l]), g.edge(S[l], N[l])];
+    const sides = (l, r) => [fg.edge(N[l], N[r]), fg.edge(N[r], S[r]), fg.edge(S[r], U[r]), fg.edge(U[r], H[r]), fg.edge(H[r], H[l]), fg.edge(H[l], U[l]), fg.edge(U[l], S[l]), fg.edge(S[l], N[l])];
+    // (A ready-made model (MODELQ4 2026-11-17): its back is printed up to its own back neck (the painter's backOutline), so
+    // the drawing's back reaches the model's back neck band with nothing of another colour above it.)
+    const gb = painter.model && painter.backOutline ? garment({ outline: painter.backOutline }) : null;
+    const sidesBack = gb ? ((B) => (l, r) => [gb.edge(B.N[l], B.N[r]), gb.edge(B.N[r], B.S[r]), gb.edge(B.S[r], B.U[r]), gb.edge(B.U[r], B.H[r]), gb.edge(B.H[r], B.H[l]), gb.edge(B.H[l], B.U[l]), gb.edge(B.U[l], B.S[l]), gb.edge(B.S[l], B.N[l])])(Object.fromEntries(['N', 'S', 'U', 'H'].map((k) => [k, { 1: gb.near(...at[k]), [-1]: gb.near(-at[k][0], at[k][1]) }]))) : null;
     for (const [role, back, l, r] of [['front', false, -1, 1], ['back', true, 1, -1]]) {
       const panel = byRole[role];
       if (!panel) continue;
@@ -739,11 +750,11 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
       if (back) {
         // The garment's back neck is cut as deep as its front (its 3D back neckline is raised, garment.js): it cuts
         // into a drawing's shallower back neck instead of squeezing the print under it.
-        out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6], lift: raised });
+        out.push({ ...region, sides: (sidesBack ?? sides)(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6], lift: sidesBack ? null : raised });
       } else {
         // The front's neck in two at its tip, held there and at its ends too, so a V's trim stays where it is.
         const gs = sides(l, r);
-        out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...gs.slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)], pins: [0, 1, 2, 4, 5, 6, 7] });
+        out.push({ ...region, sides: [fg.edge(N[l], T), fg.edge(T, N[r]), ...gs.slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)], pins: [0, 1, 2, 4, 5, 6, 7] });
       }
     }
     return out;

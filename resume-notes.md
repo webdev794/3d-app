@@ -4,6 +4,38 @@ Updated 2026-11-04 evening (weekly limit nearly used). Only what is still open; 
 - SP2 = `D:\systemp\claude\0fe865e4811eb60b\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad` (this session's own scratchpad; TRIPO spec: SP2\TRIPO\spec.md).
 - Old notes (before this clean-up) are saved in SP\resume-notes.before-1104-cleanup.md.
 
+
+## 2026-11-17 ~16:50 END OF DAY: START HERE TOMORROW (user: "Task will be completed tomorrow")
+Session limit ~90%: user said focus on ONE model (Football jersey); all other agents paused.
+- Football jersey (MODELQ5 ae434fc2bf40a0f09): merged -346 with the new method (V band on its line, own cuff/hem bands, no side panels by decision A). Open: black sleeve insides -> cloth colour (in progress at pause), then the sleeves' colour (clean straight underarm close), then QATEST pass -> Finished list. Then MODELQ5: training tee, polo, rash guard, fitness top.
+- AFL guernsey: FINISHED (user approved 17 Nov, in the Finished list). Merge C (MODELQ6 ad20652a40a13c314) READY and checked: notch/tooth gone, AI picture's neck trim under the band, tile chest band no longer over an AI picture (hid the back number). USER 17 Nov: the AFL is finalized, do NOT merge C or touch the AFL again unless the user asks (merge C stays parked in MODELQ6's folder). MODELQ6 tomorrow: Basketball singlet round neck = merge S, READY (558 flecks gone; bands/inside take an AI picture's colours on singlet + bibs): first change one anchor in TRIPO\MODELQ6\mergeS\patchS.py (it was on top of the parked merge C), then mergeS.mjs (gate allows singlet + bibs tiles), vite, flutter, QATEST. Then the Netball bibs neck border (front centre ~6 mm too low; see its log). Viewer is at -346, clean.
+- Shorts/pants (MODELQ2 a3d84832006ec0c3b): training shorts merged -345; merge 2 prepared: no display form at all on bottoms (user images 579/580), clean waistband rim from above, women's rugby shorts. Then tracksuit pants, track pants, leggings, fitness bottoms (pants tiles: gate cover check, not loosened).
+- CLIENT TASK Darts & Pool (image 582, FORMLOOK aa29959e394f046c2): polos first, collar choice Button-up (polo-shirt.glb) / Zip-up (polo-zip.glb, "coming soon" until the user adds it); defaults tee/hoodie/zip hoodie/cap stay. Code done + website built (Darts shirt moved to the Polo garment so it gets polo-shirt.glb, its picture kept; COLLAR choice Button-up / Zip-up 'coming soon'; POLO_ZIP_READY / poloZipReady switch when polo-zip.glb arrives). TODO tomorrow: screenshots (script FORMLOOK\polo-582.cjs), confirm the Darts shirt loads the polo model, app pictures, flutter build, tell MODELQ5. Also found: app catalog misses the Women's fitness top tile (website Gymwear 9 tiles, app 8) -> fix for parity. Client message about the zip polo GLB sent by the user.
+- QATEST ae6cb51fb764b8ba2: test the Football jersey first, then each merge.
+- Waiting on the user: Tripo upgrade (client), polo-zip.glb, textured HD models later.
+- Rules: D:\3d-app\tripo\AGENT-RULES.md. Merge as soon as clearly better + gate PASS; Finished list only after QATEST pass + my look. Max 2 test browsers, software graphics, none during a flutter build, RAM >= 2 GB.
+- ALL MODELS, status at end of 17 Nov (GLBs in D:d-app	ripo):
+  - Finished (accepted, never change): Basketball shorts, Netball dress, Rugby League playing shorts, AFL guernsey (finalized; merge C parked, not to be merged unless asked).
+  - On the model, needs the new method: Football jersey (MODELQ5, nearly done), Basketball singlet round neck (V passes; MODELQ6), Netball bibs (MODELQ6), Rugby League socks (old findings; after the bibs), Rugby League jersey (neck bands; user said it waits).
+  - Merged with old colouring, to redo with the new method: training tee + polo (all tee/polo tiles), rash guard, women's fitness top (MODELQ5 order: tee, polo, rash guard, fitness top), training shorts (done -345), women's rugby shorts + tracksuit pants (MODELQ2 merge 2/3).
+  - GLB made, not on tiles yet: track pants, leggings, women's fitness bottoms (MODELQ2; gate cover check), cricket polo jersey, training singlet, women's rugby jersey, baseball jersey, track jacket, tracksuit jacket, basketball hoodie (next for MODELQ5/MODELQ6 after their current models).
+  - Still to make in Tripo (user/client, after the upgrade): polo-zip.glb (Darts & Pool), tennis skirt, American football jersey + pants, fishing hooded jersey, MMA + Muay Thai shorts, puffer vest, windbreaker, women's windbreaker, raglan tee, cricket trousers; optional: bucket hat, beanie, cap.
+- Football jersey open (user 17 Nov ~17:0x, picture: neck band uneven width, wider at the left near the shoulder; QATEST -346: cuffs take the print, hem tag stays yellow, dark sleeve insides, light slivers between hem folds, AI picture's V trim under the band). MODELQ5 first job tomorrow.
+- Nothing from 16-17 Nov is on live since tar 16-a (-339); v4 = e060147 (-339). Tar/push only when asked.
+
+## 2026-11-17 ~15:45 RUNNING (START HERE after a restart)
+- New colouring method proven on the AFL guernsey (pieces between the model's own lines, colour per piece from the booklet card, edges on the visible lines, prints over all, AI design pictures ON the models): merged -343/-344, built. Tool: website/viewer/tripo-pieces.mjs + viewer/pieces/. Guideline: D:d-app	ripo\AGENT-RULES.md.
+- Agents: MODELQ6 ad20652a40a13c314 (AFL merge C: 5 mm front-neck notch, AI neck trim at the front sides, QATEST -344 findings; then singlet round neck, then netball bibs), MODELQ5 ae434fc2bf40a0f09 (Football jersey: no side panels (decided A), training tee, polo, rash guard, fitness top), MODELQ2 a3d84832006ec0c3b (training shorts approved for merge; mannequin keep-inside for legs (user 579); then its other shorts/pants), QATEST ae6cb51fb764b8ba2. MODELQ4 af917fafd6c684223 retired (context full), log TRIPO\MODELQ4.
+- Up to 2 test browsers (browser.lock + browser2.lock), RAM >= 2 GB, none during a flutter build. Memory watch re-armed.
+- Finished list gets each model only after QATEST pass + my look.
+
+## Decisions by the user (moved from questions.md, 17 Nov)
+- 17 Nov: after the AFL guernsey is merged (new method proven): add ONLY 1 extra fixer (2 fixers + tester), max 2 test browsers at once, a browser only when free RAM >= 2 GB; coordinator watches memory/speed and drops back to 1 fixer if anything waits or slows (user: only if it gives faster output, no hanging).
+- 17 Nov: colour by the model's own lines: each area between the model's lines is one cloth part; take where the colour changes from the reference picture and colour each part (user). Gate loosening for pants tiles: not approved; those tiles wait. First prove ONE new model with this method; improve the rest only after approval (user).
+- 16 Nov: V-necks on round-neck models = hide the cloth inside the V (not drawn, nothing moved/removed) + our band on the V edge (user: "Do suggested, I want quick solutions too").
+- 16 Nov: women-rugby-shorts.glb -> new tile "Women's rugby shorts" under Rugby Union (user: "Yes, make it"); women-fitness-top/bottoms -> new Gymwear tiles "Women's fitness top" / "Women's fitness bottoms" per booklet card 117908 (user: "Follow new pdf strictly").
+- 16 Nov: one shared recipe for new Tripo models (user: "Yes, do fast"); built by the singlet agent after its hole fix, proven on the AFL guernsey. Fewer agents at once, in series.
+
 ## 2026-11-16 ~18:00 (limit 90%): D: freed to 4.8 GB; MODELQ3, MODELQ2, FORMLOOK (app test + build for YOUR DESIGNS), QATEST resumed with a 30-minute extension (user). Never stop agents unless the user says so.
 
 ## 2026-11-16 ~17:30 END OF DAY: START HERE

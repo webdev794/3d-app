@@ -25,6 +25,7 @@ import GradientFlyout, { gradientOf, gradientPatch, makeGradient, stopsOf, cssGr
 import type { Gradient } from '../components/KitViewer';
 import { WordLook } from '../components/WordLook';
 import { StylePanel, NeckDetail, StyleIcon } from '../components/StylePanel';
+import { withTileModel } from '../modelFlags';
 import '../../css/studio-tools.css';
 
 type Tool = 'ai' | 'garment' | 'style' | 'colours' | 'parts' | 'patterns' | 'logos' | 'text' | 'numbers' | 'presets';
@@ -183,6 +184,13 @@ export default function Studio({ draft, onChange, catalog, requireAuth, onNotice
   const [chat, setChat] = useState<Message[]>([]);
   const latest = useRef(draft);
   latest.current = draft;
+  // A design opened on a tile with its own 3D model always shows that model (client 2026-11-17, 571.png): the tile's
+  // model flags win over a saved design's (a draft, project, preset or YOUR DESIGN made before or on another tile).
+  const tileNow = catalog?.sports.find(s => s.id === draft.sport)?.tiles?.find(t => t.garment === draft.design.garment && t.name === draft.design.productName);
+  useEffect(() => {
+    const current = latest.current, design = withTileModel(current.design, tileNow);
+    if (design !== current.design) onChange({ ...current, design });
+  }, [tileNow, draft.design]); // eslint-disable-line react-hooks/exhaustive-deps
   const liveBase = useRef<Design | null>(null);
   const aiEnabled = !!catalog?.provider.is_ai;
   // Phones: the Ask bar's input is narrow, so its hint is short (not cut off).

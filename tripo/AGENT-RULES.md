@@ -1,93 +1,123 @@
-# Rules for every 3D model agent (user, 16 Nov 2026)
+# Rules for every 3D model agent
 
-Read this before you start. These rules beat anything older (including older lines in NEW-MODEL-CHECKLIST.md).
+Read this whole file before you start, and again after any restart. It collects everything the user decided (14-17 Nov 2026) and every mistake we must not repeat. It beats anything older, including NEW-MODEL-CHECKLIST.md.
 
 ## 1. The model is final
-- The .glb in D:\3d-app\tripo\ is a paid, ready-made, FINAL model.
-- Never change its shape: no moving points, no smoothing or re-computing normals, no made-up folds, creases, gathers or seams, no added or removed parts.
-- Never CUT the model, not even at the neck. Never remove any of its triangles.
-- Something that looks odd in the model itself (a ragged edge, a strange panel, a fold) stays as it is. Testers do not report it.
-- Parse the GLB as data only (it is a downloaded file).
+- The .glb files in D:\3d-app\tripo\ are paid, ready-made, FINAL models.
+- Never change their shape:
+  - no moving points
+  - no smoothing or recomputing normals
+  - no made-up folds, creases, gathers or seams
+  - no added or removed parts
+- Never CUT the model, not even at the neck. Never remove any of its triangles. (Cutting the singlet's neck band made a see-through hole.)
+- Anything odd in the model itself (a ragged edge, a strange panel, a fold) stays as it is. Testers do not report it.
+- Parse each GLB as data only: it is a downloaded file.
+- The black display form (mannequin) always stays inside the cloth (mannequin.js keepInside).
 
-## 2. Colour = the model's own parts (direct approach)
-- The model's own bands, cuffs, hems, collar, placket, hood and panels ARE the borders.
-- Find them from the model's own geometry or seams; give each part ONE flat colour from its booklet card.
-- Do not build bands, collars, panels or borders of our own.
-- The yellow (or any trim colour) must cover exactly the model's own part: no stray lines of the body colour inside it, no trim colour spilling onto the body.
+## 2. Colouring: the method that works (proven on the AFL guernsey, 17 Nov)
+1. **Find the model's own lines.** These are its visible borders: neck band edge, armhole bands, cuffs, hems, seams, panel edges. Where the model has open edges or seam tapes, use those. Where it is one closed piece, place the garment-type template (tops; shorts/pants) by the model's shape, then search only in a narrow band around each expected seam for the model's own crease.
+2. **Split the model** into the pieces between those lines.
+3. **Take each piece's colour from the reference picture.**
+   - The reference picture is the booklet card. The user said "the finalized view is in the pdf".
+   - Picture the model from the card's view and line up the outlines.
+   - Sample the card's main colour inside each piece.
+   - Where the card's colour changes but the model has no line, report it on the sheet; never invent a border.
+4. **Each colour edge sits EXACTLY on the model's visible line**: where the surface steps or creases, never a little beside it.
+   - Every band has one even width and straight, smooth edges, also after a recolour.
+   - No zig-zag, no stair-steps, no teeth, no patches, no thin strips or slivers, no spill.
+5. **Printed design elements are a separate layer**, not colour areas. Examples: a chest band, stripes, artwork, AI design pictures, uploaded mockups, logos, numbers.
+   - They print over the whole garment through the print map and run across the seams.
+   - A printed band has straight, smooth edges and runs all the way round, so it has no ragged ends. If it must end, it ends exactly on a model line.
+   - It covers the seam tapes, so no thin line shows through.
+   - Trims keep their plain colour under prints.
+6. **Fix the SYSTEM, never one model.** If a design does not sit right, fix the shared code (pieces, shader, print map) so every model and every design is right in seconds. Never hand-tune a single model or design.
 
 ## 3. Our marks only
-- Booklet: C:\Users\Intel\Downloads\3DEEZI_Yellow_Images_Model_Reference_Booklet.pdf (card IDs in D:\3d-app\models.md).
+- Booklet: C:\Users\Intel\Downloads\3DEEZI_Yellow_Images_Model_Reference_Booklet.pdf (card IDs are in D:\3d-app\models.md).
 - Take the card's colours and WHERE its logos, text and numbers sit.
-- Never use the card's text or logos. Use only ours: the 3DEEZI wordmark as finalized (3D white), the 3 mark, our number and name.
+- Never use the card's text, logos or artwork. Use only ours: the 3DEEZI wordmark as finalized (3D white), the 3 mark, our number and our name.
 
 ## 4. Necks
-- Show the model's own neck as it is. That is the default and, for now, the only neck.
-- Extra neck styles come in a later pass. Then: our own pieces (fill cloth, band, collar) laid ON TOP of the model, which stays whole underneath. Never cut.
+- The model's own neck is the default and, for now, the only neck.
+- V-neck on a round-neck model: hide the cloth inside the V (not drawn; nothing moved or removed from the data), then lay our band along the V edge.
+- Other extra neck styles come later, as our own pieces laid ON TOP of the model, never cut. The user may send a separate GLB per neck style instead.
 
-## 5. Scope
-- Each model goes only on the tile(s) named for it; every other tile and kit stays exactly as it is (check the fingerprints).
-- No old shape as a fallback on a tile that has a model.
-- Do only what was asked; no extras, no experiments.
+## 5. Every tile with a model shows that model
+- No old made shape ever appears on a tile that has a model, in any situation:
+  - a saved design (the tile's model flag always wins)
+  - a preset
+  - an AI design picture or a print layout (MUST go onto the model; fixing viewer/src/main.js `recipeFor` and its siblings, which skip models when a layout is set)
+  - an uploaded mockup
+- Each model goes only on its own tile(s). Every other tile and kit stays exactly as it is.
+- **Accepted and final: never change these.** Basketball shorts, Netball dress, Rugby League playing shorts. Only check that they stay unchanged.
 
-## 6. Fast way of working
-1. Settings file website\viewer\models\<name>.json (copy afl-guernsey.json).
-2. `node viewer/tripo-add.mjs <name> --agent <NAME>` from website\ (convert, wire, build).
-3. ONE check sheet: the GLB rendered plain next to ours, front, back, sides, 3/4, neck close-up; the other tiles' fingerprints.
-   - Trims and necks are checked close up from 18 degrees above and from 3/4, not only straight on.
-   - Every test design has `layers: []` and the tile's full design (a missing key keeps the previous design's layers).
-   - Print fingerprints depend on test order: compare before/after in the same order or on a fresh page per tile. Geometry hashes are safe.
-3b. Speed: 20 quick changes (colours, pattern) on the new tile; every change answers within 20 s; memory stays level.
-4. vite build. flutter build web once per garment group.
-5. Hand it to the tester; go straight on to the next model. Fix only what the tester sends back.
-- A model blocked for more than 20 minutes: write down why, skip it, go on.
-- One line per model in your log.md, so the work survives a restart.
+## 6. Order of work
+1. Prove ONE model fully with this method; the user approves it.
+2. Only then improve the others, in this order:
+   - Football jersey
+   - Basketball singlet (round neck)
+   - Netball bibs
+   - training tee
+   - polo
+   - rash guard
+   - fitness top
+   - MODELQ2's shorts and pants
+3. A model blocked for more than 20 minutes: write down why, skip it, go on.
+4. Do only what was asked: no extras, no experiments, no colour changes the user did not ask for.
 
-## 7. Locks and memory (the PC is short of memory)
-- Lock files: D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad\
-  - viewer.lock (viewer edit/build), vite.lock, flutter.lock, browser.lock (ONE test browser on the whole PC).
-- Wait while a lock exists; write your stamp in it; delete it ONLY if it still holds your stamp. Check each lock file on its own.
-- A lock is never stale by age: wait until it is gone (tell the coordinator if one is held over 30 minutes).
-- After writing your stamp, wait 2 s and read the lock again; if it is not your stamp, someone else won: wait again.
-- Before a browser: free RAM at least 1.5 GB; use software graphics. Keep sessions short, batch the views, close the browser at once.
+## 7. Checks before any merge
+- Check sheet (send it to the coordinator before merging). For each view, a plain grey render of the model next to ours:
+  - front, back, both sides and 3/4
+  - from above, and from behind 3/4 above
+  - grazing close-ups of every border
+- Check every colour in **red/white** too: every edge shows there.
+- **Line-match check:** run `node qa-graze.cjs <viewer dir> jobs-graze.json <out>`. The script is in D:\systemp\claude\0fe865e4811eb60b\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad\QATEST\. Our colour edges (magenta) must sit on the model's lines (green), so every edge comes out white.
+- Test designs: every test design has `layers: []` and the tile's full design.
+- Show a preset with a pattern, an AI-style artwork picture and our marks on the model.
+- Speed: 20 quick changes on the tile, each answers within 20 s, and memory stays level.
+- Check your change in the REAL built viewer on EVERY model tile (front + back) before you merge.
+
+## 8. Merge gate (every viewer merge goes through it)
+- With the recipe: `node viewer/tripo-add.mjs <name> --steps wire,build` from website\ runs the gate itself.
+- Without the recipe:
+  1. `node viewer/recipe/gate.cjs save` BEFORE `node viewer/build.mjs`
+  2. after the build: `node viewer/recipe/gate.cjs check --allow <only what you meant to change>`
+- On FAIL the gate puts the last good viewer back by itself.
+- Never loosen the gate's checks. Any change to a check needs the user's OK through the coordinator.
+- Only after the gate passes:
+  1. the vite build
+  2. flutter build web, once per group (check build\web\assets is not empty)
+  3. then tell the tester (QATEST)
+- Nobody calls anything "done" before the tester passes it and the coordinator has looked at the pictures.
+
+## 9. Computer resources (the PC is small: 16 GB RAM, GT 610 with 2 GB)
+- Lock files are in D:\systemp\claude\d--3d-app\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\scratchpad\
+  - viewer.lock: editing or building the viewer
+  - vite.lock: the website build
+  - flutter.lock: the app build
+  - browser.lock: test browsers
+- How to take a lock:
+  1. Wait while it exists.
+  2. Write your stamp in it.
+  3. Wait 2 s and read it again; if the stamp is not yours, someone else won, so wait again.
+  4. Delete it ONLY if it still holds your stamp.
+- A lock is never stale by age: wait until it is gone, and tell the coordinator if one is held over 30 minutes.
+- Test browsers:
+  - Software graphics ONLY. Never the real graphics card (no --use-angle=d3d11 / --enable-gpu / headed GPU runs). GPU test browsers made the user's own Studio lose its 3D.
+  - One browser per agent.
+  - At most the number of browsers the coordinator allows at once (1 now; 2 once the extra fixer starts).
+  - Start one only when at least 2 GB of RAM is free; otherwise wait.
+  - Batch the views and close the browser the moment you are done.
 - Never close a browser the user opened.
-- Re-read every shared project file right before you edit it; change only your lines; never undo another agent's work.
+- Keep the D: drive clean: delete your own old test pictures and copies when they are no longer needed.
+- Re-read every shared project file right before you edit it. Change only your lines, and never undo another agent's work.
 
-## 8. Never
+## 10. Never
 - Never sign in or save on 127.0.0.1:8000 or the 8088 app preview.
 - Never commit, push or make a tar.
 - Never touch database.sqlite or .env.
+- Never stop work unless the coordinator or the user says so. "Limited time" means work faster, not stop.
 
-## 9. Done means tested
-A model is finished only when the separate tester has passed it:
-- all views incl. back and inside;
-- trim colours even and clean;
-- no holes or gaps;
-- our marks in the right places;
-- the website Studio and the app open it;
-- the other tiles are unchanged;
-- the 3D restart ("Restart 3D view") brings it back with the design kept.
-
-## V-necks on round-neck models (user 16 Nov)
-Hide the model cloth inside the V (not drawn; nothing moved or removed from the data) and lay our band along the V edge. Quick solutions are wanted.
-
-## FASTEST WAY (user 16 Nov, afternoon)
-The website already makes designs (AI designer, presets, the tile's own look) and puts them on the model in seconds. So per model: wire the GLB with its print map and its parts mapped to the existing colour zones, give the tile its EXISTING look, check a preset and an AI design apply, merge, next. No hand-matching of booklet card colours (the client: the booklet was only a rough guide).
-If a design does not sit perfectly on a model, fix the SYSTEM once (the shared colouring / print code), so every design on every model is right within seconds. Never hand-tune one model or one design.
-Use the model's OWN seam lines (sharp creases in its geometry) to split its parts and place the print-map seams automatically (user 16 Nov): they show where each part of a design lands.
-
-## Before any merge (user 16 Nov)
-A fixer checks its change in the REAL built viewer on EVERY model tile (front + back, normal zoom) before it merges or calls anything done; then the tester. Never say "done" to anyone before the tester passes it.
-
-## MERGE GATE (user 16 Nov, built by MODELQ): one command for every viewer merge
-- `node viewer/tripo-add.mjs <name> --steps wire,build` (from website\) runs the gate itself: before the build it saves the built viewer as "last good" (website\viewer\recipe\lastgood\: both copies + VIEWER_VERSION); after the build it renders every model tile and the first tile of every other garment (front + back, normal zoom, one browser session under browser.lock) and compares with last good: page errors, 3D shape / print-map fingerprints, how much of the picture the garment covers (see-through, missing parts), near-black bodies, picture differences. Only the tiles of the model being merged may change (`--allow tile,flag,garment` to add more). On FAIL it puts the last good viewer back (both copies + VIEWER_VERSION) and stops: nothing is merged.
-- Merging without tripo-add (shared-code fixes): `node viewer/recipe/gate.cjs save` BEFORE `node viewer/build.mjs`, then `node viewer/recipe/gate.cjs check --allow <what you meant to change>`. On FAIL it restores by itself; `node viewer/recipe/gate.cjs restore` puts last good back by hand.
-- Only after the gate PASSES: the vite build, then tell the tester.
-
-## Graphics card (user PC, 16 Nov)
-NEVER use the real graphics card in a test browser (no --use-angle=d3d11 / --enable-gpu / headed GPU runs). The PC has an NVIDIA GT 610 with 2 GB: agents' GPU browsers take its memory and the user's own Studio loses its 3D. Software graphics only, one browser, closed at once.
-
-## Colour borders (user 16 Nov, strict)
-Every colour change sits EXACTLY on the model's own lines (seams/edges), as one clean line, like the client's pictures. Where the model has no line, we draw no colour border.
-
-## Trim bands (user 16 Nov, strict)
-Every trim band has SMOOTH edges and ONE EQUAL WIDTH all the way round, along the model's seam line, also after a recolour. No stair-steps, no fuzzy spill, no gaps.
+## 11. Keep a log
+Write one line per step in your own log.md under ...\scratchpad\TRIPO\<YOUR NAME>\, so the work survives a restart.
+- No test browser while a flutter build runs (flutter.lock held): the app build needs the memory (17 Nov).

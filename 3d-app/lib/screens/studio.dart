@@ -109,10 +109,19 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     AssistBridge.register('studio', _assistRunner);
     // My patterns (Patterns and the Drag to kit row), from the account.
     unawaited(c.loadOwnPatterns().catchError((Object _) {}));
+    // A design opened on a model tile shows that model (571.png): now and
+    // whenever another design is opened here.
+    c.addListener(_tileModel);
+    scheduleMicrotask(_tileModel);
   }
+
+  void _tileModel() => scheduleMicrotask(() {
+    if (mounted) c.applyTileModel();
+  });
 
   @override
   void dispose() {
+    c.removeListener(_tileModel);
     AssistBridge.unregister('studio', _assistRunner);
     if (c.closeStudioPanel == _closePanel) c.closeStudioPanel = null;
     if (c.partPick == _onPartPick) {

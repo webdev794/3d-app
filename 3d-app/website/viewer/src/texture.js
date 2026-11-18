@@ -1204,6 +1204,18 @@ export class KitPainter {
 
   clipOutline(back) {
     const g = this.ctx;
+    // (A model split into the pieces between its own lines (model.pieces, MODELQ4 2026-11-17): its own lines are its
+    // borders, so the print (the body, a band layer, a pattern) reaches over its whole half of the atlas: its points near the
+    // armholes and side seams print from beyond the made outline.)
+    if (this.model?.pieces) {
+      const size = this.canvas.height;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.beginPath();
+      g.rect(back ? size : 0, 0, size, size);
+      g.clip();
+      this.side(back);
+      return;
+    }
     this.side(back);
     g.beginPath();
     // (A round back over a V front (necks.js liftZ): the back panel cut with its own round neck.)
@@ -1879,6 +1891,11 @@ export class KitPainter {
 
     // The jersey's Blades: the client's Rugby League picture's shapes (jerseyBlades), loaded once.
     if (this.kind === 'jersey' || this.kind === 'shorts') this._jerseyBlades = await jerseyBladesImage(this.kind === 'shorts');
+    // (A ready-made model split into the pieces between its own lines (model.pieces, MODELQ4 2026-11-17): every colour
+    // border is one of the model's own lines (user, strict): none of the made garment's areas, panels, bands, sweeps or
+    // stripes is printed on it; its pieces take those colours (main.js, piece). Only the cloth's colour, pattern, the
+    // design's own layers and the marks.)
+    const bare = !!this.model?.pieces;
     for (const back of [false, true]) {
       // (The netball dress: the margin outside its outline in its parts' colours first: netballdress.js paintDressBleed.)
       if (isDress(this.kind)) paintDressBleed(this, design, back);
@@ -1938,8 +1955,9 @@ export class KitPainter {
         continue;
       }
       // The track pants (trackpants.js): their side stripes and the body's colour under the waistband.
+      // (Not on a model split into its pieces (bare): its colours are its own pieces', MODELQ2 2026-11-17.)
       if (this.kind === 'trackpants') {
-        paintTrackPants(this, design, back, trim);
+        if (!bare) paintTrackPants(this, design, back, trim);
         this.side(back);
         g.restore();
         continue;
@@ -1962,7 +1980,7 @@ export class KitPainter {
       // The basketball shorts: their side panels, band, piping and hems (bballprint.js), instead of the shorts' stripes and bands.
       const bball = this.kind === 'bballshorts';
       if (bball) paintBball(this, design, back, trim);
-      if (!hoodie && !track && !varsity && !bball) this.paintParts(design, back, { skip: [sideKey] });
+      if (!hoodie && !track && !varsity && !bball && !bare) this.paintParts(design, back, { skip: [sideKey] });
       g.fillStyle = trim;
       // Hoodies: no side panels or edge bands (their cuffs and waistband are rib, hoodie.js); the track jacket's own
       // panels are painted below (paintTrack); the varsity jacket has rib trims (varsity.js).
@@ -1985,7 +2003,7 @@ export class KitPainter {
         for (const poly of zoneOutlines(this.kind, 'sleeves')) { poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); }
         g.clip('evenodd');
       }
-      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' || (this.model && !sideStyle) || (this.modelBand && !sideStyle) ? [] : [-1, 1]) {
+      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' || (this.model && !sideStyle) || (this.modelBand && !sideStyle) || bare ? [] : [-1, 1]) {
         g.beginPath();
         if (shorts) {
           // Outer-leg stripe.
@@ -2100,16 +2118,16 @@ export class KitPainter {
         g.drawImage(layer, back ? this.canvas.height : 0, 0);
       }
 
-      if (hoodie) this.paintHoodie(design, back);
-      if (track) this.paintTrack(design, back);
-      if (varsity) paintVarsity(this, design, back);
-      if (hoodie || track || varsity) this.paintParts(design, back);
-      this.paintZones(design, back);
+      if (hoodie && !bare) this.paintHoodie(design, back);
+      if (track && !bare) this.paintTrack(design, back);
+      if (varsity && !bare) paintVarsity(this, design, back);
+      if ((hoodie || track || varsity) && !bare) this.paintParts(design, back);
+      if (!bare) this.paintZones(design, back);
       // (The Rugby jersey tile picture's side sweeps: jerseysweeps.js, only with design.zoneColors.sweep / sweepDeep.)
-      if (this.kind === 'jersey') paintJerseySweeps(this, design, back);
+      if (this.kind === 'jersey' && !bare) paintJerseySweeps(this, design, back);
       // (The Singlet tile picture's side flows: jerseysweeps.js, only with design.zoneColors.flow / flowLight / flowDeep.)
-      if (this.kind === 'singlet') paintSingletFlows(this, design);
-      if (this.kind === 'nfljersey') this.paintNflTrims(design, back);
+      if (this.kind === 'singlet' && !bare) paintSingletFlows(this, design);
+      if (this.kind === 'nfljersey' && !bare) this.paintNflTrims(design, back);
 
       // Collar trim: V-neck for jerseys and singlets, crew for tee and polo (the collar's own colour: design.parts).
       // (Not on a ready-made model with its own neck band (the football jersey's: printed from its swatch, below).)
@@ -2494,7 +2512,10 @@ export class KitPainter {
     if (this.model.keys) {
       const solid = (f, d) => (typeof f === 'string' ? f : d);
       const trimHex = solid(trim, design.secondary), mainHex = solid(base, design.main);
-      this.model.partColours = this.model.keys.map((k) => (k === 'collar' || k === 'waistband' ? solid(own(k), null) ?? trimHex : k === 'trim' ? trimHex : k === 'main' ? mainHex : k === 'accent' ? design.accent : k === 'inside' ? reverse ?? design.main : HEX.test(k) ? k : k.startsWith('zone:') && HEX.test(design.zoneColors?.[k.slice(5)] ?? '') ? design.zoneColors[k.slice(5)] : k.startsWith('part:') ? solid(own(k.slice(5).split('|')[0]), null) ?? (k.endsWith('|main') ? mainHex : trimHex) : trimHex));
+      // ('area:<name>' (MODELQ3 2026-11-16): a model part that IS that area of the garment (its sleeves, side panels...): the
+      // area's own colour (design.parts) or its solid colour (design.zones 'Solid'), else null: the cloth's print shows there.)
+      const areaHex = (name) => solid(own(name), null) ?? (design.zones?.[name] === 'Solid' ? solid(this.zoneFill(design, ownPatternInk(design) ? 'patternColor' : 'secondary'), design.secondary) : null);
+      this.model.partColours = this.model.keys.map((k) => (k === 'lip' ? null : k === 'collar' || k === 'waistband' ? solid(own(k), null) ?? trimHex : k === 'trim' ? trimHex : k === 'main' ? mainHex : k === 'accent' ? design.accent : k === 'inside' ? reverse ?? design.main : HEX.test(k) ? k : k.startsWith('zone:') && HEX.test(design.zoneColors?.[k.slice(5)] ?? '') ? design.zoneColors[k.slice(5)] : k.startsWith('part:') ? solid(own(k.slice(5).split('|')[0]), null) ?? (k.endsWith('|main') ? mainHex : trimHex) : k.startsWith('area:') ? areaHex(k.slice(5)) : trimHex));
     }
     (this.model.swatch ?? []).forEach(([x, y], which) => {
       if (this.model.insert) {
@@ -3215,8 +3236,10 @@ export class KitPainter {
     const boxes = [...this.marks, ...(this.layerBoxes ?? [])];
     if (!boxes.some((b) => Math.abs(b.x) + Math.hypot(b.w ?? 0, b.h ?? 0) / 2 > seamX(Math.min(top, Math.max(bottom, b.y)), Math.sign(b.x) || 1) - 0.002)) return;
     const M = Math.ceil(WRAP * s) + 8, W = this.canvas.width;
-    const scratch = (this._wrapCanvas ??= document.createElement('canvas'));
-    if (scratch.width !== W + 2 * M || scratch.height !== H) { scratch.width = W + 2 * M; scratch.height = H; }
+    // (The spare canvas made for each paint and let go after it: kept at the print's full size between paints it filled the
+    // graphics memory after a dozen quick changes and every change then took 15-30 s (QATEST 2026-11-16, RL shorts).)
+    const scratch = document.createElement('canvas');
+    scratch.width = W + 2 * M; scratch.height = H;
     const sg = scratch.getContext('2d');
     sg.setTransform(1, 0, 0, 1, 0, 0);
     sg.clearRect(0, 0, scratch.width, scratch.height);
@@ -3270,6 +3293,7 @@ export class KitPainter {
       }
       g.restore();
     }
+    scratch.width = scratch.height = 0;
   }
 
   async paintShortsMarks(design, logo, textOutline) {

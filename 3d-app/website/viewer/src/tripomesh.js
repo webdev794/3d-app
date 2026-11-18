@@ -406,13 +406,22 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // own swatch of the atlas (the model's `swatch`, else BAND_SWATCH; its painter's), so it is one even colour from its
   // free edge right to its seam, whatever the pattern does there.
   // (A model whose parts are given per triangle (its data's `triPart` / `partKeys`, MODELQ 2026-11-16, the direct approach):
-  // no part printed from swatches; each part's triangles are a group of their own, drawn in that part's plain colour
+  // no part printed from swatches; each part's triangles drawn in that part's flat colour by the cloth's own material
   // (main.js), so a trim's colour ends exactly on the model's own edge. Its cloth is printed as before.)
   // (The converter's own per-point bands that the parts replace (data `partBands`) are left off: printed as cloth, the part's
   // triangles drawn plain over them; the others (an edge binding, the inside) stay printed from their swatches.)
   const triPart = M.data.triPart && M === decoded.get(name) ? new Uint8Array(bytes(M.data.triPart)) : null;
+  // (A model split into the pieces between its own lines (its data's `piece`, MODELQ4 2026-11-17): per point the pieces on
+  // the two sides of its nearest line (0 the print, k the k-th of its partKeys) and how far it is from that line (mm, + on
+  // the first's side): the shader colours each piece's cloth up to that smooth line (main.js addRelief, piece).)
+  const pieceData = M.data.piece && M === decoded.get(name) ? new Uint8Array(bytes(M.data.piece)) : null;
+  const pieceOf = (i) => [pieceData[i * 3], pieceData[i * 3 + 1], (pieceData[i * 3 + 2] - 128) * 0.4];
+  let PC = pieceData ? Array.from({ length: n * 3 }, (_, k) => pieceOf((k / 3) | 0)[k % 3]) : null;
   let band = bandsOf(M);
-  if (triPart && band) { const off = new Set(M.data.partBands ?? []); band = band.map((b) => (off.has(b) ? 0 : b)); if (!band.some(Boolean)) band = null; }
+  if ((triPart || pieceData) && band) { const off = new Set(M.data.partBands ?? []); band = band.map((b) => (off.has(b) ? 0 : b)); if (!band.some(Boolean)) band = null; }
+  // (A model split into pieces: its points still go through the half check below (a triangle with corners on both the front
+  // and the back half printed all on one, never smeared across the print), even with none of its own bands printed.)
+  if (pieceData && !band) band = new Array(n).fill(0);
   const SW = M.data.swatch ?? BAND_SWATCH, spread = M.data.swatchSpread ?? 0;
   let pos = M.pos, nor = M.nor, uvs = uv, cols = col, index = M.idx, insideGroup = null, partGroups = null;
   if (band) {
@@ -463,6 +472,7 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
           N.push(M.nor[v * 3], M.nor[v * 3 + 1], M.nor[v * 3 + 2]);
           U.push(...uvOf(v, want));
           C.push(col[v * 3], col[v * 3 + 1], col[v * 3 + 2]);
+          if (PC) PC.push(...pieceOf(v));
         }
         idx[t + k] = copies.get(ck);
       }
@@ -480,17 +490,55 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
     pos = Float32Array.from(P); nor = Float32Array.from(N); uvs = Float32Array.from(U); cols = Float32Array.from(C);
     index = pos.length / 3 > 65535 ? Uint32Array.from(idx) : Uint16Array.from(idx);
   }
-  // (The parts' triangles each a group of their own (the triangles keep their order through the bands' copies above).)
+  // (The parts in the cloth's own material (MODELQ3 2026-11-16: separate plain materials showed the cloth see-through on a
+  // real graphics card, user 560): each point carries its part (attribute `partKey`: 0 cloth, k the k-th key; a point shared
+  // by triangles of different parts copied, so a part's colour ends exactly on the model's own edge); the print's shader
+  // gives a part's triangles that part's flat colour (main.js addRelief, partTint). The triangles keep their order through
+  // the bands' copies above; one the parts do not list (a data file changed after its parts were made) is cloth.)
+  let partKey = null;
   if (triPart && !dropBand) {
-    const all = Array.from(index), order = [], keys = M.data.partKeys ?? [];
-    partGroups = [];
-    for (let p = 0; p <= keys.length; p++) {
-      const start = order.length;
-      // (Every triangle drawn: one the parts do not list (a data file changed after its parts were made) as cloth.)
-      for (let t = 0; t < all.length / 3; t++) if ((t < triPart.length ? triPart[t] : 0) === p) order.push(all[t * 3], all[t * 3 + 1], all[t * 3 + 2]);
-      if (order.length > start) partGroups.push({ start, count: order.length - start, part: p });
+    const idx = Array.from(index), P = Array.from(pos), N = Array.from(nor), U = Array.from(uvs), C = Array.from(cols);
+    const key = new Array(P.length / 3).fill(-1), copies = new Map();
+    for (let t = 0; t < idx.length / 3; t++) {
+      const p = t < triPart.length ? triPart[t] : 0;
+      for (let k = 0; k < 3; k++) {
+        const v = idx[t * 3 + k];
+        if (key[v] === -1) key[v] = p;
+        if (key[v] === p) continue;
+        const ck = `${v}:${p}`;
+        if (!copies.has(ck)) {
+          copies.set(ck, P.length / 3);
+          P.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); N.push(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]);
+          U.push(U[v * 2], U[v * 2 + 1]); C.push(C[v * 3], C[v * 3 + 1], C[v * 3 + 2]); key.push(p);
+          if (PC) PC.push(PC[v * 3], PC[v * 3 + 1], PC[v * 3 + 2]);
+        }
+        idx[t * 3 + k] = copies.get(ck);
+      }
     }
-    index = pos.length / 3 > 65535 ? Uint32Array.from(order) : Uint16Array.from(order);
+    pos = Float32Array.from(P); nor = Float32Array.from(N); uvs = Float32Array.from(U); cols = Float32Array.from(C);
+    partKey = Float32Array.from(key, (p) => Math.max(0, p));
+    index = pos.length / 3 > 65535 ? Uint32Array.from(idx) : Uint16Array.from(idx);
+    partGroups = [];
+  }
+  // (A triangle whose corners lie by different lines (pieces meeting, a line's end): its corners copied with the one line
+  // given for it (data `pieceTri`: triangle (3 bytes), the two pieces, each corner's distance), so the pieces' colours
+  // inside it meet on that line and never mix into a third colour. The triangles are in the data's order here.)
+  if (PC && M.data.pieceTri && !dropBand && index.length === M.idx.length) {
+    const T = new Uint8Array(bytes(M.data.pieceTri)), idx = Array.from(index), P = Array.from(pos), N = Array.from(nor), U = Array.from(uvs), C = Array.from(cols), K = partKey ? Array.from(partKey) : null;
+    for (let e = 0; e + 7 < T.length; e += 8) {
+      const t = T[e] | (T[e + 1] << 8) | (T[e + 2] << 16);
+      if (t * 3 + 2 >= idx.length) continue;
+      for (let k = 0; k < 3; k++) {
+        const v = idx[t * 3 + k], c = P.length / 3;
+        P.push(P[v * 3], P[v * 3 + 1], P[v * 3 + 2]); N.push(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]); U.push(U[v * 2], U[v * 2 + 1]); C.push(C[v * 3], C[v * 3 + 1], C[v * 3 + 2]);
+        if (K) K.push(K[v]);
+        PC.push(T[e + 3], T[e + 4], (T[e + 5 + k] - 128) * 0.4);
+        idx[t * 3 + k] = c;
+      }
+    }
+    pos = Float32Array.from(P); nor = Float32Array.from(N); uvs = Float32Array.from(U); cols = Float32Array.from(C);
+    if (K) partKey = Float32Array.from(K);
+    index = pos.length / 3 > 65535 ? Uint32Array.from(idx) : Uint16Array.from(idx);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(pos === M.pos ? M.pos.slice() : pos, 3));
@@ -499,7 +547,8 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   geometry.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   geometry.setIndex(new THREE.BufferAttribute(index === M.idx ? M.idx.slice() : index, 1));
   if (insideGroup) { geometry.addGroup(0, insideGroup[0], 0); geometry.addGroup(insideGroup[0], insideGroup[1], 1); }
-  if (partGroups) for (const g of partGroups) geometry.addGroup(g.start, g.count, g.part);
+  if (partKey) geometry.setAttribute('partKey', new THREE.BufferAttribute(partKey, 1));
+  if (PC && PC.length === (pos.length / 3) * 3) geometry.setAttribute('piece', new THREE.BufferAttribute(Float32Array.from(PC), 3));
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   const points = geometry.getAttribute('position').array, side = new Uint8Array(points.length / 3);
@@ -507,7 +556,7 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // (How far out the neck band reaches, for its tips: texture.js.)
   let bandReach = 0;
   if (band && M.across) for (let i = 0; i < n; i++) if (band[i] === 1) bandReach = Math.max(bandReach, Math.abs(M.pos[i * 3]));
-  return { geometry, points, side, data: M.data, layout: layoutOf(M.data), vEdge: cut?.vEdge ?? R?.vEdge ?? null, neckRim: R?.neckRim ?? null, insideGroup: !!insideGroup, partKeys: partGroups ? M.data.partKeys ?? [] : null, collar: cut ? collarGeometry(cut.collar, frame, SW, !!M.across) : R ? collarGeometry(R.collar, frame, SW) : null, bandReach, filled: !!fill };
+  return { geometry, points, side, data: M.data, layout: layoutOf(M.data), vEdge: cut?.vEdge ?? R?.vEdge ?? null, neckRim: R?.neckRim ?? null, insideGroup: !!insideGroup, partKeys: partGroups || PC ? M.data.partKeys ?? [] : null, pieces: !!PC, collar: cut ? collarGeometry(cut.collar, frame, SW, !!M.across) : R ? collarGeometry(R.collar, frame, SW) : null, bandReach, filled: !!fill };
 }
 
 /**
@@ -707,7 +756,9 @@ function roundFill(name) {
     const vt = [d[0] - N[0] * dn, d[1] - N[1] * dn, d[2] - N[2] * dn], vl = Math.hypot(...vt) || 1, v = vt.map((x) => x / vl);
     o.v = v;
     const add = (base, a, h) => cpos.push(base[0] + v[0] * a + N[0] * h, base[1] + v[1] * a + N[1] * h, base[2] + v[2] * a + N[2] * h);
-    add(o.G, 0.007, -0.0012);
+    // (Its foot tucked 6 mm under the cloth (was 1.2 mm): where the strap tops' cloth dips, the strip from the foot up to the
+    // face's edge came out through it as dark ragged streaks along the band's lower edge (user 2026-11-16, image 558).)
+    add(o.G, 0.007, -0.006);
     // (Its face a little fuller over the straps and the back, clear of the cloth's edge under it.)
     for (const f of FACE) add([C[0] + d[0] * f, C[1] + d[1] * f, C[2] + d[2] * f], 0, (0.0007 + 0.0022 * (1 - Math.max(0, Math.min(1, o.f)))) * Math.sin(Math.PI * Math.min(1, f + 0.12)));
     add(C, 0, 0);

@@ -49,6 +49,16 @@ export const hasNeckStyle = (garment: string) => garment in neckGarments;
 /** A garment with no neck at all (shorts, pants, skirts, socks, headwear), by its garment id or product name. */
 export const hasNoNeck = (garment: string, product = '') => ['shorts', 'socks', 'cap', 'five-panel-cap', 'bucket-hat', 'beanie', 'skirt'].includes(garment) || /shorts|pants|tights|skirt|skort|socks|\bcap\b|\bhat\b|beanie/i.test(product);
 /** A rugby jersey (or the rugby kit's jersey): the collar library and the fit. */
+/**
+ * The polo's collar on the Darts & Pool polos (client 2026-11-17, 582: "button up collar, zip up collar"): Button-up is the
+ * ready-made polo model's own (polo-shirt.glb, its button placket); Zip-up is its own ready-made model (polo-zip.glb).
+ * Until that file is wired by the shared recipe (viewer/tripo-add.mjs, its flag zoneColors.poloZip) Zip-up shows as
+ * coming soon: never the old made shape. When it is wired: POLO_ZIP_READY = true (and the app's poloZipReady), and add
+ * poloZip to MODEL_FLAGS (modelFlags.ts, model_flags.dart).
+ */
+export const POLO_ZIP_READY = false;
+export const hasPoloCollar = (sport: string | null | undefined, garment: string) => sport === 'darts' && garment === 'polo';
+export const isZipPolo = (design: Pick<Design, 'zoneColors'>) => POLO_ZIP_READY && HEX.test((design.zoneColors as Record<string, string> | null | undefined)?.poloZip ?? '');
 export const hasRugbyStyle = (sport: string | null | undefined, garment: string) => isRugby(sport) && (garment === 'jersey' || garment === 'fullkit');
 
 /**

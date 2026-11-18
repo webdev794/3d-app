@@ -1,0 +1,30 @@
+{
+  "about": "Training shorts (training-shorts.glb): the model's own gathered waistband (from its top edge down to its own foot) is its own part (tripo-parts edge rule); tripo-pieces.mjs fromParts turns its border into the model's line (drawn onto the band foot crease) and the band piece takes the Waistband colour (MODELQ2 2026-11-17).",
+  "glb": "../../../tripo/training-shorts.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "waistband"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.98,
+          0
+        ],
+        "len": 332,
+        "mode": "up",
+        "margin": -0.075
+      },
+      "where": "y > 0.8",
+      "part": "waistband"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6
+  }
+}

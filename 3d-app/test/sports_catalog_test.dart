@@ -284,8 +284,8 @@ void main() {
     expect(GarmentScreen.moreFor('Rugby League'), isEmpty);
     expect(sportWithId('rugby-union')!.heading, 'Rugby');
     // A sport's garments are worked out from its tiles.
+    // (Client 2026-11-17, 582: both Darts & Pool polos on the polo model.)
     expect(sportWithId('darts')!.garments, [
-      'Polo with pocket',
       'Polo',
       'Training Tee',
       'Hoodie',

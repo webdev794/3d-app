@@ -114,3 +114,6 @@ After that: Polo shirt (75906), then Training tee (112791).
 Ready-made models: colour the model's OWN parts (its bands, cuffs, hems, collar, panels are its borders), our marks at the card positions, the model's own neck; one check, merge, next. Extra neck styles in a second pass after all queued models.
 
 ## Queue added 16 Nov (afternoon, waiting for the fresh agent): rashguard.glb, women-leggings.glb, women-fitness-top.glb, women-fitness-bottoms.glb (after tracksuit-pants.glb)
+
+## 17 Nov: textured models next (user)
+The client is upgrading Tripo; next models come as HD "Geometry & Texture" GLBs (2K texture, ~10-20k faces, maybe "Generate in Parts"). Their own colour areas become our colour zones (smooth borders from Tripo). Until then: no new model agents; the smooth-border work (MODELQ3 srcN) and MODELQ2's 6 models wait.

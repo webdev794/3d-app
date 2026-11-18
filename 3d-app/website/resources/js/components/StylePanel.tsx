@@ -3,7 +3,7 @@ import { Check, ChevronDown, ChevronRight, Info, Search } from 'lucide-react';
 import type { Design, KitViewerHandle } from './KitViewer';
 import { isTrack } from './KitViewer';
 import { withPart } from '../parts';
-import { collarOf, collarsFor, fitOf, fitsFor, fixedNeck, hasNeckStyle, hasNoNeck, hasRugbyStyle, neckLabel, neckLabels, neckOf, ownNeck, rugbyCollars, rugbyFits, trimOf, trimSwatches, type NeckStyle } from '../garmentStyle';
+import { collarOf, collarsFor, fitOf, fitsFor, fixedNeck, hasNeckStyle, hasNoNeck, hasPoloCollar, hasRugbyStyle, isZipPolo, POLO_ZIP_READY, neckLabel, neckLabels, neckOf, ownNeck, rugbyCollars, rugbyFits, trimOf, trimSwatches, type NeckStyle } from '../garmentStyle';
 import '../../css/garment-style.css';
 
 /** The Style tool's icon: a sleeveless top, as on the client's mockup (images/299). */
@@ -14,7 +14,7 @@ export function StyleIcon({ size = 22 }: { size?: number }) {
 }
 
 /** What a collar card shows (the same finishes as the 3D viewer's necks.js). */
-type Art = { shape: 'round' | 'v' | 'shallow'; band?: number; stripe?: 'inner' | 'accent' | 'white' | 'double'; insert?: 'v' | 'cross'; stand?: boolean; fold?: boolean; wing?: boolean; buttons?: number; tips?: boolean };
+type Art = { shape: 'round' | 'v' | 'shallow'; band?: number; stripe?: 'inner' | 'accent' | 'white' | 'double'; insert?: 'v' | 'cross'; stand?: boolean; fold?: boolean; wing?: boolean; buttons?: number; tips?: boolean; zip?: boolean };
 const arts: Record<string, Art> = {
     round: { shape: 'round' }, v: { shape: 'v' },
     rc001: { shape: 'round', band: 9, stripe: 'inner' }, rc002: { shape: 'round', insert: 'v', stripe: 'white', tips: true },
@@ -22,6 +22,8 @@ const arts: Record<string, Art> = {
     rc005: { shape: 'round', band: 8, tips: true }, rc006: { shape: 'round', stand: true, stripe: 'white', buttons: 1 },
     rc007: { shape: 'v', buttons: 1 }, rc008: { shape: 'round', fold: true, buttons: 3 }, rc009: { shape: 'round', fold: true, buttons: 1 },
     rc010: { shape: 'round', fold: true, insert: 'cross' }, 'shallow-v': { shape: 'shallow', band: 10, stripe: 'accent' },
+    // (The Darts & Pool polos' collars, 582.)
+    'polo-button': { shape: 'round', fold: true, buttons: 3 }, 'polo-zip': { shape: 'round', stand: true, zip: true },
 };
 
 /** A small drawing of a neck or collar in the kit's own colours (body, trim, accent). */
@@ -46,6 +48,7 @@ function NeckArt({ id, design }: { id: string; design: Design }) {
         {a.stand && <path d="M26 14 Q60 0 94 14 L94 6 Q60 -8 26 6Z" fill={trim} />}
         {a.wing && <><path d="M28 14 L46 38 L36 40Z" fill={trim} /><path d="M92 14 L74 38 L84 40Z" fill={trim} /></>}
         {a.fold && <><path d="M26 12 L58 40 L40 46 L18 24Z" fill={trim} stroke="#00000055" /><path d="M94 12 L62 40 L80 46 L102 24Z" fill={trim} stroke="#00000055" /></>}
+        {a.zip && <><path d="M60 8 V80" stroke="#cfd6dc" strokeWidth="2" strokeDasharray="2 1.6" /><rect x="56.5" y="30" width="7" height="12" rx="2" fill="#cfd6dc" /></>}
     </svg>;
 }
 
@@ -79,6 +82,11 @@ export function StylePanel({ design, sport, product, edit, onGarment, onMoreColo
                 <h4>FIT</h4>
                 <div className="fit-options" role="radiogroup" aria-label="Rugby jersey fit">{fitsFor(design).map(f => { const on = fitsFor(design) === rugbyFits ? fitOf(design) === f.id : (f.id === 'tight') === (design.fit === 'tight'); return <button key={f.id} type="button" role="radio" aria-checked={on} className={on ? 'selected' : ''} onClick={() => edit({ fit: f.id === 'pro' ? null : f.id })}><strong>{f.label}</strong><small>{f.note}</small></button>; })}</div>
             </>}
+        </> : hasPoloCollar(sport, design.garment) ? <>
+            {/* (The Darts & Pool polos, client 2026-11-17 582: Button-up is the polo model's own; Zip-up its own model, soon.) */}
+            <h4>COLLAR</h4>
+            <div className="neck-cards" role="radiogroup" aria-label="Collar">{[['polo-button', 'BUTTON-UP COLLAR'], ['polo-zip', 'ZIP-UP COLLAR']].map(([id, label]) => { const zip = id === 'polo-zip', on = zip === isZipPolo(design), soon = zip && !POLO_ZIP_READY; return <button key={id} type="button" role="radio" aria-checked={on} disabled={soon} className={`${on ? 'selected' : ''}${soon ? ' soon' : ''}`} title={soon ? 'Zip-up collar: coming soon' : undefined} onClick={() => edit({ zoneColors: { ...(design.zoneColors ?? {}), poloZip: zip ? trim : undefined } as Design['zoneColors'] })}><NeckArt id={id} design={design} /><span>{label}</span>{soon && <small className="neck-soon">COMING SOON</small>}{on && <i className="neck-tick"><Check size={13} /></i>}</button>; })}</div>
+            <p className="neck-chosen"><Check size={14} /> {isZipPolo(design) ? 'Zip-up collar' : 'Button-up collar'} selected</p>
         </> : <p className="field-hint">{isTrack(design.garment) ? 'The track jacket comes with a stand-up collar or a hood: choose it under Garment.' : hasNoNeck(design.garment, product) ? 'This garment has no collar or neck to choose.' : `The ${product.toLowerCase()} keeps its own collar.`} Neck styles: jerseys, tees, singlets, shooting shirts and netball dresses.</p>}
         {/* (Only where it helps: a neck choice that tees and netball dresses also have; not on them, nor without a neck.) */}
         {hasNeckStyle(design.garment) && design.garment !== 'tee' && design.garment !== 'netball-dress' && <p className="style-foot"><StyleIcon size={15} /> Also available on compatible netball dresses and tees.</p>}

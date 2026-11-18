@@ -1,5 +1,5 @@
 {
-  "about": "AFL > AFL guernsey: Tripo model aussie-rules-singlet.glb, booklet card 11230 (golden yellow body; azure neck and armhole bands (Neck trim colour); royal chest band (Secondary); our number big and low in the middle (Accent); our marks only).",
+  "about": "AFL > AFL guernsey: Tripo model aussie-rules-singlet.glb, booklet card 11230 (the user: the finalized view is the booklet card): golden yellow body; azure neck band and armhole bands (Collar colour) on the model's own band pieces; the card's wide royal chest band printed all the way round (Secondary), straight top and bottom edges; our number low on the front and below the band on the back (Accent); our marks only, never the card's artwork, text or logos. Its colours end on the model's own lines: viewer/tripo-pieces.mjs (MODELQ4 2026-11-17).",
   "glb": "../../../tripo/aussie-rules-singlet.glb",
   "converter": "afl-guernsey",
   "part": "singlet",
@@ -36,6 +36,11 @@
         "x": 0,
         "y": 0.15,
         "scale": 1.1
+      },
+      "top_number": {
+        "x": 0,
+        "y": 0.2,
+        "scale": 1
       }
     },
     "layers": [
@@ -46,36 +51,23 @@
         "part": "top",
         "side": "front",
         "x": 0,
-        "y": 0.451,
+        "y": 0.48,
         "shape": "rectangle",
         "w": 0.6,
-        "h": 0.21,
+        "h": 0.155,
         "colorFrom": "secondary"
       },
       {
         "type": "shape",
-        "id": "tile-band-back-l",
-        "name": "Chest band (round the side)",
+        "id": "tile-band-back",
+        "name": "Chest band (back)",
         "part": "top",
         "side": "back",
-        "x": 0.26,
-        "y": 0.451,
+        "x": 0,
+        "y": 0.48,
         "shape": "rectangle",
-        "w": 0.2,
-        "h": 0.21,
-        "colorFrom": "secondary"
-      },
-      {
-        "type": "shape",
-        "id": "tile-band-back-r",
-        "name": "Chest band (round the side)",
-        "part": "top",
-        "side": "back",
-        "x": -0.26,
-        "y": 0.451,
-        "shape": "rectangle",
-        "w": 0.2,
-        "h": 0.21,
+        "w": 0.6,
+        "h": 0.155,
         "colorFrom": "secondary"
       }
     ],

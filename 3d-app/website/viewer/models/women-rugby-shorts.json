@@ -1,0 +1,58 @@
+{
+  "about": "Rugby Union > Women's rugby shorts (a new tile, user 2026-11-16): Tripo model women-rugby-shorts.glb. MODELQ2 2026-11-16. Look: the tile's existing look (user 2026-11-16: the booklet was only a rough guide) with the model's flag.",
+  "glb": "../../../tripo/women-rugby-shorts.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.148,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "womenRugbyShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "secondary": "#00a2e8",
+    "zones": {
+      "sides": "Solid"
+    },
+    "parts": {
+      "waistband": {
+        "colour": "#27282a"
+      },
+      "shortsHem": {
+        "colour": "#27282a"
+      }
+    },
+    "zoneColors": {
+      "cordTips": "#27282a",
+      "shortsPlain": "#27282a",
+      "shortsNarrow": "#27282a",
+      "womenRugbyShorts": "#27282a"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": 0.13,
+        "y": 0.115,
+        "scale": 0.85
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

@@ -8,6 +8,10 @@
 .neck-cards button:hover{border-color:#17c8e088}
 .neck-cards button.selected{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan),0 0 18px #00d9ed33}
 .neck-cards .neck-art{width:100%;height:auto;border-radius:6px;background:#05080c}
+/* A collar still to come (the Darts & Pool polos' zip-up, 582): shown, not chosen. */
+.neck-cards button.soon{opacity:.55;cursor:not-allowed}
+.neck-cards button.soon:hover{border-color:#ffffff1c}
+.neck-soon{font-size:10px;letter-spacing:.12em;color:#7fdcf0}
 .neck-tick{position:absolute;top:6px;right:6px;display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#0ea5e9;color:#fff}
 .rugby-collars{grid-template-columns:repeat(2,minmax(0,1fr))}
 .rugby-collars button.wide{grid-column:1/-1}

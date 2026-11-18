@@ -1,0 +1,25 @@
+{
+  "about": "Tracksuit pants (tracksuit-pants.glb): the model's own waistband (from its top edge down to its own foot) in the Waistband part's colour (else Secondary), per triangle (MODELQ2 2026-11-16, viewer/tripo-parts.mjs).",
+  "glb": "../../../tripo/tracksuit-pants.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "part:waistband|main"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.966,
+          0.024
+        ],
+        "len": 70,
+        "mode": "up",
+        "margin": -0.035
+      },
+      "where": "y > 0.8",
+      "part": "part:waistband|main"
+    }
+  ],
+  "partBands": []
+}

@@ -1802,6 +1802,34 @@ class AppController extends ChangeNotifier {
   }
 
   /// Changes the kit and records the previous state for Undo.
+  /// The tile's ready-made 3D model always shows (client 2026-11-17,
+  /// 571.png): a design opened on a sport's tile takes that tile's model flags
+  /// (model_flags.dart withTileModel), and a neck the model doesn't offer
+  /// falls back to the model's own. No undo step; true when it changed.
+  bool applyTileModel() {
+    GarmentTile? tile;
+    for (final t in sportNamed(sport)?.tiles ?? const <GarmentTile>[]) {
+      if (!t.soon && t.garment == garment && t.name == productName) {
+        tile = t;
+        break;
+      }
+    }
+    final look = tile?.look;
+    if (look == null) return false;
+    final own = tileLook(look)['zoneColors'];
+    final colours = withTileModel(
+      zoneColors,
+      own is Map ? own.cast<String, dynamic>() : const {},
+    );
+    final fixed = fixedNeck(garment, colours ?? zoneColors);
+    final neckOff = fixed != null && neck != null && neck != fixed;
+    if (colours == null && !neckOff) return false;
+    if (colours != null) zoneColors = colours;
+    if (neckOff) neck = null;
+    notifyListeners();
+    return true;
+  }
+
   void edit(VoidCallback change) {
     _shelveLayout();
     _undo.add(kit);

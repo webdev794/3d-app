@@ -61,6 +61,18 @@ bool hasNoNeck(String name) => RegExp(
       caseSensitive: false,
     ).hasMatch(name);
 
+/// The polo's collar on the Darts & Pool polos (client 2026-11-17, 582), as
+/// garmentStyle.ts: Button-up is the ready-made polo model's own
+/// (polo-shirt.glb); Zip-up is its own ready-made model (polo-zip.glb), coming
+/// soon until that file is wired by the shared recipe (its flag
+/// zoneColors.poloZip): then poloZipReady = true (and POLO_ZIP_READY, and
+/// poloZip in the model flags).
+const poloZipReady = false;
+bool hasPoloCollar(String sport, String garment) =>
+    sport == 'Darts & Pool' && garment == 'Polo';
+bool isZipPolo(Map<String, String> zoneColors) =>
+    poloZipReady && _hex.hasMatch(zoneColors['poloZip'] ?? '');
+
 /// A rugby jersey (or the rugby kit's jersey): the collar library and the fit.
 bool hasRugbyStyle(String sport, String garment) =>
     isRugbySport(sport) && (garment == 'Jersey' || garment == 'Full Kit');
