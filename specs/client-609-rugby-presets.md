@@ -1,0 +1,8 @@
+# Client request 19 Nov 2026: Rugby League preset designs (images D:\systemp\claude\0fe865e4811eb60b\f8ed271f-373f-48f2-8ab8-74454c4c0e9f\images\609.png = Design Collection 03, 610.png = Design Collection 02; 12 designs, front + back each, made with ChatGPT)
+"these can be presets designs for rugby. then user can change colours and add logos."
+How: the pictures are references only. Each design is REBUILT as our own preset (our print layers / pattern shapes with colour slots Primary / Secondary / Accent + our marks + player number), so a customer can recolour it and add logos. The ChatGPT picture is never pasted onto the model. Thumbnails are rendered from our 3D model so they show exactly what the customer gets.
+Collection 02: 01 white V chevron + blue edge, cuff bands; 02 white chest band with wordmark inside + sleeve bands; 03 four horizontal white/blue pinstripes low + white collar trim; 04 large white V yoke with blue edge (back: V around the number), blue collar; 05 white shoulder slashes + fade-to-white hem; 06 blue lightning lines down the sides, blue collar + cuffs.
+Collection 03: 01 white/blue chest bands across body + sleeves; 02 vertical white/blue stripe down the left + diagonal texture; 03 white yoke with blue band; 04 white diagonal sash with blue edge; 05 white/blue claw flashes at sides and shoulders; 06 white/blue hoops lower body + white collar.
+On the Rugby League jersey (new model, stand-up collar) and the RL Kit; website + app.
+
+UPDATE 19 Nov (user): "what is working is fine, client just want to change designs" -> NO rebuild as layers; use the existing picture-on-model path (AI design picture / flat garment front+back) with the 12 cropped pictures as the Rugby League presets.
