@@ -1,12 +1,17 @@
 package com.example.three_deezi
 
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
+import android.net.Uri
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-/** Uses Android's standard document picker; no storage permission is required. */
+/**
+ * Uses Android's standard document picker; no storage permission is required. Also opens web pages in the phone's
+ * own browser (the invoice pay page, where Google Pay works), over the "3deezi/browser" channel.
+ */
 class MainActivity : FlutterActivity() {
     private var pendingSave: MethodChannel.Result? = null
     private var pendingBytes: ByteArray? = null
@@ -14,6 +19,26 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        // Pay now: the pay page in the phone's browser. Only http(s) links; false when no browser can open it.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "3deezi/browser")
+            .setMethodCallHandler { call, result ->
+                if (call.method != "open") {
+                    result.notImplemented()
+                    return@setMethodCallHandler
+                }
+                val uri = call.argument<String>("url")?.let { Uri.parse(it) }
+                val scheme = uri?.scheme?.lowercase()
+                if (uri == null || (scheme != "https" && scheme != "http")) {
+                    result.success(false)
+                    return@setMethodCallHandler
+                }
+                try {
+                    startActivity(Intent(Intent.ACTION_VIEW, uri).addCategory(Intent.CATEGORY_BROWSABLE))
+                    result.success(true)
+                } catch (error: ActivityNotFoundException) {
+                    result.success(false)
+                }
+            }
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "3deezi/files")
             .setMethodCallHandler { call, result ->
                 if (call.method != "saveZip") {

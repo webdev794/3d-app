@@ -28,8 +28,10 @@ flutter:
     - assets/images/
     - assets/images/art/
     - assets/images/showroom/
+    - assets/images/ai_designer/
     - assets/viewer/
     - assets/images/presets/
+    - assets/images/presets/drawings/
     - assets/artboard/
     - assets/presets.json
   fonts:

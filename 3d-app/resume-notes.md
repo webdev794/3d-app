@@ -1,0 +1,1 @@
+- QA B finished 14:43: MAKE IT 3D fix verified (slow 65 s stub); fixed 5 bugs (Create.tsx x4, ai_designer.dart). Not verified: a late /ai/pattern from a left Studio overwriting a new DYO draft (bugs-for-A.md); not fixed: Generate before /catalog loads makes no HD mockup. App preview not rebuilt by B.
