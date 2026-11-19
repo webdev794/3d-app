@@ -9,19 +9,26 @@ const out = path.resolve(here, '../public/media/viewer/index.html');
 const base64 = (file) => fs.readFileSync(path.resolve(root, file)).toString('base64');
 const { outputFiles } = await esbuild.build({
     entryPoints: [path.join(here, 'src/main.js')],
-    nodePaths: [path.join(root, 'viewer/node_modules')],
+    nodePaths: [path.join(root, 'viewer/node_modules'), path.join(here, '../node_modules')],
     bundle: true, minify: true, format: 'iife',
     target: ['chrome100', 'safari16'], write: false, legalComments: 'none',
 });
 const js = outputFiles[0].text.replaceAll('</script', '<\\/script');
+// The ready-made garment models (tripo-<name>.js) inline in the page, before the viewer's code (LIVEFIX L1 2026-11-12):
+// there as soon as the viewer is, with no second download that can stall or fail (the old made shape is never shown in
+// their place, the client refused it). About 0.23 MB each after the server's compression; the page is cached by version.
+const models = fs.readdirSync(here).filter((f) => /^tripo-[a-z0-9-]+\.js$/.test(f)).sort()
+  .map((f) => `<script>${fs.readFileSync(path.join(here, f), 'utf8').replaceAll('</script', '<\\/script')}</script>`).join('\n');
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>3DEEZI — Cinematic 3D Studio</title><style>
 @font-face{font-family:Rajdhani;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/Rajdhani-Bold.ttf')}) format('truetype')}
+@font-face{font-family:JerseyBlock;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/JerseyBlock.ttf')}) format('truetype')}
 html,body{margin:0;height:100%;overflow:hidden;background:#03070c;touch-action:none;-webkit-user-select:none;user-select:none}
 #stage{display:block;width:100%;height:100%;opacity:0;transition:opacity .8s ease}.ready #stage{opacity:1}
 </style></head><body><canvas id="stage"></canvas>
 <script>window.DEFAULT_PATTERN='data:image/png;base64,${base64('viewer/sample-pattern.png')}';window.STADIUM='data:image/webp;base64,${base64('website/public/media/showroom/studio-backdrop.webp')}';</script>
+${models}
 <script>${js}</script></body></html>`;
 fs.mkdirSync(path.dirname(out), { recursive: true });
 fs.writeFileSync(out, html);
@@ -32,6 +39,50 @@ if (!process.argv.includes('--website-only')) {
   fs.mkdirSync(path.dirname(mobileOut), { recursive: true });
   fs.writeFileSync(mobileOut, html);
 }
+// pdf.js for print layouts: its own file beside the viewer, loaded only when a PDF is opened (layout.js); a plain
+// script, as modules do not load from the apps' local files.
+const reader = await esbuild.build({
+    entryPoints: [path.join(here, 'src/pdf-reader.js')],
+    nodePaths: [path.join(here, '../node_modules')],
+    bundle: true, minify: true, format: 'iife',
+    target: ['chrome100', 'safari16'], write: false, legalComments: 'none',
+});
+const readerOut = path.join(path.dirname(out), 'pdf-reader.js');
+fs.writeFileSync(readerOut, reader.outputFiles[0].text);
+if (!process.argv.includes('--website-only')) fs.writeFileSync(path.join(root, 'assets/viewer/pdf-reader.js'), reader.outputFiles[0].text);
+// The "High quality" jersey's shape (?hq=1, src/hq.js): its own file beside the website's viewer, loaded only when
+// asked for. The app gets it too (its Studio switch "High quality jersey (preview)" opens the viewer with ?hq=1).
+fs.copyFileSync(path.join(here, 'hq-jersey.js'), path.join(path.dirname(out), 'hq-jersey.js'));
+if (!process.argv.includes('--website-only')) fs.copyFileSync(path.join(here, 'hq-jersey.js'), path.join(root, 'assets/viewer/hq-jersey.js'));
+// The ready-made garment models (src/tripomesh.js, 2026-11-12): each model's data, tripo-<name>.js (made by
+// tripo-convert.mjs), beside both viewers, loaded only when that garment is shown.
+for (const file of fs.readdirSync(here).filter((f) => /^tripo-[a-z0-9-]+\.js$/.test(f))) {
+  fs.copyFileSync(path.join(here, file), path.join(path.dirname(out), file));
+  if (!process.argv.includes('--website-only')) fs.copyFileSync(path.join(here, file), path.join(root, 'assets/viewer', file));
+}
 const presets = path.join(root, 'assets/presets.json');
 if (fs.existsSync(presets)) fs.copyFileSync(presets, path.join(root, 'website/public/media/presets.json'));
+// The Marquee viewer (Signage & Marquees, 2026-11-02): its own page beside the kit viewer, media/viewer/marquee.html
+// (the apps: assets/viewer/marquee.html), built from src/marquee-main.js with the same fonts and stadium photo.
+{
+  const marquee = await esbuild.build({
+    entryPoints: [path.join(here, 'src/marquee-main.js')],
+    nodePaths: [path.join(root, 'viewer/node_modules'), path.join(here, '../node_modules')],
+    bundle: true, minify: true, format: 'iife',
+    target: ['chrome100', 'safari16'], write: false, legalComments: 'none',
+  });
+  const mjs = marquee.outputFiles[0].text.replaceAll('</script', '<\/script');
+  const page = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>3DEEZI — Marquee Studio</title><style>
+@font-face{font-family:Rajdhani;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/Rajdhani-Bold.ttf')}) format('truetype')}
+@font-face{font-family:JerseyBlock;font-weight:700;src:url(data:font/ttf;base64,${base64('assets/fonts/JerseyBlock.ttf')}) format('truetype')}
+html,body{margin:0;height:100%;overflow:hidden;background:#03070c;touch-action:none;-webkit-user-select:none;user-select:none}
+#stage{display:block;width:100%;height:100%;opacity:0;transition:opacity .8s ease}.ready #stage{opacity:1}
+</style></head><body><canvas id="stage"></canvas>
+<script>window.STADIUM='data:image/webp;base64,${base64('website/public/media/showroom/studio-backdrop.webp')}';</script>
+<script>${mjs}</script></body></html>`;
+  fs.writeFileSync(path.join(path.dirname(out), 'marquee.html'), page);
+  if (!process.argv.includes('--website-only')) fs.writeFileSync(path.join(root, 'assets/viewer/marquee.html'), page);
+}
 console.log(`Cinematic website viewer built: ${path.relative(root, out)} (${Math.round(html.length / 1024)} KB)`);

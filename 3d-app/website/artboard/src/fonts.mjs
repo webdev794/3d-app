@@ -27,10 +27,12 @@ export const FONTS = [
 for (const f of FONTS) f.bold = f.faces.length > 1;
 
 /** The face file the browser uses for a weight (the ranges above never overlap). */
-export function faceFor(family, weight = 400) {
+export function faceFor(family, weight = 400, style = 'normal') {
   const font = FONTS.find((f) => f.family === family);
   if (!font) return null;
-  const w = Number(weight) || 400;
-  const hit = font.faces.find(([, range = '1 1000']) => { const [a, b] = range.split(' ').map(Number); return w >= a && w <= b; });
-  return (hit ?? font.faces[0])[0];
+  const w = Number(weight) || 400, list = style === 'italic' && font.italics?.length ? font.italics : font.faces;
+  const hit = list.find(([, range = '1 1000']) => { const [a, b] = range.split(' ').map(Number); return w >= a && w <= b; });
+  return (hit ?? list[0])[0];
 }
+/** Uploaded fonts can have real italic files (the built-in fonts slant their upright letters). */
+export const hasItalicFace = (family) => !!FONTS.find((f) => f.family === family)?.italics?.length;

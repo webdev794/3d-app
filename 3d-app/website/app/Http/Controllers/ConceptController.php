@@ -40,6 +40,8 @@ class ConceptController extends Controller
         }
 
         $names = ['Match day', 'After dark', 'Team signature', 'Clean lines'];
+        // A sport without player names or numbers (netball, config/catalog.php) gets none on the back.
+        $marks = OpenAiDesigner::sportMarkings($data['sport']);
         $concepts = [];
         foreach ($patterns as $index => $pattern) {
             $concepts[] = [
@@ -53,8 +55,8 @@ class ConceptController extends Controller
                     'accent' => $palette[2],
                     'pattern' => $pattern,
                     'logoText' => '3DEEZI',
-                    'number' => '01',
-                    'backName' => 'YOUR NAME',
+                    'number' => $marks['numbers'] ? '01' : '',
+                    'backName' => $marks['names'] ? 'YOUR NAME' : '',
                     'prompt' => $data['prompt'],
                 ],
             ];
@@ -71,7 +73,7 @@ class ConceptController extends Controller
     private function fromOpenAi(Request $request, array $data): JsonResponse
     {
         set_time_limit(240);
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $data['sport'])['name'];
+        $sport = AiController::sportForAi($data['sport']);
         $garment = collect(config('catalog.garments'))->firstWhere('id', $data['garment'])['name'];
         $references = Asset::whereIn('id', $data['reference_ids'] ?? [])
             ->where('user_id', $request->user()->id)

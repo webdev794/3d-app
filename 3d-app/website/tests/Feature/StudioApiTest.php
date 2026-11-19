@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -160,8 +161,48 @@ class StudioApiTest extends TestCase
     public function test_profile_update_does_not_accept_privileged_fields(): void
     {
         Sanctum::actingAs($user = User::factory()->create());
-        $this->patchJson('/api/v1/auth/me', ['name' => 'New captain', 'email' => 'other@example.test', 'is_admin' => true])
+        $this->patchJson('/api/v1/auth/me', ['name' => 'New captain', 'is_admin' => true])
             ->assertOk()->assertJsonPath('data.name', 'New captain')->assertJsonPath('data.email', $user->email);
+        $this->assertFalse((bool) $user->fresh()->is_admin);
+        // Edit profile: a new email address needs the current password; without it nothing changes.
+        $this->patchJson('/api/v1/auth/me', ['name' => 'Other', 'email' => 'other@example.test'])
+            ->assertUnprocessable()->assertJsonValidationErrors('current_password');
+        $this->assertSame('New captain', $user->fresh()->name);
+        $this->assertNotSame('other@example.test', $user->fresh()->email);
+    }
+
+    public function test_edit_profile_changes_email_and_password_with_the_current_password(): void
+    {
+        $token = $this->postJson('/api/v1/auth/register', [
+            'name' => 'Edit Me', 'email' => 'edit.me@example.test',
+            'password' => 'old-password', 'password_confirmation' => 'old-password',
+        ])->assertCreated()->json('data.token');
+        $other = User::where('email', 'edit.me@example.test')->first()->createToken('other device')->plainTextToken;
+        User::factory()->create(['email' => 'taken@example.test']);
+
+        // Wrong current password, a taken email, and mismatched new passwords are all refused.
+        $this->withToken($token)->patchJson('/api/v1/auth/me', ['email' => 'new.me@example.test', 'current_password' => 'wrong-password'])
+            ->assertUnprocessable()->assertJsonPath('errors.current_password.0', 'Your current password is not correct.');
+        $this->withToken($token)->patchJson('/api/v1/auth/me', ['email' => 'TAKEN@example.test', 'current_password' => 'old-password'])
+            ->assertUnprocessable()->assertJsonValidationErrors('email');
+        $this->withToken($token)->patchJson('/api/v1/auth/me', ['password' => 'new-password', 'password_confirmation' => 'different', 'current_password' => 'old-password'])
+            ->assertUnprocessable()->assertJsonValidationErrors('password');
+        $this->assertDatabaseHas('users', ['email' => 'edit.me@example.test', 'name' => 'Edit Me']);
+
+        // Name, email and password together; the email is stored in lower case.
+        $this->withToken($token)->patchJson('/api/v1/auth/me', [
+            'name' => '  Edited Name ', 'email' => ' New.Me@Example.test', 'current_password' => 'old-password',
+            'password' => 'new-password', 'password_confirmation' => 'new-password',
+        ])->assertOk()->assertJsonPath('data.name', 'Edited Name')->assertJsonPath('data.email', 'new.me@example.test')
+            ->assertJsonMissingPath('data.password');
+        $user = User::where('email', 'new.me@example.test')->firstOrFail();
+        $this->assertTrue(Hash::check('new-password', $user->password));
+        // This device stays signed in; the other device was signed out by the new password.
+        $this->assertDatabaseCount('personal_access_tokens', 1);
+        $this->app['auth']->forgetGuards();
+        $this->withToken($other)->getJson('/api/v1/auth/me')->assertUnauthorized();
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/v1/auth/me')->assertOk()->assertJsonPath('data.email', 'new.me@example.test');
     }
 
     public function test_svg_export_escapes_user_content_and_rejects_unknown_formats(): void

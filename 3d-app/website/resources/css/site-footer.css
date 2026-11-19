@@ -1,0 +1,45 @@
+/* The site footer (App.tsx), client design 2026-10-20: a thin cyan line along the top; the gradient 3DEEZI wordmark on
+   the left; About, Support, Privacy and Terms, a small divider and the 3DEEZI ASSIST button on the right. The button is
+   the chat's own launcher: Assist.tsx moves it into .footer-assist while that place is on screen, and back to the
+   bottom-right corner when it is not (the place keeps its size, so nothing moves when it comes and goes). */
+.site-footer{position:relative;z-index:2;margin:0 auto;width:min(calc(100% - 6.9vw),1800px);border-top:1px solid #2ec5e2b3;box-shadow:0 -1px 12px -6px #00d9ed80;color:#c9d4df}
+.footer-inner{display:flex;align-items:center;gap:20px;min-height:112px;padding:26px 0 30px}
+.foot-brand{display:block;flex:none;line-height:0}
+.foot-brand img{display:block;width:auto;height:27px;filter:drop-shadow(0 0 10px #00d9ed26)}
+.foot-links{display:flex;align-items:center;flex-wrap:wrap;gap:6px 36px;margin-left:auto}
+.foot-links a{position:relative;padding:8px 0;color:#d3dce6;font-size:16px;line-height:1.2;letter-spacing:.01em;transition:color .15s}
+.foot-links a::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:1px;background:#00d9ed;transform:scaleX(0);transform-origin:0 50%;transition:transform .2s}
+.foot-links a:hover,.foot-links a.active{color:#fff}
+.foot-links a:hover::after,.foot-links a.active::after{transform:none}
+.foot-links a:focus-visible{outline:2px solid #00d9ed;outline-offset:3px;border-radius:2px}
+.foot-rule{flex:none;width:1px;height:34px;margin:0 8px 0 14px;background:#4a5a6d}
+
+/* The 3DEEZI ASSIST place: the chat's launcher, docked, fills it (an outline pill, as in the design). */
+.footer-assist{--assist-cyan:#00d9ed;flex:none;display:flex;width:204px;height:52px}
+.footer-assist .assist-launcher{width:100%;height:100%;justify-content:center;gap:11px;padding:0 18px;border:1.5px solid #19d4ecd9;border-radius:999px;background:linear-gradient(180deg,#071728,#040d18);font-size:16px;letter-spacing:.07em;box-shadow:0 0 0 1px #00d9ed14,0 0 16px #00d9ed40,inset 0 0 12px #00d9ed17}
+.footer-assist .assist-launcher:hover{box-shadow:0 0 0 1px #00d9ed33,0 0 24px #00d9ed73,inset 0 0 14px #00d9ed26}
+.footer-assist .assist-launcher[aria-expanded=true]{background:linear-gradient(180deg,#0c2236,#071424)}
+.footer-assist .assist-launcher:focus-visible{outline:2px solid #00d9ed;outline-offset:3px}
+
+@media(max-width:1100px){.foot-links{gap:6px 26px}.foot-links a{font-size:15px}}
+@media(max-width:860px){
+  .site-footer{width:calc(100% - 42px)}
+  .footer-inner{gap:14px;min-height:96px;padding:22px 0 24px}
+  .foot-brand img{height:22px}
+  .foot-links{gap:4px 20px}
+  .foot-links a{font-size:14px}
+  .foot-rule{height:28px;margin:0 4px 0 6px}
+  .footer-assist{width:180px;height:46px}
+  .footer-assist .assist-launcher{font-size:14.5px;gap:9px;padding:0 14px}
+}
+/* Phones: the wordmark and the button on the first row, the links under them. */
+@media(max-width:640px){
+  .site-footer{width:calc(100% - 36px)}
+  .footer-inner{display:grid;grid-template-columns:auto auto;grid-template-areas:"brand assist" "links links";align-items:center;justify-content:space-between;gap:16px 12px;min-height:0;padding:22px 0 26px}
+  .foot-brand{grid-area:brand}
+  .foot-links{grid-area:links;justify-content:space-between;margin:0;padding-top:12px;border-top:1px solid #ffffff12;gap:4px 12px}
+  .foot-rule{display:none}
+  .footer-assist{grid-area:assist;width:170px;height:44px}
+  .footer-assist .assist-launcher{font-size:14px;gap:8px;padding:0 12px}
+}
+@media(max-width:360px){.foot-brand img{height:18px}.footer-assist{width:150px}.footer-assist .assist-launcher{font-size:12.5px;letter-spacing:.05em}.foot-links a{font-size:13px}}

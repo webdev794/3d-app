@@ -1,0 +1,95 @@
+/* Admin > 3DEEZI TEAM and the designer view (/designer): AdminTeam.tsx. Uses the admin console's own surfaces. */
+.atm{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;min-width:0;width:100%}
+.atm>*,.atm-main>*,.atm-side>*{min-width:0}
+.atm-tabs{display:inline-flex;gap:4px;padding:3px;border-radius:999px;border:1px solid #ffffff1c;background:#06111b;justify-self:start;flex-wrap:wrap}
+.atm-tabs button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:7px 14px;background:none;color:#b9c8d6;font-size:13px;font-weight:600;cursor:pointer}
+.atm-tabs button.on{background:linear-gradient(100deg,#12e2f1,#3f8cff);color:#03182a}
+.atm-columns{display:grid;grid-template-columns:repeat(8,minmax(190px,1fr));gap:10px;overflow-x:auto;padding:4px 0 8px}
+.atm-col{display:grid;align-content:start;gap:8px;min-height:120px;padding:10px;border-radius:12px;background:#06111b;border:1px solid #ffffff12}
+.atm-col h3{display:flex;align-items:center;justify-content:space-between;margin:0 0 4px;font-size:12px}
+.atm-col h3 b{color:#8d9fb3;font-weight:600}
+.atm-card{display:grid;gap:3px;padding:10px 11px;border-radius:10px;background:#0b1a27;border:1px solid #ffffff14;color:inherit;text-decoration:none;font-size:13px}
+.atm-card:hover,.atm-card:focus-visible{border-color:#12e2f1aa;outline:none}
+.atm-card small{color:#b9c8d6;display:flex;align-items:center;gap:4px}
+.atm-card small.muted{color:#8d9fb3}
+.atm-card-top{display:flex;align-items:center;gap:6px}
+.atm-card-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atm-unread{display:inline-grid;place-items:center;min-width:18px;height:18px;margin-left:6px;padding:0 5px;border-radius:9px;background:#ff5d7a;color:#fff;font:700 10px/1 inherit;font-style:normal}
+.atm-high{padding:1px 6px;border-radius:6px;background:#ffb54733;color:#ffcf85;font:700 10px/1.4 inherit;font-style:normal}
+.atm-check{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#b9c8d6;cursor:pointer}
+.atm-row{cursor:pointer}
+.atm-row:hover td{background:#ffffff06}
+.atm-detail-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.atm-detail-head h2{margin:0;font-size:20px}
+.atm-detail-head h2 span{color:#b9c8d6;font-weight:500;margin-left:6px}
+.atm-grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:16px;align-items:start}
+.atm-main,.atm-side{display:grid;gap:16px;min-width:0}
+.atm h3{margin:0 0 10px;display:flex;align-items:center;gap:8px;font-size:15px}
+.atm h4{margin:14px 0 8px;font-size:13px;display:flex;align-items:center;gap:8px;color:#d7e3ee}
+.atm-kv{display:grid;grid-template-columns:130px minmax(0,1fr);gap:6px 12px;margin:0;font-size:13px}
+.atm-kv dt{color:#8d9fb3}
+.atm-kv dd{margin:0;overflow-wrap:anywhere}
+.atm-kv.small{grid-template-columns:100px minmax(0,1fr);font-size:12px;margin-top:10px}
+.atm-text{white-space:pre-line;margin:10px 0 0;font-size:14px;line-height:1.55;color:#d7e3ee;overflow-wrap:anywhere}
+.atm-swatches{display:flex;flex-wrap:wrap;gap:8px}
+.atm-swatches span{display:inline-flex;align-items:center;gap:5px}
+.atm-swatches i{width:14px;height:14px;border-radius:4px;border:1px solid #ffffff40}
+.atm-files{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.atm-files.small{grid-template-columns:repeat(auto-fill,minmax(110px,1fr));margin-top:6px}
+.atm-file{display:grid;gap:4px;padding:8px;border-radius:10px;border:1px solid #ffffff18;background:#06111b;color:inherit;text-align:left;cursor:pointer;position:relative;font:inherit}
+.atm-file:hover,.atm-file:focus-visible{border-color:#12e2f1aa;outline:none}
+.atm-file.internal{border-style:dashed;border-color:#ffb54766}
+.atm-file img{width:100%;aspect-ratio:4/3;object-fit:contain;border-radius:6px;background:#07131f}
+.atm-file-icon{display:grid;place-items:center;gap:2px;aspect-ratio:4/3;border-radius:6px;background:#07131f;color:#8d9fb3}
+.atm-file-icon b{font-size:11px}
+.atm-file-name{font-size:12px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.atm-file small{font-size:11px;color:#8d9fb3}
+.atm-file>svg:last-child{position:absolute;top:12px;right:12px;color:#12e2f1}
+.atm-version{padding:10px 0;border-top:1px solid #ffffff10}
+.atm-version:first-of-type{border-top:0}
+.atm-delivery{display:grid;gap:10px;margin-top:14px;padding:12px;border-radius:12px;border:1px dashed #12e2f155;background:#12e2f108}
+.atm-delivery h4{margin:0}
+.atm-row-fields{display:flex;flex-wrap:wrap;gap:12px;align-items:end}
+.atm-chat{display:grid;gap:10px;max-height:460px;overflow-y:auto;padding:4px 2px 4px 0}
+.atm-msg{max-width:85%;padding:9px 12px;border-radius:12px;background:#0b1a27;border:1px solid #ffffff14;font-size:14px;justify-self:start}
+.atm-msg.role-designer,.atm-msg.role-admin{justify-self:end;background:#0e2333;border-color:#12e2f133}
+.atm-msg.internal{background:#2a1f0a;border:1px dashed #ffb54788}
+.atm-msg p{margin:4px 0 0;white-space:pre-line;overflow-wrap:anywhere}
+.atm-msg-by{font-size:12px;font-weight:600}
+.atm-msg-by small{font-weight:400;color:#8d9fb3;margin-left:4px}
+.atm-compose{display:grid;gap:8px;margin-top:12px}
+.atm-compose textarea{width:100%;resize:vertical}
+.atm-compose-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.atm-compose-bar .atm-check{margin-right:auto}
+.atm-history{list-style:none;margin:0;padding:0;display:grid;gap:8px;max-height:420px;overflow-y:auto}
+.atm-history li{display:grid;gap:2px;padding-left:12px;border-left:2px solid #12e2f155;font-size:12px}
+.atm-history li.internal{border-left-color:#ffb54788}
+.atm-history span{color:#d7e3ee;overflow-wrap:anywhere}
+.atm-history small{color:#8d9fb3}
+.atm-admin-details{display:grid;gap:8px;margin-top:12px}
+.atm-side .field{display:grid;gap:4px;font-size:12px;margin-bottom:8px}
+.atm-plans input,.admin-table td>input:not([type=checkbox]){width:100%;min-width:70px;max-width:220px}
+.atm-designer-page{min-height:100dvh;background:#03080e;padding:20px 24px 40px}
+.atm-designer-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.atm-designer-top h1{margin:0;font-size:22px;display:flex;align-items:center;gap:8px}
+.atm-designer-top p{margin:0;color:#8d9fb3;flex:1 1 220px}
+@media (max-width:1100px){.atm-grid{grid-template-columns:1fr}}
+@media (max-width:640px){
+  .atm-designer-page{padding:16px}
+  .atm-kv{grid-template-columns:1fr}
+  .atm-msg{max-width:100%}
+  .atm-columns{grid-template-columns:repeat(8,minmax(170px,82vw))}
+}
+.atm .field select.admin-select{height:auto;min-height:40px;padding:9px 12px;line-height:1.4}
+.atm-compose textarea,.atm-plans input,.atm .admin-table td>input:not([type=checkbox]){padding:9px 11px;border:1px solid #ffffff1c;border-radius:7px;background:#09111d;color:#dfeaf8;font-size:13px;outline:none}
+.atm-compose textarea:focus,.atm-plans input:focus,.atm .admin-table td>input:focus{border-color:#00d9ed88}
+.atm-delivery input[type=file]{color:#b9c8d6;font-size:13px;max-width:100%}
+.atm-delivery input[type=file]::file-selector-button{margin-right:10px;padding:7px 12px;border-radius:8px;border:1px solid #12e2f166;background:#06111b;color:#e6eef6;font:600 12px/1.2 inherit;cursor:pointer}
+/* Client answers 2026-10-21: refund marks, the extra revision waiting for payment, the TEAM options. */
+.atm-refund{display:inline-block;margin-left:6px;padding:2px 7px;border-radius:999px;background:#f5b54726;border:1px solid #f5b54788;color:#ffd9a0;font:700 10px/1.4 var(--heading);letter-spacing:.08em;font-style:normal}
+.atm-refund.done{background:#33d17a1f;border-color:#33d17a77;color:#bdf3d2}
+.atm-refund-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 16px;padding:12px 16px;border:1px solid #f5b54788;border-radius:12px;background:#2a1c0566;color:#ffe2b3}
+.atm-refund-bar>span{flex:1;min-width:220px}
+.atm-refund-done{display:flex;align-items:center;gap:8px;margin:0 0 14px;color:#bdf3d2}
+.atm-refund-done.is-wait{color:#ffd9a0}
+.atm-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin:14px 0}

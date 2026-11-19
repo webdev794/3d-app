@@ -60,8 +60,11 @@ class AssistTest extends TestCase
             ]])]],
         ]]])]);
 
+        // One command was refused, so the reply says so instead of claiming everything was done.
         $this->ask('add grid view and select the text')->assertOk()
-            ->assertJsonPath('data.reply', 'Done: the grid is on and the text is selected.')
+            ->assertJsonPath('data.reply', "Done: the grid is on and the text is selected.
+
+(One of those changes could not be made: please say it another way.)")
             ->assertJsonPath('data.actions', [
                 ['action' => 'grid', 'value' => 'on'],
                 ['action' => 'select', 'value' => 'text:your team'],
@@ -76,6 +79,21 @@ class AssistTest extends TestCase
             ['action' => 'zoom', 'value' => 'fit'], ['action' => 'snapTo', 'value' => 'objects:on'], ['action' => 'units', 'value' => 'feet'],
         ]);
         $this->assertSame([['action' => 'open', 'value' => '/artboard'], ['action' => 'zoom', 'value' => 'fit'], ['action' => 'snapTo', 'value' => 'objects:on']], $checked);
+    }
+
+    public function test_a_reply_never_claims_a_change_that_was_refused(): void
+    {
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/v1/responses' => Http::response(['output' => [[
+            'type' => 'message',
+            'content' => [['type' => 'output_text', 'text' => json_encode(['reply' => 'Done: the selected text now has a navy outline.', 'actions' => [
+                ['action' => 'formatDisk', 'value' => 'all'],
+            ]])]],
+        ]]])]);
+
+        $this->ask('give it a navy outline')->assertOk()
+            ->assertJsonPath('data.reply', "Sorry, I couldn't make that change. Please say it another way, or use the controls on the page.")
+            ->assertJsonPath('data.actions', []);
     }
 
     public function test_editing_menu_and_export_commands_are_checked(): void
@@ -96,8 +114,27 @@ class AssistTest extends TestCase
             ['action' => 'move', 'value' => 'up:5km'], ['action' => 'fill', 'value' => 'url(javascript:x)'], ['action' => 'export', 'value' => 'docx'],
         ];
         $this->assertSame([], $assistant->checkActions($bad));
+        // The newer Artboard commands, including setting names with a digit (outline2).
+        $newer = [
+            ['action' => 'textStyle', 'value' => 'outline=2:navy,outline2=1.5:gold'], ['action' => 'textStyle', 'value' => 'font=Bebas Neue,letter=15,line=120'],
+            ['action' => 'gradient', 'value' => 'linear:red,gold 40%,black,angle=90'], ['action' => 'palette', 'value' => 'save:Lions FC=navy,gold,white'],
+        ];
+        $this->assertSame($newer, $assistant->checkActions($newer));
         $this->assertStringContainsString('exportPdf=Export PDF', $assistant->instructions('/artboard', true));
         $this->assertStringNotContainsString('open=Import', $assistant->instructions('/artboard', true));
+    }
+
+    public function test_the_garment_command_knows_the_hoodies_and_the_pocket_polo(): void
+    {
+        $assistant = app(\App\Services\SiteAssistant::class);
+        $new = [['action' => 'garment', 'value' => 'hoodie'], ['action' => 'garment', 'value' => 'ziphoodie'], ['action' => 'garment', 'value' => 'pocketpolo'], ['action' => 'garment', 'value' => 'fullkit']];
+        $this->assertSame($new, $assistant->checkActions($new));
+        $this->assertSame([], $assistant->checkActions([['action' => 'garment', 'value' => 'jacket'], ['action' => 'garment', 'value' => 'zip hoodie']]));
+        // Every 3D garment of the catalogue can be switched to.
+        foreach (array_column(config('catalog.garments'), 'id') as $id) {
+            $this->assertCount(1, $assistant->checkActions([['action' => 'garment', 'value' => $id]]), $id);
+        }
+        $this->assertStringContainsString('ziphoodie', $assistant->instructions('/studio', true));
     }
 
     public function test_a_page_opened_before_an_update_is_asked_to_refresh(): void
@@ -129,7 +166,7 @@ class AssistTest extends TestCase
             'page' => '/artboard', 'can' => ['commands'],
             'context' => 'Selected: N logo [drop shadow x 5 mm, y 0 mm, blur 3 mm].',
         ])->assertOk()->assertJsonPath('data.actions', []);
-        Http::assertSent(fn (Request $request) => str_contains($request->data()['instructions'], 'What is on the Artboard right now')
+        Http::assertSent(fn (Request $request) => str_contains($request->data()['instructions'], 'What is on the page right now')
             && str_contains($request->data()['instructions'], 'N logo [drop shadow x 5 mm')
             && str_contains($request->data()['instructions'], 'already has that effect'));
     }
@@ -159,7 +196,29 @@ class AssistTest extends TestCase
             ->assertJsonPath('data.reply', fn ($reply) => str_contains($reply, 'Club') && str_contains($reply, '(/pricing)'));
         $this->ask('what is the meaning of life')->assertOk()
             ->assertJsonPath('data.reply', fn ($reply) => str_contains($reply, "I'm not sure"));
+        // 3DEEZI TEAM prices on the Pricing page's plans (2026-10-22): Rookie (Free) A$100, Creator A$49.95, Club 15 included.
+        foreach (['How much is a designer?', 'how much does 3DEEZI TEAM cost'] as $question) {
+            $this->ask($question, page: '/team')->assertOk()->assertJsonPath('data.source', 'faq')
+                ->assertJsonPath('data.reply', fn ($reply) => str_contains($reply, 'A$100 on Rookie (Free)') && str_contains($reply, 'A$49.95 on Creator')
+                    && str_contains($reply, 'Club includes 15') && ! str_contains($reply, 'A$99'));
+        }
         Http::assertNothingSent();
+    }
+
+    public function test_the_ai_gets_the_current_plan_and_team_prices(): void
+    {
+        config(['services.openai.key' => 'sk-test']);
+        Http::fake(['api.openai.com/*' => Http::response(['output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode(['reply' => 'A$100 on Rookie.', 'actions' => []])]]]]])]);
+
+        $this->ask('How much is a designer?', page: '/team', can: [])->assertOk()->assertJsonPath('data.reply', 'A$100 on Rookie.');
+        Http::assertSent(function (Request $request) {
+            $knowledge = $request->data()['instructions'];
+
+            return str_contains($knowledge, 'Club: A$49.95 a month (or A$499.50 a year')
+                && str_contains($knowledge, 'a design request costs A$100 on Rookie (Free) and A$49.95 on Creator')
+                && str_contains($knowledge, '3DEEZI TEAM designers included: 30 design requests a month')
+                && ! str_contains($knowledge, 'A$99') && ! str_contains($knowledge, 'A$79') && ! str_contains($knowledge, 'A$69') && ! str_contains($knowledge, 'A$59 a month') && ! str_contains($knowledge, 'on Premium');
+        });
     }
 
     public function test_an_unexpected_ai_reply_never_shows_an_error(): void

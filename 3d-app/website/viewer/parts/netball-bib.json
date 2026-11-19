@@ -1,0 +1,30 @@
+{
+  "about": "Netball > Netball bibs (netball-bib.glb): its neck border, the model's own rolled edge, is its own part (the converter's band 1, taken back 4 mm from the flat cloth below it, where that band ran past the roll's foot); tripo-pieces.mjs fromParts draws its border onto the roll's foot crease (snap 6 mm) and the border piece takes the Collar colour, one even width with smooth edges (MODELQ6 2026-11-18). Its inside layer (seen through the strap openings) shows the cloth's own colour, not the plain inside (pieces.data insideCloth, as the Football jersey).",
+  "glb": "D:/3d-app/tripo/netball-bib.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "collar"
+  ],
+  "rules": [
+    {
+      "oldBand": [
+        1
+      ],
+      "part": "collar",
+      "erode": 0.004
+    }
+  ],
+  "partBands": [
+    1
+  ],
+  "pieces": {
+    "fromParts": true,
+    "bands": "collar",
+    "snap": 0.006,
+    "sigma": 4,
+    "tapeFar": 0.004,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

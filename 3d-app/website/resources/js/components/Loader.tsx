@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
-import { media } from '../api';
+// The emblem travels inside the bundle: the loader never waits for it while long AI requests keep a server busy
+// (the local PHP server answers one request at a time and sends no cache headers).
+import emblemSrc from '../../images/emblem-256.webp?inline';
 
 /**
  * "Creating your design…": the 3DEEZI emblem spins inside glowing orbit
@@ -19,7 +21,7 @@ export default function Loader({ title = 'Creating your design…', subtitle = '
       <div className="loader-emblem" aria-hidden="true">
         <span className="orbit orbit-1" /><span className="orbit orbit-2" /><span className="orbit orbit-3" />
         <span className="loader-spark s1" /><span className="loader-spark s2" /><span className="loader-spark s3" />
-        <img src={media('showroom/emblem-256.webp')} alt="" />
+        <img src={emblemSrc} alt="" />
       </div>
       <div className="loader-bar"><span style={{ width: `${Math.round(progress * 100)}%` }} /></div>
       <ul className="loader-steps">{steps.map((step, i) => <li key={step} className={i < current ? 'done' : i === current ? 'active' : ''}><span>{i < current ? <Check size={13} /> : null}</span>{step}</li>)}</ul>

@@ -1,0 +1,62 @@
+{
+  "about": "Rugby Union > Women's rugby shorts (new tile, the user 2026-11-16): Tripo model women-rugby-shorts.glb in booklet card 14524's colours (navy all over; its own gathered waistband and its own hem bands as pieces: the Waistband and Hem parts; our 3 mark and wordmark low on the legs). Pieces method (parts/women-rugby-shorts.json fromParts). MODELQ2 2026-11-17.",
+  "glb": "../../../tripo/women-rugby-shorts.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.148,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "womenRugbyShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#272e48",
+    "secondary": "#272e48",
+    "accent": "#e2bf3a",
+    "patternColor": "#e2bf3a",
+    "parts": {
+      "waistband": {
+        "colour": "#272e48"
+      },
+      "shortsHem": {
+        "colour": "#272e48"
+      }
+    },
+    "zoneColors": {
+      "womenRugbyShorts": "#272e48"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": 0.13,
+        "y": 0.075,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": -0.14,
+        "y": 0.065,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

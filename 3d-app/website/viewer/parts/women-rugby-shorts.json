@@ -1,0 +1,41 @@
+{
+  "about": "Women's rugby shorts (women-rugby-shorts.glb): its own gathered waistband (from its top edge down to its own groove) in the Waistband part's colour, its own hem bands and the cloth under them (the band top seam, model y 0.142) in the Hem part's colour (MODELQ2 2026-11-17, pieces.fromParts).",
+  "glb": "../../../tripo/women-rugby-shorts.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "waistband",
+    "part:shortsHem"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.758,
+          0.087
+        ],
+        "len": 148,
+        "mode": "up",
+        "margin": -0.055
+      },
+      "where": "y > 0.6",
+      "part": "waistband"
+    },
+    {
+      "regions": [
+        1,
+        2
+      ],
+      "part": "part:shortsHem"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}

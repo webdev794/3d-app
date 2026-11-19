@@ -18,14 +18,37 @@ class User extends Authenticatable
         return $this->hasMany(Project::class);
     }
 
+    public function aiSessions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(AiSession::class);
+    }
+
     public function assets(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Asset::class);
     }
 
+    /** Artboard designs and templates kept in the account. */
+    public function artboardDocuments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(ArtboardDocument::class);
+    }
+
     public function orders(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    /** 3DEEZI TEAM design requests. */
+    public function teamRequests(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(TeamRequest::class);
+    }
+
+    /** Saved order forms and uploads, not submitted yet. */
+    public function orderDrafts(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(OrderDraft::class);
     }
 
     /**
@@ -60,6 +83,8 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'is_admin' => 'boolean',
+            'is_designer' => 'boolean',
+            'designer_all' => 'boolean',
         ];
     }
 }

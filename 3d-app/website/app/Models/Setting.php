@@ -17,6 +17,8 @@ class Setting extends Model
         'openai_key' => 'services.openai.key',
         'openai_text_model' => 'services.openai.text_model',
         'openai_image_model' => 'services.openai.image_model',
+        'openai_planning_model' => 'services.openai.planning_model',
+        'openai_hd_image_model' => 'services.openai.hd_image_model',
     ];
 
     protected $primaryKey = 'key';

@@ -1,0 +1,16 @@
+/* "Forgot password?" in the sign-in window (components/ForgotPassword.tsx). */
+.auth-forgot-link{display:block;margin:-9px 0 6px auto;background:none;border:0;padding:3px 0;color:var(--cyan);font-size:10px;font-weight:500;cursor:pointer}
+.auth-forgot-link:hover,.forgot-change:hover,.forgot-resend button:not(:disabled):hover{text-decoration:underline}
+.auth-form>.forgot-sent{display:flex;gap:9px;align-items:flex-start;line-height:1.6;padding:11px 12px;border-radius:7px;background:#00d9ed0d;border:1px solid #00d9ed2e;color:#a9c3d4}
+.forgot-sent>svg{flex:none;color:var(--cyan);margin-top:2px}
+.forgot-change{background:none;border:0;padding:0;color:var(--cyan);font-size:inherit;font-weight:500;cursor:pointer}
+.forgot-code input{font-family:ui-monospace,'Cascadia Mono',Consolas,monospace;font-size:18px!important;letter-spacing:.45em;text-align:center;padding:10px 12px!important}
+.forgot-choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 16px}
+.forgot-choice>button{display:flex;align-items:center;gap:8px;padding:11px 10px;border:1px solid #ffffff14;border-radius:7px;background:#09111d;color:#9fb3c8;font-size:10.5px;font-weight:500;text-align:left;line-height:1.3;cursor:pointer}
+.forgot-choice>button>svg{flex:none}
+.forgot-choice>button[aria-checked=true]{border-color:#00d9ed99;background:#00d9ed14;color:#effcff}
+.forgot-choice>button[aria-checked=true]>svg{color:var(--cyan)}
+.forgot-resend{font-size:10px!important;color:#768fa7;text-align:center;margin:16px 0 -6px!important;line-height:1.6}
+.forgot-resend button{background:none;border:0;padding:0;color:var(--cyan);font-size:10px;font-weight:500;cursor:pointer}
+.forgot-resend button:disabled{color:#5d7488;cursor:default}
+@media(max-width:360px){.forgot-choice{grid-template-columns:1fr}}

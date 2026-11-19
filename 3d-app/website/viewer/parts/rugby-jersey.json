@@ -1,0 +1,69 @@
+{
+  "about": "Rugby League > Jersey (rugby-jersey-textured.glb, RUGBYJ 2026-11-18): coloured from the same garment split into parts by Tripo (rugby-jersey-parts.glb) by viewer/tripo-glbparts.mjs: the body the print (yellow Main); the sleeves, inside and out, the Left / Right sleeve parts (navy), each sleeve's raglan seam one smooth line; the stand-up collar the Collar colour (yellow), its foot one smooth line round the neck; an even band inside the collar just under its top fold the Accent (navy, the client's picture 592). Stitch lines (the user 2026-11-18, pictures 592/600/601): the neck seam 9 mm below the collar's foot, the collar's edge 7 mm below its top, a cuff line 17 mm above each sleeve opening and a hem line 17 mm above the bottom, drawn by main.js as thin darker strips. The band is the design part 'collarBand' (else the Accent), one plain colour also under a design picture; data narrowEdge: the edge light only at the outline. flatSmoothY: the body's print places across measured round a smoothed section (straight back numbers over the cloth's folds).",
+  "glbParts": {
+    "glb": "../../../tripo/rugby-jersey-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_1": "part:leftSleeve",
+      "tripo_part_8": "part:rightSleeve",
+      "tripo_part_9": "collar",
+      "tripo_part_5": "collar"
+    },
+    "collar": "collar",
+    "sleeves": [
+      "part:leftSleeve",
+      "part:rightSleeve"
+    ],
+    "band": {
+      "key": "part:collarBand|accent",
+      "from": 0.006,
+      "to": 0.016,
+      "drop": 0.02
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.009,
+      "collarTop": 0.007,
+      "cuff": 0.017,
+      "hem": 0.017,
+      "sigma": 0.03
+    },
+    "collarDepth": 0.085,
+    "sleeveMap": {
+      "armhole": [
+        [
+          0.258,
+          0.688
+        ],
+        [
+          0.258,
+          0.53
+        ]
+      ],
+      "cuff": [
+        [
+          0.418,
+          0.566
+        ],
+        [
+          0.372,
+          0.476
+        ]
+      ]
+    },
+    "data": {
+      "narrowEdge": true
+    },
+    "flatSmoothY": {
+      "sigma": 0.02,
+      "profile": 0.02
+    },
+    "neckRing": true,
+    "altUv": true
+  }
+}

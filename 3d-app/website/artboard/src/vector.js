@@ -11,7 +11,7 @@ import { Point, util } from 'fabric';
 import paper from 'paper';
 import { PaperOffset } from 'paperjs-offset';
 import { parse as parseFont } from 'opentype.js';
-import { faceFor } from './fonts.mjs';
+import { faceFor, hasItalicFace } from './fonts.mjs';
 
 const KAPPA = 0.5522847498;
 const r3 = (n) => Math.round(n * 1000) / 1000;
@@ -164,8 +164,8 @@ export function setWorldPath(o, d) {
 // Text -> curves (opentype.js, laid out exactly like Fabric draws it)
 // ===================================================================
 const fontCache = new Map();
-export function getFont(family, weight) {
-  const file = faceFor(family, weight);
+export function getFont(family, weight, style = 'normal') {
+  const file = faceFor(family, weight, style);
   const data = file && window.__ABFONTS?.[file];
   if (!data) return null;
   if (!fontCache.has(file)) {
@@ -175,6 +175,8 @@ export function getFont(family, weight) {
   return fontCache.get(file);
 }
 export const fontAvailable = (family) => !!faceFor(family, 400);
+/** An uploaded font file (TTF, OTF or WOFF) read by opentype.js: throws when it is not a font it can read. */
+export const parseFontFile = (buffer) => parseFont(buffer);
 
 function textModel(o) {
   const m = o.calcTransformMatrix(), W = (p) => util.transformPoint(new Point(p.x, p.y), m);
@@ -192,9 +194,9 @@ function textModel(o) {
       const style = o.getCompleteStyleDeclaration(li, ci);
       x += box.kernedWidth - box.width;
       if (ch.trim()) {
-        const font = getFont(style.fontFamily, style.fontWeight);
+        const font = getFont(style.fontFamily, style.fontWeight, style.fontStyle);
         if (!font) throw new Error(`The font “${style.fontFamily}” can't be converted to curves. Choose a font from the Artboard list.`);
-        const size = style.fontSize, italic = style.fontStyle === 'italic' && !/italic/i.test(style.fontFamily);
+        const size = style.fontSize, italic = style.fontStyle === 'italic' && !/italic/i.test(style.fontFamily) && !hasItalicFace(style.fontFamily);
         // Glyph outline at the origin (baseline y = 0), then placed like Fabric.
         const place = onPath
           ? (p) => { const a = box.angle, px = p.x - box.width / 2, c = Math.cos(a), s = Math.sin(a); return W({ x: box.renderLeft + px * c - p.y * s, y: box.renderTop + px * s + p.y * c }); }
@@ -357,21 +359,31 @@ export function knifeD(d, a, b) {
 /** Blend: n in-between outlines morphing a -> b (outer outlines, resampled). */
 export function blendDs(aD, bD, steps, samples = 96) {
   const s = P();
-  const outer = (d) => { const i = toPaper(d), kids = i.children ?? [i]; return kids.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x)); };
+  const kidsOf = (d) => { const i = toPaper(d); return i.children ? i.children.slice() : [i]; };
+  const ka = kidsOf(aD), kb = kidsOf(bD);
+  // Words and other shapes made of several outlines (task 9.145): when both have the same number of outlines (the same
+  // text in two sizes or colours), each outline blends into its partner, so every letter steps, not just the biggest.
+  const pairs = ka.length > 1 && ka.length === kb.length ? ka.map((k, i) => [k, kb[i]])
+    : [[ka.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x)), kb.reduce((x, y) => (Math.abs(y.area) > Math.abs(x.area) ? y : x))]];
   const sample = (path) => { const L = path.length, pts = []; for (let i = 0; i < samples; i++) pts.push(path.getPointAt((L * i) / samples)); return pts; };
-  const pa = outer(aD).clone({ insert: false }), pb = outer(bD).clone({ insert: false });
-  if (pa.clockwise !== pb.clockwise) pb.reverse();
-  const A = sample(pa); let B = sample(pb);
-  // Rotate B's start so the points line up with A's.
-  let best = 0, bestCost = Infinity;
-  for (let k = 0; k < samples; k++) { let c = 0; for (let i = 0; i < samples; i += 4) c += A[i].getDistance(B[(i + k) % samples]); if (c < bestCost) { bestCost = c; best = k; } }
-  B = B.map((_, i) => B[(i + best) % samples]);
+  const lined = pairs.map(([x, y]) => {
+    const pa = x.clone({ insert: false }), pb = y.clone({ insert: false });
+    if (pa.clockwise !== pb.clockwise) pb.reverse();
+    const A = sample(pa); let B = sample(pb);
+    // Rotate B's start so the points line up with A's.
+    let best = 0, bestCost = Infinity;
+    for (let k = 0; k < samples; k++) { let c = 0; for (let i = 0; i < samples; i += 4) c += A[i].getDistance(B[(i + k) % samples]); if (c < bestCost) { bestCost = c; best = k; } }
+    B = B.map((_, i) => B[(i + best) % samples]);
+    return { A, B, closed: pa.closed };
+  });
   const out = [];
   for (let st = 1; st <= steps; st++) {
     const t = st / (steps + 1);
-    const path = new s.Path({ segments: A.map((p, i) => p.add(B[i].subtract(p).multiply(t))), closed: pa.closed, insert: false });
-    path.smooth({ type: 'catmull-rom' });
-    out.push(path.pathData);
+    out.push(lined.map(({ A, B, closed }) => {
+      const path = new s.Path({ segments: A.map((p, i) => p.add(B[i].subtract(p).multiply(t))), closed, insert: false });
+      path.smooth({ type: 'catmull-rom' });
+      return path.pathData;
+    }).join(' '));
   }
   return out;
 }
@@ -458,6 +470,15 @@ export function distortD(d, mode, amount, { teeth = 30, box } = {}) {
     return { x: c.x + dx * f, y: c.y + dy * f };
   }) }));
   return partsToD(moved, 0.25);
+}
+/** Free envelope (task 9.145): each point moves by map(u, v) of its place in the box (0..1 across and down). */
+export function warpD(d, map, { box } = {}) {
+  const item = toPaper(d), b = boundsOf(item, box), W = b.width || 1, H = b.height || 1;
+  const parts = flatParts(item).map(({ closed, pts }) => ({ closed, pts: densify(pts, closed, Math.max(W, H) / 150).map((p) => {
+    const m = map(Math.min(1, Math.max(0, (p.x - b.x) / W)), Math.min(1, Math.max(0, (p.y - b.y) / H)));
+    return { x: p.x + m.x, y: p.y + m.y };
+  }) }));
+  return partsToD(parts, 0.25);
 }
 /** Envelope presets: points bend by their place in the box (amount in world units, as CorelDRAW's envelope modes). */
 export function envelopeD(d, preset, amount, { box } = {}) {

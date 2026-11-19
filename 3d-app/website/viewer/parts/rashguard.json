@@ -1,0 +1,12 @@
+{
+  "about": "Rash guard (rashguard.glb): the model's own piping (raglan, neck, hem and cuff seams) in the Secondary, its inside plain, per triangle from its own seams (MODELQ 2026-11-16).",
+  "glb": "../../../tripo/rashguard.glb",
+  "creaseDeg": 25,
+  "keys": ["trim", "inside"],
+  "rules": [
+    { "regions": [1], "part": "inside" },
+    { "regions": [2, 3, 4, 5, 9, 12, 16], "part": "trim" },
+    { "where": "size < 1500 && y > 0.84 && y < 0.9 && Math.abs(x) < 0.14 && r !== 1 && r !== 7 && r !== 0", "part": "trim" }
+  ],
+  "smooth": 0
+}

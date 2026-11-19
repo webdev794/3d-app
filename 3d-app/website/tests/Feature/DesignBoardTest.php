@@ -70,6 +70,36 @@ class DesignBoardTest extends TestCase
         ]);
     }
 
+    public function test_moved_resized_turned_and_hidden_marks_are_saved_and_reopened(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $payload = $this->payload();
+        $payload['design']['marks'] = [
+            'top_wordmark' => ['side' => 'front', 'x' => 0.02, 'y' => 0.52, 'scale' => 1.4, 'rot' => -8],
+            'top_crest' => ['hidden' => true],
+            'shorts_number' => ['side' => 'back', 'x' => 0.1, 'y' => 0.2],
+        ];
+        $id = $this->postJson('/api/v1/projects', $payload)->assertCreated()->json('data.id');
+        $this->getJson('/api/v1/projects/'.$id)->assertOk()->assertJsonPath('data.design.marks', $payload['design']['marks']);
+        // Reset layout sends no marks at all.
+        $payload['design']['marks'] = [];
+        $this->patchJson('/api/v1/projects/'.$id, ['design' => $payload['design']])->assertOk()->assertJsonPath('data.design.marks', []);
+    }
+
+    public function test_bad_marks_are_rejected(): void
+    {
+        Sanctum::actingAs(User::factory()->create());
+        $payload = $this->payload();
+        $payload['design']['marks'] = [
+            'top_wordmark' => ['x' => 9, 'scale' => 50, 'side' => 'inside'],
+            'top_sleeve' => ['x' => 0],
+            'top_name' => ['colour' => '#ffffff'],
+        ];
+        $this->postJson('/api/v1/projects', $payload)->assertUnprocessable()->assertJsonValidationErrors([
+            'design.marks', 'design.marks.top_wordmark.x', 'design.marks.top_wordmark.scale', 'design.marks.top_wordmark.side', 'design.marks.top_name',
+        ]);
+    }
+
     public function test_presets_are_public_and_every_preset_can_be_saved(): void
     {
         $presets = $this->getJson('/api/v1/presets')->assertOk()->json('data');

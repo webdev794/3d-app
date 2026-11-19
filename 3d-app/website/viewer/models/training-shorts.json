@@ -1,0 +1,64 @@
+{
+  "about": "Training shorts (the five Training shorts tiles: Rugby League, Rugby Union, NFL, Softball, Training): Tripo model training-shorts.glb in booklet card 131096's colours (golden yellow body; its own gathered waistband one piece in royal blue, the Waistband part; our 3 mark and wordmark low on the legs). Colours by the pieces method: the model is one closed piece, its line is its waistband's foot (parts/training-shorts.json pieces.fromParts). MODELQ2 2026-11-17.",
+  "glb": "../../../tripo/training-shorts.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.385,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "trainingShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Training shorts",
+      "image": "shorts"
+    }
+  ],
+  "look": {
+    "main": "#e3ca3b",
+    "secondary": "#2a52a8",
+    "accent": "#2a52a8",
+    "patternColor": "#2a52a8",
+    "parts": {
+      "waistband": {
+        "colour": "#2a52a8"
+      }
+    },
+    "zoneColors": {
+      "trainingShorts": "#2a52a8"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": -0.13,
+        "y": 0.075,
+        "scale": 0.85
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": 0.15,
+        "y": 0.06,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

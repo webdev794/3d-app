@@ -1,0 +1,68 @@
+/* Admin > Order board (AdminOrderBoard.tsx): stage columns with draggable order cards, and the order panel. */
+.aob .admin-toolbar h2 small{font-size:12px;color:#8d9fb3;font-weight:500;margin-left:6px}
+.aob-hint{margin:4px 0 14px;font-size:12px;color:#8d9fb3}
+.aob-views{display:inline-flex;padding:3px;border-radius:999px;border:1px solid #ffffff1c;background:#06111b}
+.aob-views button{display:inline-flex;align-items:center;gap:6px;border:0;border-radius:999px;padding:6px 13px;background:none;color:#b9c8d6;font-size:12px;font-weight:600}
+.aob-views button.on{background:linear-gradient(100deg,#12e2f1,#3f8cff);color:#03182a}
+.aob-columns{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:12px;overflow-x:auto;padding-bottom:8px}
+.aob-col{display:flex;flex-direction:column;min-width:0;border-radius:12px;border:1px solid #ffffff14;background:#06101b;transition:border-color .15s,background .15s}
+.aob-col.is-over{border-color:#2ee6f5;background:#0a1d2e;box-shadow:inset 0 0 0 1px #2ee6f566}
+.aob-col header{display:flex;align-items:center;gap:8px;padding:12px 12px 10px;border-bottom:1px solid #ffffff10}
+.aob-col header i{width:10px;height:10px;border-radius:50%;background:#3b8cff;box-shadow:0 0 8px currentColor}
+.aob-col.tone-amber header i{background:#ffb648}.aob-col.tone-violet header i{background:#9a6bff}.aob-col.tone-green header i{background:#3ddc84}
+.aob-col header h3{flex:1;margin:0;font-size:14px;letter-spacing:.04em;text-transform:uppercase}
+.aob-col header b{min-width:24px;height:22px;display:grid;place-items:center;border-radius:6px;background:#ffffff12;font-size:12px}
+.aob-cards{display:flex;flex-direction:column;gap:10px;padding:10px;min-height:120px}
+.aob-card{border-radius:10px;border:1px solid #ffffff17;background:#0b1828;cursor:grab;transition:border-color .15s,opacity .15s}
+.aob-card:hover{border-color:#2ee6f580}
+.aob-card.is-busy{opacity:.55}
+.aob-open{display:flex;flex-direction:column;align-items:flex-start;gap:5px;width:100%;padding:11px 12px 8px;border:0;background:none;color:inherit;text-align:left;cursor:pointer}
+.aob-ref{font-size:11px;color:#8ea3b8;letter-spacing:.04em}
+.aob-open strong{font-size:14px;line-height:1.25}
+.aob-garments{display:flex;gap:6px;align-items:center;min-height:46px}
+.aob-garments img,.aob-garments svg{width:46px;height:46px;object-fit:contain;border-radius:6px;background:#06111d}
+.aob-meta,.aob-dates{font-size:11px;color:#9fb1c4}
+.aob-latest{font-size:11.5px;color:#d4e0ec;line-height:1.4}
+.aob-pill{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;border:1px solid #3b8cff88;background:#3b8cff1c;color:#cfe3ff;font-size:11px;font-weight:600}
+.aob-pill.tone-amber{border-color:#ffb64888;background:#ffb6481c;color:#ffe0ad}.aob-pill.tone-violet{border-color:#9a6bff88;background:#9a6bff1f;color:#e2d6ff}
+.aob-pill.tone-green{border-color:#3ddc8488;background:#3ddc841a;color:#c6f6da}.aob-pill.tone-grey{border-color:#ffffff30;background:#ffffff0d;color:#c3ccd6}
+.aob-pill.tone-red{border-color:#f1648288;background:#f164821a;color:#ffd0da}
+.aob-move{display:flex;align-items:center;gap:8px;padding:6px 12px 10px;font-size:11px;color:#8ea3b8}
+.aob-move select{flex:1;min-width:0;height:28px;border-radius:7px;border:1px solid #ffffff22;background:#06111b;color:#e6eef6;font-size:12px}
+.aob-empty{margin:6px 2px;font-size:12px;color:#6f8297}
+
+.aob-gate ul{margin:8px 0 14px;padding-left:18px;display:flex;flex-direction:column;gap:8px;font-size:13px;color:#ffd9b0}
+.aob-gate ul strong{display:block;color:#fff}
+.aob-panel{width:min(980px,calc(100vw - 24px))}
+.aob-panel h2{margin-bottom:4px}
+.aob-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:14px 0}
+.aob-grid section,.aob-block{border:1px solid #ffffff14;border-radius:12px;padding:12px 14px;background:#06111b}
+.aob-block{margin-top:12px}
+.aob-panel h3{display:flex;align-items:center;gap:7px;margin:0 0 10px;font-size:15px;letter-spacing:.03em}
+.aob-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px;font-size:13px}
+.aob-list small{display:block;color:#9fb1c4;margin-top:2px}
+.aob-notes{font-size:13px;color:#d4e0ec;white-space:pre-wrap}
+.aob-block textarea,.aob-track input,.aob-row select{width:100%;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid #ffffff24;background:#030b14;color:#fff;font-size:13px}
+.aob-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:10px}
+.aob-row select{width:auto}
+.aob-track input{flex:1 1 160px}
+.aob-file{position:relative;cursor:pointer}
+.aob-file input{position:absolute;inset:0;opacity:0;cursor:pointer}
+.aob-progress{height:6px;margin-top:10px;border-radius:9px;background:#ffffff14;overflow:hidden}
+.aob-progress i{display:block;height:100%;background:linear-gradient(90deg,#12e1f0,#3f8cff);transition:width .2s}
+.aob-files{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.aob-files li{display:flex;align-items:center;gap:10px;font-size:13px}
+.aob-files img{width:38px;height:38px;object-fit:cover;border-radius:6px}
+.aob-files span{flex:1;min-width:0;display:flex;flex-direction:column}
+.aob-files span strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.aob-files small{color:#9fb1c4}
+.aob-files em,.aob-history small{font-style:normal}
+.aob-files em{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;font-size:11px;border:1px solid #3ddc8466;color:#c6f6da}
+.aob-files em.is-internal{border-color:#ffb64866;color:#ffe0ad}
+.aob-history{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px;max-height:280px;overflow:auto}
+.aob-history li{display:grid;grid-template-columns:118px minmax(0,1fr);gap:10px;font-size:13px;padding:8px 10px;border-radius:8px;background:#0a1828;border-left:3px solid #3ddc84}
+.aob-history li.is-internal{border-left-color:#ffb648;background:#1a1408}
+.aob-history q{display:block;color:#d4e0ec;margin-top:2px}
+.aob-history small{display:block;color:#8ea3b8;margin-top:3px}
+.aob-when{color:#8ea3b8;font-size:12px}
+@media(max-width:760px){.aob-grid{grid-template-columns:1fr}.aob-history li{grid-template-columns:1fr}}

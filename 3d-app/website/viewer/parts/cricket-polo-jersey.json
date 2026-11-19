@@ -1,0 +1,42 @@
+{
+  "about": "Cricket polo (cricket-polo-jersey.glb): the model's own collar (Collar colour, else Secondary), its placket plain Main, its cuffs (Secondary), per triangle from its own seams; its hem printed as cloth (MODELQ3 2026-11-16).",
+  "glb": "../../../tripo/cricket-polo-jersey.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "collar",
+    "trim",
+    "main"
+  ],
+  "rules": [
+    {
+      "regions": [
+        1,
+        2,
+        3,
+        4,
+        14
+      ],
+      "part": "collar"
+    },
+    {
+      "regions": [
+        7,
+        11
+      ],
+      "part": "main"
+    },
+    {
+      "regions": [
+        5,
+        8,
+        9,
+        10,
+        12,
+        15,
+        16
+      ],
+      "part": "trim"
+    }
+  ],
+  "smooth": 1
+}
