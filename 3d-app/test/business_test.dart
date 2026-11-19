@@ -6,38 +6,75 @@ import 'features_test.dart' show FakeStore;
 import 'flow_test.dart' show mountPhone, tapText;
 
 void main() {
-  testWidgets('home has the three creation paths and plans', (tester) async {
+  testWidgets('home has the four creation tiles, Assist and Convert', (
+    tester,
+  ) async {
     final c = AppController(store: FakeStore())..screen = AppScreen.home;
     await mountPhone(tester, c);
     // A large phone: the test font is much wider than real text.
     tester.view.physicalSize = const Size(430, 900);
     await tester.pump();
-    expect(find.text('START CREATING'), findsOneWidget);
-    for (final label in [
-      'START WITH AI',
-      'START DESIGNING',
-      'OPEN ARTBOARD',
-      'Plans & pricing',
+    // The client's home (images/166.jpg).
+    expect(find.textContaining('CREATE', findRichText: true), findsWidgets);
+    for (final title in [
+      'AI DESIGNER',
+      'DESIGN YOUR OWN',
+      'ARTBOARD',
+      'DESIGN TEAM',
     ]) {
-      await tester.ensureVisible(find.text(label));
-      expect(find.text(label), findsOneWidget);
+      await tester.ensureVisible(find.text(title));
+      expect(find.text(title), findsOneWidget);
     }
-    await tapText(tester, 'EXPLORE THE 3D STUDIO  →');
-    expect(c.screen, AppScreen.studio);
-    expect(c.mode, 'DYO');
-    c.update(() => c.screen = AppScreen.home);
-    await tester.pump(const Duration(milliseconds: 400));
-    await tapText(tester, 'OPEN ARTBOARD');
+    expect(find.text('Describe your idea'), findsNothing);
+    expect(find.text('Need a hand? Ask 3DEEZI Assist'), findsOneWidget);
+    // Convert's way in: the slim ARTWORK TO 3D bar (client 2026-10-28).
+    expect(find.text('ARTWORK TO 3D'), findsOneWidget);
+    expect(find.text('Convert an image to 3D'), findsNothing);
+    expect(find.text('Plans & pricing'), findsNothing);
+    await tapText(tester, 'ARTBOARD');
     expect(c.screen, AppScreen.artboard);
   });
 
   testWidgets('plans and the Corporate Partner offer', (tester) async {
-    final c = AppController(store: FakeStore())..screen = AppScreen.home;
+    // Plans & pricing opens from Profile's Subscription row (bubble look, images/334).
+    final c = AppController(store: FakeStore())..screen = AppScreen.profile;
     await mountPhone(tester, c);
-    await tapText(tester, 'Plans & pricing');
+    await tester.scrollUntilVisible(
+      find.text('Subscription'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tapText(tester, 'Subscription');
     expect(c.screen, AppScreen.pricing);
     expect(find.text('Club'), findsOneWidget);
     expect(find.text('MOST POPULAR'), findsOneWidget);
+    // Club is the A$49.95 plan (A$499.50 billed yearly), and each
+    // plan has its 3DEEZI TEAM line, as on the website's /pricing.
+    expect(find.text('A\$49.95 / month'), findsOneWidget);
+    expect(find.text('A\$19 / month'), findsOneWidget);
+    for (final (plan, line) in [
+      ('Rookie', '3DEEZI TEAM designer: A\$100 per design (incl. GST)'),
+      ('Creator', '3DEEZI TEAM designer: A\$49.95 per design (incl. GST)'),
+      ('Club', '3DEEZI TEAM designers included: 15 designs a month'),
+      ('Pro Studio', '3DEEZI TEAM designers included: 30 designs a month'),
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(Key('plan-team-$plan')),
+          matching: find.text(line),
+        ),
+        findsOneWidget,
+      );
+    }
+    await tapText(tester, 'Yearly · 2 months free');
+    // Yearly keeps "2 months free" true: A$499.50 (A$41.63 a month).
+    expect(
+      find.text('A\$41.63 / month, A\$499.50 billed yearly'),
+      findsOneWidget,
+    );
+    expect(find.text('A\$16 / month, A\$190 billed yearly'), findsOneWidget);
+    await tapText(tester, 'Monthly');
+    expect(find.text('A\$49.95 / month'), findsOneWidget);
     await tester.ensureVisible(find.text('APPLY TO BECOME A PARTNER'));
     expect(
       find.text('Yearly only. Setup fee applies. Pricing excludes GST.'),
@@ -53,10 +90,26 @@ void main() {
   testWidgets('approved kits have their own tab', (tester) async {
     final c = AppController(store: FakeStore())..screen = AppScreen.projects;
     await mountPhone(tester, c);
-    c.update(() => c.projects.first.approved = true);
+    Project kit(String title, {bool approved = false}) => Project(
+      title: title,
+      sport: 'Soccer',
+      garment: 'Jersey',
+      mode: 'DYO',
+      updated: DateTime.now(),
+      kit: c.kit,
+      approved: approved,
+    );
+    c.update(
+      () => c.projects.addAll([
+        kit('Approved kit', approved: true),
+        kit('Draft kit'),
+      ]),
+    );
     await tester.pump();
     await tapText(tester, 'Approved');
     expect(find.text('APPROVED'), findsOneWidget);
+    expect(find.text('Approved kit'), findsOneWidget);
+    expect(find.text('Draft kit'), findsNothing);
   });
 
   testWidgets('guests are sent to sign in to see orders', (tester) async {

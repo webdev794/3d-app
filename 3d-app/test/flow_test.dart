@@ -5,6 +5,7 @@ import 'package:three_deezi/app.dart';
 import 'package:three_deezi/app_controller.dart';
 
 import 'features_test.dart' show FakeStore;
+import 'garment_tiles_test.dart' show revealTap;
 
 Future<void> mountPhone(WidgetTester tester, AppController controller) async {
   tester.view.devicePixelRatio = 1;
@@ -69,8 +70,8 @@ void main() {
 
     await tapText(tester, 'Continue as guest (projects stay on this device)');
     expect(c.screen, AppScreen.home);
-    expect(find.text('START WITH AI'), findsOneWidget);
-    expect(find.text('START DESIGNING'), findsOneWidget);
+    expect(find.text('AI DESIGNER'), findsOneWidget);
+    expect(find.text('DESIGN YOUR OWN'), findsOneWidget);
   });
 
   testWidgets('Design Your Own: carousel, garment, studio and undo', (
@@ -79,28 +80,41 @@ void main() {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
 
-    await tapText(tester, 'START DESIGNING');
+    await tapText(tester, 'DESIGN YOUR OWN');
     expect(c.screen, AppScreen.sport);
     expect(c.mode, 'DYO');
-    expect(find.text('RUGBY LEAGUE'), findsOneWidget);
+    expect(find.text('DESIGN RUGBY LEAGUE'), findsOneWidget);
 
     await tester.tap(find.byIcon(Icons.chevron_right_rounded));
     await tester.pumpAndSettle();
-    expect(find.text('BASKETBALL'), findsOneWidget);
+    expect(find.text('DESIGN BASKETBALL'), findsOneWidget);
 
-    await tapText(tester, 'DESIGN THIS SPORT');
+    await tapText(tester, 'DESIGN BASKETBALL');
     expect(c.sport, 'Basketball');
     expect(c.screen, AppScreen.garment);
 
     await tester.pumpAndSettle();
-    await tapText(tester, 'Full Kit');
+    // Basketball's own garments (task 9.99): its first one is chosen; its
+    // Basketball kit is the Full Kit (BBTILES 2026-11-18: the singlet over
+    // the basketball shorts).
+    expect(find.text('BASKETBALL UNIFORMS & TEAMWEAR'), findsOneWidget);
+    expect(c.productName, 'Basketball singlet');
+    await revealTap(tester, 'BASKETBALL KIT');
+    await tester.pumpAndSettle();
     expect(c.garment, 'Full Kit');
+    expect(c.productName, 'Basketball kit');
     await tapText(tester, 'CONTINUE TO STUDIO');
     expect(c.screen, AppScreen.studio);
     for (final tool in ['Colours', 'Patterns', 'Logos', 'Text', 'Garment']) {
       expect(find.text(tool), findsOneWidget);
     }
+    // The prompt bar is behind Ask 3DEEZI (client 2026-11-18, 606.png).
+    expect(find.text('Ask 3DEEZI to change anything…'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('studio-ask-open')));
+    await tester.pumpAndSettle();
     expect(find.text('Ask 3DEEZI to change anything…'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('sheet-close')));
+    await tester.pumpAndSettle();
     expect(c.canUndo, isFalse);
 
     // Colour edit through the Colours sheet, then Undo / Redo.
@@ -114,19 +128,26 @@ void main() {
           (w.decoration! as BoxDecoration).shape == BoxShape.circle &&
           (w.decoration! as BoxDecoration).color == const Color(0xffe92137),
     );
+    // The Colours panel opens under the 3D (173.jpg); its colour row
+    // scrolls sideways.
+    await tester.ensureVisible(swatches.first);
+    await tester.pumpAndSettle();
     await tester.tap(swatches.first);
     await tester.pump();
     expect(c.mainColor, const Color(0xffe92137));
     expect(c.canUndo, isTrue);
-    Navigator.of(tester.element(swatches.first)).pop();
+    await tester.tap(find.byKey(const ValueKey('colour-done')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('colour-done')), findsNothing);
 
     await tapText(tester, 'Undo');
     expect(c.mainColor, before);
     await tapText(tester, 'Redo');
     expect(c.mainColor, const Color(0xffe92137));
 
-    // Offline chip: "Make it black".
+    // Offline chip: "Make it black" (in Ask 3DEEZI, 606.png).
+    await tester.tap(find.byKey(const ValueKey('studio-ask-open')));
+    await tester.pumpAndSettle();
     await tapText(tester, 'Make it black');
     expect(c.mainColor, const Color(0xff0b1016));
   });
@@ -137,11 +158,16 @@ void main() {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
 
-    await tapText(tester, 'START WITH AI');
+    await tapText(tester, 'AI DESIGNER');
     expect(c.screen, AppScreen.aiDesigner);
+    // The brief helpers now live in the (+) sheet of the prompt bar.
+    await tester.tap(find.byTooltip('Attach and suggestions'));
+    await tester.pumpAndSettle();
     for (final chip in ['Inspire', 'Modify', 'Match', 'Improve']) {
       expect(find.text(chip), findsOneWidget);
     }
+    await tester.tapAt(const Offset(187, 40));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextField),
       'Black and cyan rugby league jersey with a Mantis logo',
@@ -156,10 +182,17 @@ void main() {
     expect(c.screen, AppScreen.concepts);
     expect(c.concepts, hasLength(4));
 
-    await tester.tap(find.text('Gold Standard'));
-    await tester.pump();
+    // YOUR DESIGNS (146.jpg): design 1 large, the others as numbered
+    // thumbnails; tapping one shows it large (Open in 3D Designer follows it).
+    for (final n in ['2', '3', '4']) {
+      expect(find.text(n), findsOneWidget);
+    }
+    await tester.tap(find.byKey(const ValueKey('thumb-1')));
+    await tester.pumpAndSettle();
     expect(c.selectedConcept, 1);
-    await tapText(tester, 'OPEN IN DESIGN STUDIO');
+    expect(c.concepts[1].spec.designName, 'Gold Standard');
+    expect(c.concepts.first.spec.designName, 'Mantis Strike');
+    await tapText(tester, 'Open in 3D Designer');
     expect(c.screen, AppScreen.studio);
     expect(c.projectName, 'Gold Standard');
     expect(c.secondaryColor, const Color(0xffffc52f));
@@ -176,6 +209,17 @@ void main() {
 
     await tapText(tester, 'Save');
     expect(c.screen, AppScreen.saveProject);
+    // (In the bubble the list is shorter: scroll to the version line.)
+    await tester.scrollUntilVisible(
+      find.text('Version 1'),
+      200,
+      scrollable: find
+          .descendant(
+            of: find.byKey(const ValueKey('save-project-bubble')),
+            matching: find.byType(Scrollable),
+          )
+          .first,
+    );
     expect(find.text('Version 1'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'Thunder Home');
     // The header also reads "SAVE PROJECT"; tap the button below it.
@@ -192,10 +236,38 @@ void main() {
     await tapText(tester, 'View My Projects');
     expect(c.screen, AppScreen.projects);
     expect(find.text('Thunder Home'), findsOneWidget);
-    await tapText(tester, 'DYO Designs');
+    await tapText(tester, 'DYO');
     expect(find.text('Thunder Home'), findsOneWidget);
     expect(find.text('Warriors Concept'), findsNothing);
   });
+
+  testWidgets(
+    'Save project: the name shows above SAVE PROJECT on the first view (QA9)',
+    (tester) async {
+      for (final size in const [
+        Size(360, 780),
+        Size(390, 844),
+        Size(430, 932),
+      ]) {
+        final c = AppController(store: FakeStore())..screen = AppScreen.home;
+        await mountPhone(tester, c);
+        tester.view.physicalSize = size;
+        c.startDyo();
+        c.go(AppScreen.saveProject);
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+        final field = tester.getRect(find.byType(TextField));
+        final button = tester.getRect(find.text('SAVE PROJECT').last);
+        final version = tester.getRect(find.textContaining('Version '));
+        // ignore: avoid_print
+        print('$size field $field version $version button $button');
+        expect(field.top, greaterThan(0), reason: '$size');
+        // Clear of the button and of the list's soft bottom edge.
+        expect(version.bottom, lessThan(button.top - 30), reason: '$size');
+        await tester.pumpWidget(const SizedBox());
+      }
+    },
+  );
 
   testWidgets('every screen fits a 375 x 720 phone', (tester) async {
     final c = AppController();

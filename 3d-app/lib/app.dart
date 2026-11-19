@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -9,11 +10,17 @@ import 'screens/ai_designer.dart';
 import 'screens/artboard.dart';
 import 'screens/business.dart';
 import 'screens/create_home.dart';
+import 'screens/home_switcher.dart';
 import 'screens/library.dart';
+import 'screens/orders_board.dart';
+import 'screens/order_assistant.dart';
 import 'screens/onboarding.dart';
 import 'screens/showcase.dart';
+import 'screens/product_mockup.dart';
 import 'screens/studio.dart';
 import 'widgets/assist_overlay.dart';
+import 'widgets/keyboard_dismiss.dart';
+import 'widgets/notification_bell.dart';
 import 'widgets/ui.dart';
 
 class ThreeDeeziApp extends StatefulWidget {
@@ -26,8 +33,35 @@ class ThreeDeeziApp extends StatefulWidget {
 class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
   late final AppController c = widget.controller ?? AppController();
   late final AssistController assist = AssistController(c);
+  // The notification bells' list, polled once a minute while the app is open and signed in.
+  late final NotificationFeed bell = NotificationFeed.of(c);
+
+  // Saves the account did not take yet (no connection, a refusal) are tried
+  // again every minute (with a growing wait while they keep failing) and when
+  // the app comes back to the front (QA10 2026-11-11).
+  Timer? _retry;
+  AppLifecycleListener? _life;
+
+  @override
+  void initState() {
+    super.initState();
+    bell.startPolling();
+    _retry = Timer.periodic(
+      const Duration(minutes: 1),
+      (_) => unawaited(c.retryUploads()),
+    );
+    _life = AppLifecycleListener(
+      onResume: () => unawaited(c.retryUploads(now: true)),
+    );
+    // The phone's saved Home (bubble or classic), read before Home opens.
+    HomeSwitcher.preload();
+  }
+
   @override
   void dispose() {
+    _retry?.cancel();
+    _life?.dispose();
+    bell.stopPolling();
     assist.dispose();
     if (widget.controller == null) c.dispose();
     super.dispose();
@@ -35,8 +69,20 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
+    // 3DEEZI ASSIST's links and open commands push the TEAM screens over the
+    // app and open Convert and the website's pages with it.
+    navigatorKey: assist.navigator,
     title: '3DEEZI · Sportswear Designer',
     debugShowCheckedModeBanner: false,
+    // The keyboard goes down on a tap outside a text box, on another screen
+    // or tab and on pages opened or closed (KeyboardDismiss), and when a
+    // page is scrolled by finger.
+    navigatorObservers: [KeyboardDismiss.observer],
+    scrollBehavior: const MaterialScrollBehavior().copyWith(
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+    ),
+    builder: (context, child) =>
+        KeyboardDismiss(controller: c, child: child ?? const SizedBox()),
     theme: ThemeData(
       brightness: Brightness.dark,
       useMaterial3: true,
@@ -97,6 +143,10 @@ class _ThreeDeeziAppState extends State<ThreeDeeziApp> {
           if (didPop) return;
           if (assist.open) {
             assist.minimise();
+          } else if (c.screen == AppScreen.studio &&
+              c.closeStudioPanel != null) {
+            // The Studio's tool panel under the 3D closes first.
+            c.closeStudioPanel!();
           } else {
             c.back();
           }
@@ -264,7 +314,7 @@ class _Phone extends StatelessWidget {
     AppScreen.splash => SplashScreen(c),
     AppScreen.onboarding => OnboardingScreen(c),
     AppScreen.auth => AuthScreen(c),
-    AppScreen.home => CreateHomeScreen(c),
+    AppScreen.home => HomeSwitcher(c),
     AppScreen.aiDesigner => AiDesignerScreen(c),
     AppScreen.generating => AiGeneratingScreen(c),
     AppScreen.concepts => ConceptsScreen(c),
@@ -277,9 +327,12 @@ class _Phone extends StatelessWidget {
     AppScreen.assets => AssetsScreen(c),
     AppScreen.profile => ProfileScreen(c),
     AppScreen.showcase => ShowcaseScreen(c),
+    AppScreen.mockup => ProductMockupScreen(c),
     AppScreen.artboard => ArtboardScreen(c),
     AppScreen.pricing => PricingScreen(c),
-    AppScreen.orders => OrdersScreen(c),
+    AppScreen.orders => OrdersBoardScreen(c),
+    // The Orders tab opens the Order Assistant (client 454, 2026-11-05).
+    AppScreen.orderHub => OrderAssistantScreen(c, root: true),
   };
 }
 
@@ -311,7 +364,10 @@ class _PresentationRail extends StatelessWidget {
       AppScreen.home => 1,
       AppScreen.aiDesigner || AppScreen.generating || AppScreen.concepts => 2,
       AppScreen.sport || AppScreen.garment => 3,
-      AppScreen.studio || AppScreen.showcase || AppScreen.artboard => 4,
+      AppScreen.studio ||
+      AppScreen.showcase ||
+      AppScreen.mockup ||
+      AppScreen.artboard => 4,
       _ => 5,
     };
     return SingleChildScrollView(

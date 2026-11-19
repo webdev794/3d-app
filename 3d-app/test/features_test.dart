@@ -92,11 +92,12 @@ void main() {
   });
 
   test(
-    'restored projects replace their samples; save and delete reach the store',
+    'no example projects; restored projects show; save and delete reach the store',
     () async {
       final store = FakeStore();
       final c = AppController(store: store);
-      final sampleCount = c.projects.length;
+      // Client 2026-11-10 "Take all examples out": a new app has no projects.
+      expect(c.projects, isEmpty);
       store.onDisk = [
         Project(
           id: 'sample-1',
@@ -111,7 +112,7 @@ void main() {
         ),
       ];
       await c.restoreProjects();
-      expect(c.projects, hasLength(sampleCount));
+      expect(c.projects, hasLength(1));
       expect(c.projects.first.title, 'Warriors Concept (edited)');
 
       c.startDyo();

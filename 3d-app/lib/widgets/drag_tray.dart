@@ -1,21 +1,61 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../design_document.dart' show studioPatterns;
+import '../own_patterns.dart';
+import '../part_editing.dart';
+import 'studio_tools.dart' show patternAreas;
 import 'ui.dart';
 
 /// What is being dragged onto the kit: an image (logo, artwork) or a pattern.
 class KitDrop {
-  const KitDrop.image(this.image) : pattern = null;
-  const KitDrop.pattern(this.pattern) : image = null;
+  const KitDrop.image(this.image)
+    : pattern = null,
+      own = null,
+      onPart = false,
+      label = null,
+      area = null;
+  const KitDrop.pattern(this.pattern)
+    : image = null,
+      own = null,
+      onPart = false,
+      label = null,
+      area = null;
+
+  /// One of My patterns (own_patterns.dart), put on in the chosen mode.
+  const KitDrop.own(this.own)
+    : image = null,
+      pattern = null,
+      onPart = false,
+      label = null,
+      area = null;
+
+  /// A pattern held in the Patterns panel (client 607): it goes on the part
+  /// that lights up under the finger (the front, the back, a sleeve ...), as
+  /// the website's Studio. [pattern] is a pattern name or a picture (data
+  /// URL); [own] one of My patterns, in the mode of the picture on [area]
+  /// (the panel's chosen area, null: the whole garment).
+  const KitDrop.panel({this.pattern, this.own, required this.label, this.area})
+    : image = null,
+      onPart = true;
   final Uint8List? image;
   final String? pattern;
+  final OwnPattern? own;
+  final bool onPart;
+  final String? label;
+  final String? area;
 }
 
 const _feedbackSize = 64.0;
+
+/// The finger's place in the drag preview: the preview rides just above the
+/// finger, so the part glowing under the finger (and where the drop lands)
+/// stays in view.
+const dragHotSpot = Offset(_feedbackSize / 2, _feedbackSize + 16);
 
 /// A strip of the user's assets and the patterns: press and hold, then drag
 /// onto the 3D kit (or the 2D panels). Logos land where they are dropped;
@@ -35,25 +75,13 @@ class DragTray extends StatelessWidget {
         LongPressDraggable<KitDrop>(
           data: drop,
           delay: const Duration(milliseconds: 220),
-          feedback: Material(
-            color: Colors.transparent,
-            child: Container(
-              width: _feedbackSize,
-              height: _feedbackSize,
-              clipBehavior: Clip.antiAlias,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Palette.cyan, width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: Palette.cyan.withValues(alpha: .5),
-                    blurRadius: 16,
-                  ),
-                ],
-              ),
-              child: child,
-            ),
-          ),
+          dragAnchorStrategy: (draggable, context, position) => dragHotSpot,
+          onDragStarted: () => c.viewerPassThrough?.call(true),
+          onDragEnd: (_) {
+            c.viewerPassThrough?.call(false);
+            c.hoverGarment?.call(null);
+          },
+          feedback: feedback(child),
           childWhenDragging: Opacity(opacity: .35, child: _frame(child, label)),
           child: _frame(child, label),
         );
@@ -80,9 +108,15 @@ class DragTray extends StatelessWidget {
               'Logo ${i + 1}',
             ),
           const SizedBox(width: 8),
+          for (final own in c.ownPatterns ?? const <OwnPattern>[])
+            tile(
+              Image.memory(own.bytes, fit: BoxFit.cover),
+              KitDrop.own(own),
+              own.name.length > 10 ? '${own.name.substring(0, 9)}…' : own.name,
+            ),
           for (final pattern in studioPatterns)
             tile(
-              _PatternSwatch(pattern, c.secondaryColor, c.mainColor),
+              PatternSwatch(pattern, c.secondaryColor, c.mainColor),
               KitDrop.pattern(pattern),
               pattern,
             ),
@@ -90,6 +124,24 @@ class DragTray extends StatelessWidget {
       ),
     );
   }
+
+  /// What rides above the finger while a tile is dragged.
+  static Widget feedback(Widget child) => Material(
+    color: Colors.transparent,
+    child: Container(
+      width: _feedbackSize,
+      height: _feedbackSize,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Palette.cyan, width: 2),
+        boxShadow: [
+          BoxShadow(color: Palette.cyan.withValues(alpha: .5), blurRadius: 16),
+        ],
+      ),
+      child: child,
+    ),
+  );
 
   static Widget _frame(Widget child, String label) => Padding(
     padding: const EdgeInsets.only(right: 8),
@@ -115,28 +167,46 @@ class DragTray extends StatelessWidget {
     ),
   );
 
-  /// Applies a drop at [global] over the stage ([stage] is its render box).
+  /// The finger's place, 0..1 over [stage], for a drag preview at [global].
+  static Offset at(Offset global, RenderBox stage) {
+    final local = stage.globalToLocal(global + dragHotSpot);
+    return Offset(local.dx / stage.size.width, local.dy / stage.size.height);
+  }
+
+  /// While dragging over the stage: the 3D kit glows the part under the
+  /// finger (cleared once the finger is off the 3D).
+  static void hover(AppController c, Offset global, RenderBox stage) {
+    final p = at(global, stage);
+    final inside = p.dx >= 0 && p.dx <= 1 && p.dy >= 0 && p.dy <= 1;
+    c.hoverGarment?.call(inside ? p : null);
+  }
+
+  /// Applies a drop at [global] (the drag preview's corner) over the stage
+  /// ([stage] is its render box): it lands on the part that glowed, under
+  /// the finger.
   static Future<String?> drop(
     AppController c,
     KitDrop drop,
     Offset global,
     RenderBox stage,
   ) async {
+    c.hoverGarment?.call(null);
     final pick = c.pickGarment;
     if (pick == null) return 'The 3D kit is still loading.';
-    final local = stage.globalToLocal(
-      global + const Offset(_feedbackSize / 2, _feedbackSize / 2),
-    );
-    final hit = await pick(
-      local.dx / stage.size.width,
-      local.dy / stage.size.height,
-    );
+    final p = at(global, stage);
+    if (drop.onPart) return _onPart(c, drop, p, pick);
+    final hit = await pick(p.dx, p.dy);
     if (hit == null || hit['hit'] != true)
       return 'Drop it directly onto the garment.';
     if (drop.pattern != null) {
       final zone = hit['zone'] as String? ?? 'body';
       c.edit(() => c.zones = {...c.zones, zone: drop.pattern!});
       return '${drop.pattern} added to the ${_zoneNames[zone] ?? zone}.';
+    }
+    if (drop.own != null) {
+      final zone = hit['zone'] as String? ?? 'body';
+      await c.applyOwnPattern(drop.own!, area: zone);
+      return '${drop.own!.name} added to the ${_zoneNames[zone] ?? zone}.';
     }
     final bytes = drop.image!;
     final png = bytes.length > 3 && bytes[0] == 0x89 && bytes[1] == 0x50;
@@ -153,17 +223,74 @@ class DragTray extends StatelessWidget {
     return 'Logo placed. Use 2D panels to resize or rotate it.';
   }
 
+  /// A pattern from the Patterns panel let go at [p] (0..1 over the 3D): on
+  /// the part that lit up there (one undo step), else on the garment area
+  /// there; off the garment nothing changes.
+  static Future<String?> _onPart(
+    AppController c,
+    KitDrop drop,
+    Offset p,
+    Future<Map<String, dynamic>?> Function(double x, double y) pick,
+  ) async {
+    final label = drop.label ?? drop.pattern ?? 'Pattern';
+    final missed =
+        '$label not applied: let go over the garment to put it there.';
+    if (p.dx < 0 || p.dx > 1 || p.dy < 0 || p.dy > 1) return missed;
+    final hit = await pick(p.dx, p.dy);
+    if (hit == null || hit['hit'] != true) return missed;
+    final value = drop.own != null
+        ? await c.ownPatternData(drop.own!, area: drop.area)
+        : drop.pattern!;
+    final key = hit['partKey'];
+    if (key is String &&
+        partsOf(c.garment).contains(key) &&
+        !partColourOnly(key)) {
+      final style = c.partStyleOf(key), none = value == 'None';
+      c.setPartStyle(
+        key,
+        style.copyWith(
+          pattern: none ? null : value,
+          patternOpacity: none
+              ? 0.0
+              : style.pattern != null
+              ? style.patternOpacity
+              : null,
+        ),
+      );
+      final where = partLabel(key).toLowerCase();
+      return none
+          ? 'Pattern taken off the $where.'
+          : '$label applied to the $where.';
+    }
+    final zone = hit['zone'];
+    for (final (area, name) in patternAreas(
+      c.garment,
+      trackStyle: c.trackStyle,
+    )) {
+      if (area == zone) {
+        c.edit(() => c.zones = {...c.zones, area: value});
+        return '$label applied to the ${name.toLowerCase()}.';
+      }
+    }
+    return key is String && partColourOnly(key)
+        ? 'The ${partLabel(key).toLowerCase()} takes a colour only: drop the '
+              'pattern on the front, back or a sleeve.'
+        : missed;
+  }
+
   static const _zoneNames = {
     'body': 'chest & body',
     'yoke': 'shoulders',
     'sleeves': 'sleeves',
     'sides': 'side panels',
     'hem': 'hem',
+    'pocket': 'chest pocket',
   };
 }
 
-class _PatternSwatch extends StatelessWidget {
-  const _PatternSwatch(this.name, this.ink, this.base);
+/// A small drawing of a built-in pattern: [ink] on [base].
+class PatternSwatch extends StatelessWidget {
+  const PatternSwatch(this.name, this.ink, this.base, {super.key});
   final String name;
   final Color ink, base;
   @override
@@ -222,6 +349,42 @@ class _SwatchPainter extends CustomPainter {
               ..close(),
             f,
           );
+        }
+      case 'Swirl':
+        for (var y = 8.0; y < h; y += 16) {
+          for (var x = 8.0; x < w; x += 16) {
+            final path = Path();
+            for (var t = 0.0; t <= 10; t += 0.3) {
+              final r = 1 + t * 0.6;
+              final o = Offset(x + r * math.cos(t), y + r * math.sin(t));
+              if (t == 0) {
+                path.moveTo(o.dx, o.dy);
+              } else {
+                path.lineTo(o.dx, o.dy);
+              }
+            }
+            canvas.drawPath(path, p);
+          }
+        }
+      case 'Blades':
+        for (final s in const [-1.0, 1.0]) {
+          for (var i = 0; i < 3; i++) {
+            final x0 = w / 2 + s * w * (0.46 - i * 0.06);
+            final tip = w / 2 + s * w * (0.14 + i * 0.08);
+            canvas.drawPath(
+              Path()
+                ..moveTo(x0, h)
+                ..quadraticBezierTo(
+                  w / 2 + s * w * 0.18,
+                  h * 0.7,
+                  tip,
+                  h * (0.15 + i * 0.2),
+                )
+                ..quadraticBezierTo(w / 2 + s * w * 0.3, h * 0.7, x0 + s * 4, h)
+                ..close(),
+              f,
+            );
+          }
         }
       case 'Tribal':
         for (var y = 8.0; y < h; y += 18) {

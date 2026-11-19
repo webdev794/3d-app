@@ -7,9 +7,12 @@ import 'package:http/testing.dart';
 import 'package:three_deezi/api_client.dart';
 import 'package:three_deezi/app_controller.dart';
 import 'package:three_deezi/assist.dart';
+import 'package:three_deezi/screens/team.dart' show TeamRequestsScreen, TeamScreen;
 import 'package:three_deezi/widgets/assist_overlay.dart';
 
 import 'features_test.dart' show FakeStore;
+import 'flow_test.dart' show mountPhone;
+import 'team_app_test.dart' show TeamServer;
 
 /// 3DEEZI ASSIST in the app, against a fake `/api/v1/assist`.
 void main() {
@@ -144,7 +147,8 @@ void main() {
         'reply': 'Compare them on [the plans page](/pricing).',
         'actions': [],
       };
-      final c = controller()..screen = AppScreen.home;
+      // The Home has its own Assist link instead (see below).
+      final c = controller()..screen = AppScreen.projects;
       final assist = AssistController(c);
       await tester.pumpWidget(
         MaterialApp(
@@ -176,6 +180,174 @@ void main() {
       expect(assist.open, isFalse);
     },
   );
+
+  testWidgets(
+    'Home: "Ask 3DEEZI Assist" opens the chat; the round launcher only then',
+    (tester) async {
+      final c = controller()..screen = AppScreen.home;
+      await mountPhone(tester, c);
+      final launcher = find.byKey(const ValueKey('assist-launcher'));
+      expect(launcher, findsNothing);
+      final link = find.byKey(const ValueKey('home-assist-link'));
+      await tester.ensureVisible(link);
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      expect(find.text('AI help assistant'), findsOneWidget);
+      expect(find.text('How do I start designing?'), findsOneWidget);
+      // The launcher shows while the chat is open, and closes it.
+      expect(launcher, findsOneWidget);
+      await tester.tap(launcher);
+      await tester.pumpAndSettle();
+      expect(find.text('AI help assistant'), findsNothing);
+      expect(launcher, findsNothing);
+    },
+  );
+
+  testWidgets(
+    'the round launcher shows on every screen but Home, Orders and start-up',
+    (tester) async {
+      final c = controller();
+      final assist = AssistController(c);
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 800,
+              child: AssistOverlay(assist),
+            ),
+          ),
+        ),
+      );
+      final launcher = find.byKey(const ValueKey('assist-launcher'));
+      for (final s in AppScreen.values) {
+        c.update(() => c.screen = s);
+        await tester.pump();
+        // Home and the Orders tab have their own Assist link instead.
+        final hidden =
+            AssistController.hiddenOn.contains(s) ||
+            s == AppScreen.home ||
+            s == AppScreen.orderHub;
+        expect(launcher, hidden ? findsNothing : findsOneWidget, reason: '$s');
+      }
+    },
+  );
+
+  group('links and open commands to pages over the app screens (task 9.97)', () {
+    final site = AssistController.openSite, convert = AssistController.convert;
+    late List<(String, String)> opened;
+    late int converted;
+    setUp(() {
+      opened = [];
+      converted = 0;
+      AssistController.openSite = (context, url, title) async => opened.add((url, title));
+      AssistController.convert = (context, app) async => converted++;
+    });
+    tearDown(() {
+      AssistController.openSite = site;
+      AssistController.convert = convert;
+    });
+
+    /// The chat over the Projects screen, inside an app with the chat's navigator (as ThreeDeeziApp has it).
+    Future<AssistController> mountChat(WidgetTester tester, {required bool signedIn}) async {
+      final server = TeamServer();
+      final c = AppController(store: FakeStore(), api: ApiClient(client: server.client, baseUrl: 'https://test.example'))..screen = AppScreen.projects;
+      if (signedIn) {
+        c.user = const ApiUser(id: 1, name: 'Pat Tester', email: 'pat@example.test');
+        c.api.token = 'tok';
+      }
+      final assist = AssistController(c);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(420, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: assist.navigator,
+          home: Scaffold(body: AssistOverlay(assist)),
+        ),
+      );
+      return assist;
+    }
+
+    Future<void> back(WidgetTester tester, AssistController assist) async {
+      assist.navigator.currentState!.pop();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('/team and /team/requests open the TEAM screens; back goes to the TEAM screen, then the app', (tester) async {
+      final assist = await mountChat(tester, signedIn: true);
+      expect(AssistController.isPage('/team'), isTrue);
+      assist.openPath('/team');
+      await tester.pumpAndSettle();
+      expect(find.byType(TeamScreen), findsOneWidget);
+      await back(tester, assist);
+      expect(find.byType(TeamScreen), findsNothing);
+      expect(assist.app.screen, AppScreen.projects, reason: 'the app screen stays where it was');
+
+      // An open command: My design requests over the TEAM screen.
+      final done = await tester.runAsync(() => assist.run([('open', '/team/requests')]));
+      await tester.pumpAndSettle();
+      expect(done!.single.ok, isTrue);
+      expect(done.single.text, 'Opened My design requests');
+      expect(find.byType(TeamRequestsScreen), findsOneWidget);
+      expect(find.text('MY DESIGN REQUESTS'), findsOneWidget);
+      await back(tester, assist);
+      expect(find.byType(TeamScreen), findsOneWidget);
+      await back(tester, assist);
+      expect(find.byType(TeamScreen), findsNothing);
+    });
+
+    testWidgets('signed out, /team/requests opens the TEAM screen and asks to sign in', (tester) async {
+      final assist = await mountChat(tester, signedIn: false);
+      assist.openPath('/team/requests');
+      await tester.pumpAndSettle();
+      expect(find.byType(TeamScreen), findsOneWidget);
+      expect(find.byType(TeamRequestsScreen), findsNothing);
+      expect(find.text('Sign in to see your design requests.'), findsOneWidget);
+    });
+
+    testWidgets('/convert opens Convert; /about, /support, /privacy and /terms open the website pages, signed in', (tester) async {
+      final assist = await mountChat(tester, signedIn: true);
+      final done = await tester.runAsync(() => assist.run([('open', '/convert'), ('open', '/about'), ('open', '/support')]));
+      expect([for (final d in done!) (d.ok, d.text)], [(true, 'Opened Convert an image to 3D'), (true, 'Opened About'), (true, 'Opened Support')]);
+      expect(converted, 1);
+      assist.openPath('/privacy');
+      assist.openPath('/terms');
+      expect(opened, [
+        ('https://test.example/about#app-token=tok', 'About'),
+        ('https://test.example/support#app-token=tok', 'Support'),
+        ('https://test.example/privacy#app-token=tok', 'Privacy'),
+        ('https://test.example/terms#app-token=tok', 'Terms'),
+      ]);
+      expect(assist.app.screen, AppScreen.projects, reason: 'never the Home any more');
+    });
+
+    testWidgets('links in an answer to these pages are links, not plain text, and open them', (tester) async {
+      final assist = await mountChat(tester, signedIn: true);
+      assist.messages.add(
+        AssistMessage.assistant(
+          'Ask [3DEEZI TEAM](/team), see [your requests](/team/requests), [convert a picture](/convert) or read our [privacy policy](https://3deezi.com/privacy).',
+        ),
+      );
+      assist.show();
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('privacy policy', findRichText: true).last);
+      await tester.pumpAndSettle();
+      expect(opened, [('https://test.example/privacy#app-token=tok', 'Privacy')]);
+      expect(assist.open, isFalse, reason: 'the chat gets out of the way');
+      assist.show();
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('convert a picture', findRichText: true).last);
+      await tester.pumpAndSettle();
+      expect(converted, 1);
+      assist.show();
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('3DEEZI TEAM', findRichText: true).last);
+      await tester.pumpAndSettle();
+      expect(find.byType(TeamScreen), findsOneWidget);
+    });
+  });
 
   testWidgets('hidden while the app starts', (tester) async {
     final c = controller()..screen = AppScreen.splash;

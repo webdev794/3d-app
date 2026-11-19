@@ -1,6 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'glass_bubble.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 import '../app_controller.dart';
+import 'keyboard_dismiss.dart' show KeyboardOpen;
+import 'stretchy_nav.dart';
 
 class Palette {
   static const bg = Color(0xff05090d),
@@ -37,13 +41,23 @@ class GradientButton extends StatelessWidget {
     required this.onPressed,
     this.icon,
     this.compact = false,
+    this.twoLineLabel = false,
   });
   final String label;
   final VoidCallback? onPressed;
   final IconData? icon;
   final bool compact;
+
+  /// A long label goes onto a second line inside the button instead of
+  /// ending in "…".
+  final bool twoLineLabel;
   @override
   Widget build(BuildContext context) => Semantics(
+    // A node of its own, as Material's buttons are: without it the button
+    // merged into the card around it (one "button" named by the whole card,
+    // e.g. TEAM's PAY NOW), and a SecondaryButton beside it sat inside that
+    // button, where screen readers on the web can't reach it.
+    container: true,
     button: true,
     enabled: onPressed != null,
     child: DecoratedBox(
@@ -79,16 +93,29 @@ class GradientButton extends StatelessWidget {
                 children: [
                   if (label.isNotEmpty)
                     Flexible(
-                      child: Text(
-                        label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Color(0xff001923),
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
+                      child: twoLineLabel
+                          ? Text(
+                              label,
+                              maxLines: 2,
+                              textAlign: TextAlign.center,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xff001923),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                                height: 1.15,
+                              ),
+                            )
+                          : Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Color(0xff001923),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 14,
+                              ),
+                            ),
                     ),
                   if (icon != null) ...[
                     if (label.isNotEmpty) const SizedBox(width: 10),
@@ -271,67 +298,487 @@ class SurfaceCard extends StatelessWidget {
   );
 }
 
+/// The bottom bar (client pictures 166.jpg and 168.jpg): Home · Projects ·
+/// Orders · Profile. Assets is part of Projects (its button there, and in
+/// Profile), and My orders is part of the Orders tab.
+/// Whether the app lays out as a phone: a real phone (shortest side under
+/// 600), or the app inside the desktop preview's phone frame (a window at
+/// least 900 wide, the app itself under 600). [appWidth] is the app's own
+/// width (from a LayoutBuilder). Tablets and wide screens are not phones.
+bool phoneLayout(BuildContext context, double appWidth) {
+  final window = MediaQuery.sizeOf(context);
+  return window.shortestSide < 600 || (window.width >= 900 && appWidth < 600);
+}
+
 class BottomNav extends StatelessWidget {
   const BottomNav({super.key, required this.controller});
   final AppController controller;
+
+  /// The tab a screen belongs to.
+  static AppScreen tabOf(AppScreen screen) => switch (screen) {
+    AppScreen.assets => AppScreen.projects,
+    AppScreen.orders => AppScreen.orderHub,
+    _ => screen,
+  };
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) =>
+        _build(context, phoneLayout(context, box.maxWidth)),
+  );
+
+  Widget _build(BuildContext context, bool phone) {
+    // While the keyboard is up the bar makes way (as on iPhone apps, it
+    // stays under the keyboard): the text box keeps the room above it
+    // (user's picture 483: the bar rode up over the page).
+    if (KeyboardOpen.of(context)) return const SizedBox.shrink();
     final entries = [
-      (AppScreen.home, Icons.auto_awesome_outlined, 'Create'),
-      (AppScreen.projects, Icons.folder_outlined, 'Projects'),
-      (AppScreen.assets, Icons.layers_outlined, 'Assets'),
-      (AppScreen.profile, Icons.person_outline_rounded, 'Profile'),
-    ];
-    return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xff080e14),
-        border: Border(top: BorderSide(color: Palette.border)),
+      (AppScreen.home, Icons.home_outlined, Icons.home_rounded, 'Home'),
+      (
+        AppScreen.projects,
+        Icons.folder_outlined,
+        Icons.folder_rounded,
+        'Projects',
       ),
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
-      child: Row(
-        children: entries.map((e) {
-          final selected = controller.screen == e.$1;
-          return Expanded(
-            child: InkWell(
-              onTap: () => controller.go(e.$1),
-              borderRadius: BorderRadius.circular(10),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      e.$2,
-                      color: selected ? Palette.cyan : Palette.muted,
-                      size: 22,
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      e.$3,
-                      style: TextStyle(
-                        color: selected ? Palette.cyan : Palette.muted,
-                        fontSize: 10,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ],
-                ),
+      (AppScreen.orderHub, null, null, 'Orders'),
+      (
+        AppScreen.profile,
+        Icons.person_outline_rounded,
+        Icons.person_rounded,
+        'Profile',
+      ),
+    ];
+    final current = tabOf(controller.screen);
+    // Phones: a floating glass capsule whose active item sits on a small
+    // glowing glass pill (client home pictures 2026-10-30). Wider screens
+    // keep the flat bar.
+    final row = Row(
+      children: entries.map((e) {
+        final selected = current == e.$1;
+        final colour = selected ? Palette.cyan : const Color(0xffb9c5cf);
+        final content = Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 24,
+              child: e.$2 == null
+                  ? CubeIcon(filled: selected, color: colour, size: 23)
+                  : Icon(selected ? e.$3 : e.$2, color: colour, size: 24),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              e.$4,
+              maxLines: 1,
+              softWrap: false,
+              overflow: TextOverflow.fade,
+              style: TextStyle(
+                color: colour,
+                fontSize: 11,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
-          );
-        }).toList(),
+          ],
+        );
+        return Expanded(
+          child: Semantics(
+            selected: selected,
+            child: InkWell(
+              key: ValueKey('nav-${e.$4.toLowerCase()}'),
+              onTap: () => controller.go(e.$1),
+              borderRadius: BorderRadius.circular(phone ? 18 : 10),
+              child: phone
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 2,
+                        vertical: 2,
+                      ),
+                      // The active item sits in a round glowing glass
+                      // button, a little proud of the capsule.
+                      child: CustomPaint(
+                        painter: selected ? const _ActiveGlass() : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          child: Center(child: content),
+                        ),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 5),
+                      child: content,
+                    ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+    if (!phone) {
+      return Container(
+        decoration: const BoxDecoration(
+          color: Color(0xff080e14),
+          border: Border(top: BorderSide(color: Palette.border)),
+        ),
+        padding: const EdgeInsets.fromLTRB(8, 4, 8, 5),
+        child: row,
+      );
+    }
+    // The capsule stretches and ripples with the finger, then springs back
+    // (taps still switch tabs; animations off: plain): stretchy_nav.dart.
+    return StretchyNav(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 4, 14, 31),
+        child: GlassCapsule(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            child: RepaintBoundary(child: row),
+          ),
+        ),
       ),
     );
   }
+}
+
+/// The phone tab bar's glass capsule: light blue glass with a thin glassy
+/// rim, a soft glow, white gloss along the top and small lights inside the
+/// edge (client 379). Also the Create your order option bubbles (user
+/// 2026-11-06), so they look like the tab bar's bubble.
+class GlassCapsule extends StatelessWidget {
+  const GlassCapsule({super.key, required this.child, this.radius = 30});
+  final Widget child;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) => GlassShine(
+    radius: radius,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xd02a5f96), Color(0xc8123660), Color(0xd8081a33)],
+          stops: [0, .45, 1],
+        ),
+        border: Border.all(color: const Color(0x994ab4d8), width: 1.6),
+        boxShadow: const [
+          BoxShadow(color: Color(0x5536c8ff), blurRadius: 10, spreadRadius: 1),
+          BoxShadow(
+            color: Color(0x80000000),
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: CustomPaint(
+        // Uneven shine just inside the thin edge (client 379).
+        painter: _NavShine(radius),
+        child: child,
+      ),
+    ),
+  );
+}
+
+/// Glass lights inside the nav capsule's edge: a glossy white streak along
+/// the top-left and the left end, a softer patch at the right end and the
+/// bottom curve. Gradients only.
+class _NavShine extends CustomPainter {
+  const _NavShine([this.radius = 30]);
+
+  /// The capsule's corner radius (the tab bar's: 30).
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final rr = RRect.fromRectAndRadius(
+      rect.deflate(4),
+      Radius.circular(math.max(radius - 4, 0)),
+    );
+    void glow(Rect clip, double w, Gradient g) {
+      canvas.save();
+      canvas.clipRect(clip);
+      canvas.drawRRect(
+        rr,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = w
+          ..shader = g.createShader(rect),
+      );
+      canvas.restore();
+    }
+
+    Color wh(double a) => Colors.white.withValues(alpha: a);
+    Color cy(double a) => const Color(0xff7fe6ff).withValues(alpha: a);
+    final h = size.height, w = size.width;
+    // A soft white glow all round just inside the edge, like the main
+    // bubble's side lights (client 373), strongest at both ends.
+    canvas.save();
+    canvas.clipRRect(rr);
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 16
+        ..shader = LinearGradient(
+          colors: [cy(.8), cy(.3), cy(.3), cy(.75)],
+          stops: const [0, .25, .75, 1],
+        ).createShader(rect)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
+    );
+    canvas.restore();
+    // Small lights round the edge (client 373), uneven sizes.
+    canvas.save();
+    canvas.clipRRect(rr);
+    final edge = Path()..addRRect(rr.deflate(3));
+    for (final m in edge.computeMetrics()) {
+      for (final (f, sz, a) in const [
+        (.03, 14.0, .9),
+        (.12, 7.0, .55),
+        (.2, 11.0, .75),
+        (.33, 6.0, .5),
+        (.45, 9.0, .65),
+        (.55, 15.0, .9),
+        (.63, 6.0, .5),
+        (.72, 10.0, .7),
+        (.85, 13.0, .85),
+        (.94, 7.0, .55),
+      ]) {
+        final tan = m.getTangentForOffset(m.length * f);
+        if (tan == null) continue;
+        canvas.save();
+        canvas.translate(tan.position.dx, tan.position.dy);
+        canvas.rotate(-tan.angle);
+        canvas.scale(.9 + (f * 97) % 1 * 1.6, .22 + (f * 53) % 1 * .3);
+        canvas.drawCircle(
+          Offset.zero,
+          sz * 1.7,
+          Paint()
+            ..shader =
+                RadialGradient(
+                  colors: [
+                    wh(a),
+                    const Color(0xff8fe9ff).withValues(alpha: a * .7),
+                    const Color(0x002ab8ff),
+                  ],
+                  stops: const [0, .35, 1],
+                ).createShader(
+                  Rect.fromCircle(center: Offset.zero, radius: sz * 1.7),
+                ),
+        );
+        canvas.restore();
+      }
+      break;
+    }
+    canvas.restore();
+    // Top-left gloss and the left end.
+    final tl = LinearGradient(
+      colors: [wh(.95), wh(.7), wh(0)],
+      stops: const [0, .3, .55],
+    );
+    glow(Rect.fromLTRB(0, 0, w * .55, h * .75), 5, tl);
+    glow(Rect.fromLTRB(0, 0, w * .55, h * .75), 1.6, tl);
+    // The bottom curve, brightest at the left; a faint touch at the right.
+    final bot = LinearGradient(
+      begin: Alignment.bottomLeft,
+      end: Alignment.topRight,
+      colors: [wh(.85), wh(.4), wh(0)],
+      stops: const [0, .35, .7],
+    );
+    glow(Rect.fromLTRB(0, h * .5, w, h), 5, bot);
+    glow(
+      Rect.fromLTRB(w * .8, h * .2, w, h * .8),
+      4,
+      const LinearGradient(
+        begin: Alignment.centerRight,
+        end: Alignment.centerLeft,
+        colors: [Color(0x55ffffff), Color(0x00ffffff)],
+        stops: [0, .2],
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_NavShine o) => o.radius != radius;
+}
+
+/// The phone nav's active item: a round glass button with a cyan rim, a
+/// soft glow and a highlight at its top left.
+class _ActiveGlass extends CustomPainter {
+  const _ActiveGlass();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = math.min(size.width / 2, size.height / 2 + 4);
+    canvas.drawCircle(
+      c,
+      r + 2,
+      Paint()
+        ..color = const Color(0x6619b6ff)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10),
+    );
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = RadialGradient(
+          center: const Alignment(-.3, -.4),
+          colors: const [
+            Color(0xff1d5fa8),
+            Color(0xff0b2a55),
+            Color(0xff071a36),
+          ],
+          stops: const [0, .6, 1],
+        ).createShader(Rect.fromCircle(center: c, radius: r)),
+    );
+    canvas.drawCircle(
+      c,
+      r - 1,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..color = const Color(0xff3fd4ff),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r - 4),
+      -2.7,
+      1.1,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = 2
+        ..color = Colors.white.withValues(alpha: .55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ActiveGlass oldDelegate) => false;
+}
+
+/// The Orders tab's box: an isometric cube, solid when [filled].
+class CubeIcon extends StatelessWidget {
+  const CubeIcon({
+    super.key,
+    required this.filled,
+    required this.color,
+    this.size = 24,
+  });
+  final bool filled;
+  final Color color;
+  final double size;
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(painter: _CubePainter(filled, color)),
+  );
+}
+
+class _CubePainter extends CustomPainter {
+  const _CubePainter(this.filled, this.color);
+  final bool filled;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.width / 24;
+    Offset p(double x, double y) => Offset(x * s, y * s);
+    final top = Path()
+      ..moveTo(p(12, 2.5).dx, p(12, 2.5).dy)
+      ..lineTo(p(20.5, 7).dx, p(20.5, 7).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..lineTo(p(3.5, 7).dx, p(3.5, 7).dy)
+      ..close();
+    final left = Path()
+      ..moveTo(p(3.5, 7).dx, p(3.5, 7).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..lineTo(p(12, 21.5).dx, p(12, 21.5).dy)
+      ..lineTo(p(3.5, 17).dx, p(3.5, 17).dy)
+      ..close();
+    final right = Path()
+      ..moveTo(p(20.5, 7).dx, p(20.5, 7).dy)
+      ..lineTo(p(20.5, 17).dx, p(20.5, 17).dy)
+      ..lineTo(p(12, 21.5).dx, p(12, 21.5).dy)
+      ..lineTo(p(12, 11.5).dx, p(12, 11.5).dy)
+      ..close();
+    if (filled) {
+      final hsl = HSLColor.fromColor(color);
+      canvas.drawPath(
+        top,
+        Paint()
+          ..color = hsl
+              .withLightness((hsl.lightness + .18).clamp(0, 1))
+              .toColor(),
+      );
+      canvas.drawPath(left, Paint()..color = color);
+      canvas.drawPath(
+        right,
+        Paint()
+          ..color = hsl
+              .withLightness((hsl.lightness - .14).clamp(0, 1))
+              .toColor(),
+      );
+      return;
+    }
+    final line = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.7 * s
+      ..strokeJoin = StrokeJoin.round
+      ..color = color;
+    canvas.drawPath(top, line);
+    canvas.drawPath(left, line);
+    canvas.drawPath(right, line);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CubePainter old) =>
+      old.filled != filled || old.color != color;
+}
+
+/// [child] drawn over the 3D view, a web frame that would otherwise take its
+/// taps and clicks (Flutter web): a PointerInterceptor under it, left out of
+/// the semantics as the Assist button's. [bleed] widens it past [child] (a
+/// toast's padding and close button); the parent's clip trims it.
+class OverViewer extends StatelessWidget {
+  const OverViewer({
+    super.key,
+    required this.child,
+    this.bleed = EdgeInsets.zero,
+  });
+  final Widget child;
+  final EdgeInsets bleed;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    fit: StackFit.passthrough,
+    clipBehavior: Clip.none,
+    children: [
+      Positioned(
+        left: -bleed.left,
+        top: -bleed.top,
+        right: -bleed.right,
+        bottom: -bleed.bottom,
+        child: ExcludeSemantics(
+          child: PointerInterceptor(child: const SizedBox.expand()),
+        ),
+      ),
+      child,
+    ],
+  );
 }
 
 void showToast(BuildContext context, String message) {
   ScaffoldMessenger.of(context).hideCurrentSnackBar();
   ScaffoldMessenger.of(context).showSnackBar(
     SnackBar(
-      content: Text(message),
+      // Over the 3D (Preview) its close button still takes the click.
+      content: OverViewer(
+        bleed: const EdgeInsets.fromLTRB(24, 24, 96, 24),
+        child: Text(message),
+      ),
       behavior: SnackBarBehavior.floating,
       backgroundColor: Palette.surface2,
       showCloseIcon: true,
@@ -476,7 +923,7 @@ class JerseyPainter extends CustomPainter {
       canvas.restore();
       return;
     }
-    final singlet = c.garment == 'Singlet';
+    final singlet = c.garment == 'Singlet' || c.garment == 'Netball dress';
     final long = ['Hoodie', 'Jacket', 'Tracksuit'].contains(c.garment);
     final path = Path()
       ..moveTo(135, 48)

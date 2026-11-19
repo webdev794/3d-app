@@ -19,9 +19,65 @@ Map<String, String> copyZones(Object? value) => value is Map
       }
     : {};
 
+/// The fixed marks (wordmark, crest, sponsor, name, number) moved, resized,
+/// turned or hidden on the 2D panels, keyed `top_wordmark` and so on (the
+/// website's `design.marks`). The server sends `[]` when there are none.
+Map<String, dynamic> copyMarks(Object? value) => value is Map
+    ? {
+        for (final entry in value.entries)
+          if (entry.value is Map)
+            '${entry.key}': (jsonDecode(jsonEncode(entry.value)) as Map)
+                .cast<String, dynamic>(),
+      }
+    : {};
+
+/// A factory print layout on the kit (the website's `design.layout`): the file
+/// (`asset`, one of the user's saved assets), each panel found in it named in
+/// the order found (`roles`, 'none' = not used), whether the plain strip under
+/// the body panels is the hem fold, whether the white lines across the sleeves
+/// are joined up (left out), and the parts it makes. Null when none.
+/// A preset's design picture key ('preset:rl-c02-01', the Rugby League
+/// presets): its file is bundled (assets/images/presets/drawings) and on the
+/// server (media/presets/drawings), so it needs no sign-in.
+bool isPresetDrawing(Object? asset) =>
+    asset is String && RegExp(r'^preset:[a-z0-9-]{1,60}$').hasMatch(asset);
+
+Map<String, dynamic>? copyLayout(Object? value) {
+  if (value is! Map) return null;
+  final asset = value['asset'], roles = value['roles'], parts = value['parts'];
+  // (Or a preset's design picture, 'preset:<id>': PRESETRL 2026-11-19.)
+  if ((asset is! int && !isPresetDrawing(asset)) || roles is! List) return null;
+  return {
+    'asset': asset,
+    'name': '${value['name'] ?? 'Print layout'}',
+    'roles': [for (final role in roles) '$role'],
+    'hemFold': value['hemFold'] != false,
+    'joinLines': value['joinLines'] != false,
+    'parts': [
+      if (parts is List)
+        for (final part in parts) '$part',
+    ],
+    // A design picture (the garment's front and back drawn flat).
+    if (value['kind'] == 'drawing') 'kind': 'drawing',
+  };
+}
+
 Map<String, dynamic>? copyGradient(Object? value) => value is Map
     ? (jsonDecode(jsonEncode(value)) as Map).cast<String, dynamic>()
     : null;
+
+/// The parts edited on their own (task 9.134, the website's `design.parts`):
+/// `{leftSleeve: {colour, fade, pattern, patternColour, patternOpacity}}`,
+/// only the parts changed (see part_editing.dart). Empty: the kit as before.
+/// The server sends `[]` when there are none.
+Map<String, dynamic> copyParts(Object? value) => value is Map
+    ? {
+        for (final entry in value.entries)
+          if (entry.value is Map && (entry.value as Map).isNotEmpty)
+            '${entry.key}': (jsonDecode(jsonEncode(entry.value)) as Map)
+                .cast<String, dynamic>(),
+      }
+    : {};
 
 const garmentZones = {
   'body': 'Chest & body',
@@ -29,6 +85,108 @@ const garmentZones = {
   'sleeves': 'Sleeves',
   'sides': 'Side panels',
   'hem': 'Hem',
+  // Only on the pocket polo (pool and darts shirts) and hoodies (their kangaroo pocket).
+  'pocket': 'Chest pocket',
+  // Only on hoodies.
+  'hood': 'Hood',
+};
+
+/// The hoodies (pull-over and full zip), as the app names them.
+bool isHoodie(String garment) => garment == 'Hoodie' || garment == 'Zip hoodie';
+
+/// A hoodie's own colour areas (AppController.zoneColors) and their labels; the zip only on the zip hoodie.
+const hoodieAreas = {
+  'hood': 'Hood',
+  'lining': 'Hood lining',
+  'rib': 'Cuffs & waistband',
+  'pocket': 'Pocket',
+  'zip': 'Zip',
+  // Unset: no stripe (task 9.154).
+  'stripe': 'Sleeve stripe',
+};
+
+/// The varsity (letterman) jacket, as the app names it.
+bool isVarsity(String garment) => garment == 'Varsity jacket';
+
+/// The varsity jacket's own colour areas (AppController.zoneColors), as the
+/// website's VARSITY AREAS. Unset, the body, rib and snaps follow the main
+/// colour, the sleeves and lining the secondary, the stripes and pocket trim
+/// the sleeves.
+const varsityAreas = {
+  'body': 'Body (wool)',
+  'sleeves': 'Sleeves (leather)',
+  'rib': 'Collar, cuffs & waistband',
+  'ribStripe': 'Rib stripes',
+  'snaps': 'Snaps',
+  'pocketTrim': 'Pocket trim',
+  'lining': 'Quilted lining',
+};
+
+/// The track suit jacket, as the app names it.
+bool isTrack(String garment) => garment == 'Track jacket';
+
+/// The track jacket's own colour areas (AppController.zoneColors), as the
+/// website's TRACK JACKET AREAS. Unset, the body follows the main colour, the
+/// panels and zips the secondary, the stripe the accent, the collar (or hood)
+/// and the cuffs the body.
+const trackAreas = {
+  'body': 'Body',
+  'shoulder': 'Shoulder & sleeve panels',
+  'side': 'Side panels',
+  'stripe': 'Sleeve stripe',
+  'collar': 'Collar',
+  'cuffs': 'Cuffs & hem band',
+  'zip': 'Zips',
+};
+
+/// The basketball shorts (the Shorts with the bballBand colour, cut and printed
+/// as basketball shorts by the 3D viewer, as on the website).
+bool isBballShorts(String garment, Map<String, String> zoneColors) =>
+    garment == 'Shorts' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(zoneColors['bballBand'] ?? '');
+
+/// The basketball shorts' own colour areas (AppController.zoneColors), as the
+/// website's BASKETBALL SHORTS AREAS: the two stripes round each leg's hem.
+/// Unset, both follow the secondary colour.
+const bballAreas = {
+  'bballTrim1': 'Hem stripe 1',
+  'bballTrim2': 'Hem stripe 2 (edge)',
+};
+
+/// The Basketball singlet tile's own 3D singlet (the Singlet with the
+/// bballSinglet flag, as on the website: BBSINGLET 2026-11-13).
+bool isBballSinglet(String garment, Map<String, String> zoneColors) =>
+    garment == 'Singlet' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(zoneColors['bballSinglet'] ?? '');
+
+/// The basketball singlet's own colour area, as the website's BASKETBALL
+/// SINGLET AREAS: its reverse side (the inside; a reversible singlet's other
+/// side). Unset, it follows the parts and the main colour.
+const bballSingletAreas = {'reverseSide': 'Reverse side (inside)'};
+
+/// The Netball bibs tile's own 3D bib (the Singlet with the netballBib
+/// flag, as on the website: NBBIB 2026-11-13).
+bool isNetballBib(String garment, Map<String, String> zoneColors) =>
+    garment == 'Singlet' &&
+    RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(zoneColors['netballBib'] ?? '');
+
+/// The netball bib's own colour areas, as the website's NETBALL BIB AREAS:
+/// the edge binding and the side ties. Unset, both follow the secondary
+/// colour (the neck binding is the Neck trim, Style).
+const bibAreas = {'bibEdge': 'Edge binding', 'bibTies': 'Side ties'};
+
+/// The netball dress, as the app names it.
+bool isNetballDress(String garment) => garment == 'Netball dress';
+
+/// The netball dress's own colour areas (AppController.zoneColors), as the
+/// website's NETBALL DRESS AREAS (viewer netballdress.js). Unset, the body
+/// follows the main colour, the side panels and yoke the secondary, the
+/// binding the yoke.
+const dressAreas = {
+  'body': 'Body',
+  'panels': 'Side panels',
+  'yoke': 'Yoke',
+  'binding': 'Neck & armhole binding',
 };
 
 const studioPatterns = [
@@ -36,9 +194,16 @@ const studioPatterns = [
   'Stripes',
   'Chevron',
   'Velocity',
+  'Blades',
+  'Swirl',
   'Hoops',
   'Dots',
   'Diagonal',
   'Tribal',
   'Camo',
 ];
+
+/// The patterns a saved design keeps: the Studio's, and Shards (the
+/// basketball shooting shirt tile's starting look, not in the Studio's list),
+/// which a save turned into Solid before (QA10 2026-11-11).
+const savedPatterns = [...studioPatterns, 'Shards'];

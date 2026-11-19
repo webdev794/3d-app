@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
+import '../widgets/bubble_page.dart' show BubblePage;
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
+import 'forgot_password.dart';
 
 /// 1 · Splash: brand mark, wordmark and a loading bar.
 class SplashScreen extends StatefulWidget {
@@ -163,9 +165,17 @@ class AuthScreen extends StatelessWidget {
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      // With the keyboard up the form fills the screen: keep it below the
+      // iPhone notch and give it a ✕.
+      useSafeArea: true,
       backgroundColor: Palette.surface,
-      showDragHandle: true,
-      builder: (_) => AccountSheet(c, register: register),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SheetTop(),
+          Flexible(child: AccountSheet(c, register: register)),
+        ],
+      ),
     );
     if (ok == true && context.mounted) {
       showToast(context, 'Signed in as ${c.user?.email}. Projects now sync.');
@@ -181,103 +191,103 @@ class AuthScreen extends StatelessWidget {
     _account(context);
   }
 
+  // The bubble look (user 2026-11-05): the 3DEEZI logo in the header, the
+  // welcome and the sign-in buttons in the bubble; it scrolls on a short
+  // screen.
   @override
-  Widget build(BuildContext context) => Container(
-    decoration: const BoxDecoration(
-      gradient: RadialGradient(
-        center: Alignment(0, -.5),
-        radius: 1,
-        colors: [Color(0xff062638), Palette.bg],
-      ),
-    ),
-    padding: const EdgeInsets.symmetric(horizontal: 26),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Spacer(flex: 3),
-        const Center(child: BrandLogo(width: 220, tagline: true)),
-        const SizedBox(height: 34),
-        const Text(
-          'Welcome to 3DEEZI',
-          textAlign: TextAlign.center,
-          style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          'Create custom sportswear\nwith AI and 3D.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Palette.muted, fontSize: 13, height: 1.5),
-        ),
-        const Spacer(flex: 2),
-        _SignInButton(
-          icon: Icons.apple,
-          label: 'Continue with Apple',
-          onTap: () => _social(context, 'Apple'),
-        ),
-        const SizedBox(height: 12),
-        _SignInButton(
-          google: true,
-          label: 'Continue with Google',
-          onTap: () => _social(context, 'Google'),
-        ),
-        const SizedBox(height: 12),
-        _SignInButton(
-          icon: Icons.mail_outline_rounded,
-          label: 'Continue with Email',
-          outlined: true,
-          onTap: () => _account(context),
-        ),
-        const SizedBox(height: 22),
-        const Row(
-          children: [
-            Expanded(child: Divider()),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
-              child: Text(
-                'OR',
-                style: TextStyle(color: Palette.muted, fontSize: 11),
+  Widget build(BuildContext context) => BubblePage(
+    c: c,
+    title: 'WELCOME',
+    compact: true,
+    bubbleKey: const ValueKey('auth-bubble'),
+    child: SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 8),
+          const Text(
+            'Welcome to 3DEEZI',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Create custom sportswear\nwith AI and 3D.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Palette.muted, fontSize: 13, height: 1.5),
+          ),
+          const SizedBox(height: 26),
+          _SignInButton(
+            icon: Icons.apple,
+            label: 'Continue with Apple',
+            onTap: () => _social(context, 'Apple'),
+          ),
+          const SizedBox(height: 12),
+          _SignInButton(
+            google: true,
+            label: 'Continue with Google',
+            onTap: () => _social(context, 'Google'),
+          ),
+          const SizedBox(height: 12),
+          _SignInButton(
+            icon: Icons.mail_outline_rounded,
+            label: 'Continue with Email',
+            outlined: true,
+            onTap: () => _account(context),
+          ),
+          const SizedBox(height: 22),
+          const Row(
+            children: [
+              Expanded(child: Divider()),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: 12),
+                child: Text(
+                  'OR',
+                  style: TextStyle(color: Palette.muted, fontSize: 11),
+                ),
               ),
-            ),
-            Expanded(child: Divider()),
-          ],
-        ),
-        const SizedBox(height: 14),
-        Center(
-          child: Text.rich(
-            TextSpan(
-              text: 'Already have an account? ',
-              style: const TextStyle(color: Palette.muted, fontSize: 12.5),
-              children: [
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  child: GestureDetector(
-                    onTap: () => _account(context, register: false),
-                    child: const Text(
-                      'Sign In',
-                      style: TextStyle(
-                        color: Palette.cyan,
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
+              Expanded(child: Divider()),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Center(
+            child: Text.rich(
+              TextSpan(
+                text: 'Already have an account? ',
+                style: const TextStyle(color: Palette.muted, fontSize: 12.5),
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: GestureDetector(
+                      onTap: () => _account(context, register: false),
+                      child: const Text(
+                        'Sign In',
+                        style: TextStyle(
+                          color: Palette.cyan,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 6),
-        Center(
-          child: TextButton(
-            onPressed: () => c.go(AppScreen.home),
-            child: const Text(
-              'Continue as guest (projects stay on this device)',
-              style: TextStyle(color: Palette.muted, fontSize: 11.5),
+          const SizedBox(height: 6),
+          Center(
+            child: TextButton(
+              onPressed: () => c.go(AppScreen.home),
+              child: const Text(
+                'Continue as guest (projects stay on this device)',
+                style: TextStyle(color: Palette.muted, fontSize: 11.5),
+              ),
             ),
           ),
-        ),
-        const Spacer(flex: 2),
-      ],
+          const SizedBox(height: 12),
+        ],
+      ),
     ),
   );
 }
@@ -294,6 +304,9 @@ class AccountSheet extends StatefulWidget {
 
 class _AccountSheetState extends State<AccountSheet> {
   late bool _register = widget.register;
+
+  /// "Forgot password?": the code flow shows in place of the form.
+  bool _forgot = false;
   final _name = TextEditingController(), _email = TextEditingController();
   final _password = TextEditingController(), _confirm = TextEditingController();
   bool _busy = false;
@@ -374,77 +387,122 @@ class _AccountSheetState extends State<AccountSheet> {
       22 + MediaQuery.viewInsetsOf(context).bottom,
     ),
     child: SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ScreenTitle(_register ? 'Create your account' : 'Sign in', size: 22),
-          const SizedBox(height: 6),
-          const Text(
-            'Your projects save to your 3DEEZI account and open on the website too.',
-            style: TextStyle(color: Palette.muted, fontSize: 12, height: 1.4),
-          ),
-          const SizedBox(height: 16),
-          if (_register) _field(_name, 'Full name'),
-          _field(_email, 'you@club.com', keyboard: TextInputType.emailAddress),
-          _field(
-            _password,
-            _register ? 'Password (8+ characters)' : 'Password',
-            secret: true,
-            last: !_register,
-          ),
-          if (_register)
-            _field(_confirm, 'Confirm password', secret: true, last: true),
-          if (_error != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Text(
-                _error!,
-                style: const TextStyle(
-                  color: Color(0xffff6b6b),
-                  fontSize: 12.5,
+      child: _forgot
+          ? ForgotPasswordPanel(
+              widget.c,
+              email: _email.text,
+              onBack: () => setState(() {
+                _forgot = false;
+                _error = null;
+              }),
+              onSignedIn: () => Navigator.pop(context, true),
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ScreenTitle(
+                  _register ? 'Create your account' : 'Sign in',
+                  size: 22,
                 ),
-              ),
-            ),
-          const SizedBox(height: 4),
-          _busy
-              ? const SizedBox(
-                  height: 52,
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              : GradientButton(
-                  label: _register ? 'CREATE ACCOUNT' : 'SIGN IN',
-                  onPressed: _submit,
+                const SizedBox(height: 6),
+                const Text(
+                  'Your projects save to your 3DEEZI account and open on the website too.',
+                  style: TextStyle(
+                    color: Palette.muted,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
                 ),
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: _busy
-                ? null
-                : () => setState(() {
-                    _register = !_register;
-                    _error = null;
-                  }),
-            child: Text(
-              _register
-                  ? 'Already have an account? Sign in'
-                  : 'New to 3DEEZI? Create an account',
-              style: const TextStyle(color: Palette.cyan, fontSize: 12.5),
+                const SizedBox(height: 16),
+                if (_register) _field(_name, 'Full name'),
+                _field(
+                  _email,
+                  'you@club.com',
+                  keyboard: TextInputType.emailAddress,
+                ),
+                _field(
+                  _password,
+                  _register ? 'Password (8+ characters)' : 'Password',
+                  secret: true,
+                  last: !_register,
+                ),
+                if (_register)
+                  _field(
+                    _confirm,
+                    'Confirm password',
+                    secret: true,
+                    last: true,
+                  ),
+                if (!_register)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: _busy
+                          ? null
+                          : () => setState(() {
+                              _forgot = true;
+                              _error = null;
+                            }),
+                      child: const Text(
+                        'Forgot password?',
+                        style: TextStyle(color: Palette.cyan, fontSize: 12.5),
+                      ),
+                    ),
+                  ),
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Text(
+                      _error!,
+                      style: const TextStyle(
+                        color: Color(0xffff6b6b),
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                _busy
+                    ? const SizedBox(
+                        height: 52,
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    : GradientButton(
+                        label: _register ? 'CREATE ACCOUNT' : 'SIGN IN',
+                        onPressed: _submit,
+                      ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() {
+                          _register = !_register;
+                          _error = null;
+                        }),
+                  child: Text(
+                    _register
+                        ? 'Already have an account? Sign in'
+                        : 'New to 3DEEZI? Create an account',
+                    style: const TextStyle(color: Palette.cyan, fontSize: 12.5),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _busy ? null : _server,
+                  icon: const Icon(
+                    Icons.dns_outlined,
+                    size: 15,
+                    color: Palette.muted,
+                  ),
+                  label: Text(
+                    'Server: ${widget.c.api.host}',
+                    style: const TextStyle(
+                      color: Palette.muted,
+                      fontSize: 11.5,
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-          TextButton.icon(
-            onPressed: _busy ? null : _server,
-            icon: const Icon(
-              Icons.dns_outlined,
-              size: 15,
-              color: Palette.muted,
-            ),
-            label: Text(
-              'Server: ${widget.c.api.host}',
-              style: const TextStyle(color: Palette.muted, fontSize: 11.5),
-            ),
-          ),
-        ],
-      ),
     ),
   );
 }
@@ -528,12 +586,18 @@ class _SignInButton extends StatelessWidget {
                 color: outlined ? Palette.cyan : Colors.black,
               ),
             const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: outlined ? Palette.text : Colors.black,
+            // (Narrow in the bubble: the label shrinks, never overflows.)
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: outlined ? Palette.text : Colors.black,
+                  ),
+                ),
               ),
             ),
           ],
