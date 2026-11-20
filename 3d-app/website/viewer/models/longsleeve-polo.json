@@ -1,0 +1,13 @@
+{
+  "about": "Long-sleeve raglan polo (new 'Long-sleeve polo' tile after the polo in Darts & Pool, Golf, Cricket, Lawn bowls, Teamwear; coordinator 20 Nov, cards 55189 / 55199): Tripo model longsleeve-polo-textured.glb (shape only), coloured from longsleeve-polo-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/longsleeve-polo.json): body and raglan sleeves the print, the fold-down collar and the button placket as on the model in the Collar colour (else Secondary), rib cuffs and hem band the Rib colour. Shown by the flag longsleevePolo. MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/longsleeve-polo-textured.glb",
+  "converter": "top", "part": "polo", "garment": "polo", "flag": "longsleevePolo", "ownNeck": "polo", "necks": {}, "tiles": [], "pictures": [],
+  "convert": { "made": "polo", "creaseDeg": 25 },
+  "look": {
+    "main": "#14213d", "secondary": "#ffffff", "accent": "#00a0d8", "patternColor": "#00a0d8", "pattern": "None", "number": "",
+    "zoneColors": { "longsleevePolo": "#ffffff", "collar": "#ffffff", "rib": "#14213d" },
+    "marks": { "top_wordmark": { "x": 0.09, "y": 0.6, "scale": 0.4 }, "top_crest": { "x": -0.09, "y": 0.6, "scale": 0.6 }, "top_number": { "hidden": true }, "top_name": { "hidden": true } },
+    "layers": []
+  },
+  "check": { "views": ["Front", "Back", "Q45", "Q135"] }
+}

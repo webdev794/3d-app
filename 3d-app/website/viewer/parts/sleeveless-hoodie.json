@@ -1,0 +1,183 @@
+{
+  "about": "Sleeveless hoodie (sleeveless-hoodie-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (sleeveless-hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the hood one plain colour (Hood colour, else Main), its lining the Lining colour, else Secondary; the kangaroo pocket its own colour where it has one (else the print); the armhole bindings and the waistband rib (Rib colour, else Main; the waistband one even band from its fold); the cords the Cord colour, else the rib's. Stitch lines beside the hood seam, round the pocket and above the waistband.",
+  "hoodieParts": {
+    "glb": "../../../tripo/sleeveless-hoodie-parts.glb",
+    "roles": {
+      "tripo_part_0": "body",
+      "tripo_part_1": "body",
+      "tripo_part_3": "hood",
+      "tripo_part_5": "armR",
+      "tripo_part_8": "pocket",
+      "tripo_part_9": "lining",
+      "tripo_part_11": "hem",
+      "tripo_part_13": "cord",
+      "tripo_part_14": "body",
+      "tripo_part_15": "body",
+      "tripo_part_16": "pocket",
+      "tripo_part_18": "lining",
+      "tripo_part_19": "pocket",
+      "tripo_part_21": "pocket",
+      "tripo_part_23": "hem",
+      "tripo_part_25": "hem",
+      "tripo_part_26": "hem",
+      "tripo_part_28": "hem",
+      "tripo_part_29": "lining",
+      "tripo_part_30": "armL",
+      "tripo_part_31": "armL",
+      "tripo_part_34": "hem",
+      "tripo_part_38": "hem",
+      "tripo_part_44": "hem",
+      "tripo_part_47": "hem",
+      "tripo_part_48": "hem"
+    },
+    "order": [
+      "lining",
+      "hood",
+      "armL",
+      "armR",
+      "pocket"
+    ],
+    "regions": {
+      "lining": {
+        "roles": [
+          "lining"
+        ],
+        "key": "plain:zone:lining|secondary",
+        "own": true,
+        "steps": 30,
+        "oneSide": true
+      },
+      "hood": {
+        "roles": [
+          "hood"
+        ],
+        "key": "plain:zone:hood|main",
+        "own": true,
+        "steps": 60,
+        "oneSide": true
+      },
+      "armL": {
+        "roles": [
+          "armL"
+        ],
+        "key": "plain:zone:rib|main@arm",
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "armR": {
+        "roles": [
+          "armR"
+        ],
+        "key": "plain:zone:rib|main@arm",
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "pocket": {
+        "roles": [
+          "pocket"
+        ],
+        "key": "zone:pocket|print",
+        "steps": 30,
+        "oneSide": true
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "not": [
+          "pocket",
+          "armL",
+          "armR"
+        ],
+        "margin": 0.03,
+        "first": true
+      }
+    },
+    "plain": {
+      "cord": "plain:zone:cord|zone:rib|main"
+    },
+    "plainKeys": [
+      "plain:zone:hood|main",
+      "plain:zone:lining|secondary",
+      "plain:zone:rib|main@arm"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "hood",
+          "at": -0.006
+        },
+        {
+          "region": "pocket",
+          "at": 0.006
+        },
+        {
+          "region": "armL",
+          "at": 0.004
+        },
+        {
+          "region": "armR",
+          "at": 0.004
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "form": [
+      "hood",
+      "lining",
+      "cord"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "bodyEdge": [
+      [
+        0.515,
+        0.324
+      ],
+      [
+        0.4,
+        0.336
+      ],
+      [
+        0.3,
+        0.344
+      ],
+      [
+        0.2,
+        0.35
+      ],
+      [
+        0.1,
+        0.356
+      ],
+      [
+        0.03,
+        0.354
+      ]
+    ],
+    "bodyPit": 0.515,
+    "neckReach": 0.16,
+    "split": [
+      {
+        "part": "tripo_part_31",
+        "where": "x < 0",
+        "role": "armR"
+      }
+    ]
+  }
+}

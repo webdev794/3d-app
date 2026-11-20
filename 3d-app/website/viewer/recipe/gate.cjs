@@ -20,16 +20,36 @@ const verOf = (t) => /export const VIEWER_VERSION = '([^']+)';/.exec(t)?.[1];
 const [cmd, ...rest] = process.argv.slice(2);
 const opt = (k) => { const i = rest.indexOf(`--${k}`); return i >= 0 ? rest[i + 1] : null; };
 
+// (MERGECAP 20 Nov, coordinator: lazy model loading: the models are tripo-*.js files next to index.html, not inside it.
+//  "last good" is therefore a folder per copy (lastgood/web/, lastgood/app/: index.html + every .js beside it); the
+//  "before" render opens lastgood/web/index.html; restore puts index.html and its .js files back together.
+//  web.html / app.html are still written for older tools.)
+const sideJs = (dir) => fs.readdirSync(dir).filter((f) => f.endsWith('.js'));
+function saveDir(htmlFile, sub) {
+  const src = path.dirname(htmlFile), dst = path.join(LG, sub);
+  fs.rmSync(dst, { recursive: true, force: true }); fs.mkdirSync(dst, { recursive: true });
+  fs.copyFileSync(htmlFile, path.join(dst, 'index.html'));
+  for (const f of sideJs(src)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+}
+function restoreDir(htmlFile, sub) {
+  const src = path.join(LG, sub), dst = path.dirname(htmlFile);
+  if (!fs.existsSync(path.join(src, 'index.html'))) return false;
+  for (const f of sideJs(src)) fs.copyFileSync(path.join(src, f), path.join(dst, f));
+  fs.copyFileSync(path.join(src, 'index.html'), htmlFile);
+  return true;
+}
+const beforeHtml = () => (fs.existsSync(path.join(LG, 'web/index.html')) ? path.join(LG, 'web/index.html') : path.join(LG, 'web.html'));
 function save() {
   fs.mkdirSync(LG, { recursive: true });
   fs.copyFileSync(COPIES.web, path.join(LG, 'web.html'));
   fs.copyFileSync(COPIES.app, path.join(LG, 'app.html'));
+  saveDir(COPIES.web, 'web'); saveDir(COPIES.app, 'app');
   fs.writeFileSync(path.join(LG, 'version.txt'), verOf(fs.readFileSync(KV, 'utf8')));
-  console.log(`gate: saved the last good viewer (${fs.readFileSync(path.join(LG, 'version.txt'), 'utf8')})`);
+  console.log(`gate: saved the last good viewer (${fs.readFileSync(path.join(LG, 'version.txt'), 'utf8')}) with ${sideJs(path.join(LG, 'web')).length} .js files beside it`);
 }
 function restore() {
-  fs.copyFileSync(path.join(LG, 'web.html'), COPIES.web);
-  fs.copyFileSync(path.join(LG, 'app.html'), COPIES.app);
+  if (!restoreDir(COPIES.web, 'web')) fs.copyFileSync(path.join(LG, 'web.html'), COPIES.web);
+  if (!restoreDir(COPIES.app, 'app')) fs.copyFileSync(path.join(LG, 'app.html'), COPIES.app);
   const v = fs.readFileSync(path.join(LG, 'version.txt'), 'utf8').trim(), t = fs.readFileSync(KV, 'utf8');
   fs.writeFileSync(KV, t.replace(/export const VIEWER_VERSION = '[^']+';/, `export const VIEWER_VERSION = '${v}';`));
   console.log(`gate: RESTORED the last good viewer (${v}): both copies and VIEWER_VERSION. Run the vite build again if it ran.`);
@@ -88,7 +108,7 @@ async function check() {
     page.on('pageerror', (e) => errors.push(e.message.slice(0, 160)));
     await page.addInitScript(() => { window.Viewer = { postMessage: () => {} }; });
     await page.goto(url.pathToFileURL(html).href + '?host=t&still&debug');
-    await page.waitForFunction(() => document.body.classList.contains('ready') && window.__v, null, { timeout: 180000 });
+    await page.waitForFunction(() => document.body.classList.contains('ready') && window.__v, null, { timeout: +(process.env.GATE_READY_MS || 180000) }); // (page-ready wait; GATE_READY_MS only by coordinator OK, 20 Nov: 360000 for the lazy batch)
     // (MODELQ3 2026-11-17: the kit held at its rest height for the whole check. The viewer floats it (frame():
     // kit.position.y = 0.0025 sin 0.7t), and frameKit measured it part-way through that float, so every load framed it a
     // little differently and every capture caught it at another height: picture differences on untouched tiles of the
@@ -131,7 +151,7 @@ async function check() {
   };
   const toPx = async (dataUrl) => { const img = await loadImage(Buffer.from(dataUrl.split(',')[1], 'base64')); const c = createCanvas(img.width, img.height), g = c.getContext('2d'); g.drawImage(img, 0, 0); const d = g.getImageData(0, 0, img.width, img.height).data; d.W = img.width; return d; };
   try {
-    const A = await run(path.join(LG, 'web.html')), B = await run(COPIES.web);
+    const A = await run(beforeHtml()), B = await run(COPIES.web);
     const bgA = await toPx(A.bg), bgB = await toPx(B.bg);
     const fails = [];
     for (const t of list) {

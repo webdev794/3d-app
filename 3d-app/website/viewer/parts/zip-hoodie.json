@@ -1,0 +1,262 @@
+{
+  "about": "Zip hoodie (zip-hoodie-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (zip-hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made zip hoodie's sleeves; the hood one plain colour (Hood colour, else Main), its lining and the hood's front edge the Lining colour, else Secondary; the front zip our own tape (the Zip colour, else Secondary) and metal teeth down the centre front from the hood's front to the hem (zipLine, main.js), the print under it; the side pockets' zips the Zip colour; the cuffs and the curved hem the Rib colour (else Main), each one even band from its opening's fold; the cords the Cord colour, else Secondary. Stitch lines beside the raglan seams, the hood seam and above each rib band.",
+  "hoodieParts": {
+    "glb": "../../../tripo/zip-hoodie-parts.glb",
+    "roles": {
+      "tripo_part_10": "lining",
+      "tripo_part_11": "hem",
+      "tripo_part_13": "body",
+      "tripo_part_15": "cuffR",
+      "tripo_part_16": "body",
+      "tripo_part_17": "cord",
+      "tripo_part_18": "pocketZip",
+      "tripo_part_19": "body",
+      "tripo_part_2": "sleeveR",
+      "tripo_part_21": "body",
+      "tripo_part_23": "body",
+      "tripo_part_27": "body",
+      "tripo_part_28": "body",
+      "tripo_part_29": "sleeveL",
+      "tripo_part_3": "hood",
+      "tripo_part_30": "cuffL",
+      "tripo_part_5": "body",
+      "tripo_part_6": "lining",
+      "tripo_part_8": "sleeveR"
+    },
+    "split": [
+      {
+        "part": "tripo_part_2",
+        "where": "x > 0",
+        "role": "sleeveL"
+      },
+      {
+        "part": "tripo_part_8",
+        "where": "x > 0",
+        "role": "sleeveL"
+      },
+      {
+        "part": "tripo_part_15",
+        "where": "x > 0",
+        "role": "cuffL"
+      }
+    ],
+    "order": [
+      "lining",
+      "hood",
+      "sleeveL",
+      "sleeveR"
+    ],
+    "regions": {
+      "lining": {
+        "roles": [
+          "lining"
+        ],
+        "key": "plain:zone:lining|secondary",
+        "own": true
+      },
+      "hood": {
+        "roles": [
+          "hood"
+        ],
+        "key": "plain:zone:hood|main",
+        "own": true,
+        "steps": 60,
+        "oneSide": true
+      },
+      "sleeveL": {
+        "roles": [
+          "sleeveL",
+          "cuffL"
+        ],
+        "key": "area:leftSleeve",
+        "sigma": 0.04,
+        "steps": 150,
+        "reach": 0.05,
+        "oneSide": true
+      },
+      "sleeveR": {
+        "roles": [
+          "sleeveR",
+          "cuffR"
+        ],
+        "key": "area:rightSleeve",
+        "sigma": 0.04,
+        "steps": 150,
+        "reach": 0.05,
+        "oneSide": true
+      }
+    },
+    "rings": {
+      "cuffL": {
+        "key": "plain:zone:rib|main",
+        "dir": "out",
+        "beyond": "sleeveL",
+        "margin": 0.04,
+        "wide": 2.0,
+        "first": true,
+        "endSpan": 4,
+        "width": 0.06
+      },
+      "cuffR": {
+        "key": "plain:zone:rib|main",
+        "dir": "out",
+        "beyond": "sleeveR",
+        "margin": 0.04,
+        "wide": 2.0,
+        "first": true,
+        "endSpan": 4,
+        "width": 0.06
+      },
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR",
+          "sleeveL",
+          "sleeveR"
+        ],
+        "margin": 0.04,
+        "first": true
+      }
+    },
+    "plain": {
+      "cord": "plain:zone:cord|secondary",
+      "pocketZip": "plain:zone:zip|secondary"
+    },
+    "plainKeys": [
+      "plain:zone:hood|main",
+      "plain:zone:lining|secondary"
+    ],
+    "sleeveMap": {
+      "sleeveL": {
+        "armhole": [
+          [
+            0.316,
+            0.698
+          ],
+          [
+            0.326,
+            0.523
+          ]
+        ],
+        "cuff": [
+          [
+            0.79,
+            0.16
+          ],
+          [
+            0.715,
+            0.09
+          ]
+        ]
+      },
+      "sleeveR": {
+        "armhole": [
+          [
+            0.316,
+            0.698
+          ],
+          [
+            0.326,
+            0.523
+          ]
+        ],
+        "cuff": [
+          [
+            0.79,
+            0.16
+          ],
+          [
+            0.715,
+            0.09
+          ]
+        ]
+      }
+    },
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "sleeveL",
+          "at": -0.005
+        },
+        {
+          "region": "sleeveR",
+          "at": -0.005
+        },
+        {
+          "region": "hood",
+          "at": -0.006
+        }
+      ],
+      "rings": [
+        {
+          "role": "cuffL",
+          "at": 0.004
+        },
+        {
+          "role": "cuffR",
+          "at": 0.004
+        },
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "form": [
+      "hood",
+      "lining",
+      "cord"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "bodyEdge": [
+      [
+        0.515,
+        0.324
+      ],
+      [
+        0.4,
+        0.336
+      ],
+      [
+        0.3,
+        0.344
+      ],
+      [
+        0.2,
+        0.35
+      ],
+      [
+        0.1,
+        0.356
+      ],
+      [
+        0.03,
+        0.354
+      ]
+    ],
+    "bodyPit": 0.515,
+    "neckReach": 0.16,
+    "zipLine": {
+      "top": 0.887
+    },
+    "mirror": [
+      {
+        "from": "sleeveR",
+        "to": "sleeveL",
+        "with": [
+          "body"
+        ]
+      }
+    ]
+  }
+}

@@ -668,7 +668,10 @@ function zipStrips(lines) {
 function paintZip(part, design) {
   const keys = part.tripo?.partKeys ?? [], colours = part.painter.model?.partColours ?? [], k = keys.indexOf('collar');
   const band = layout ? part.layoutBand ?? part.layoutRim : null;
-  part.zip.tape.material.color.set(band ?? (k >= 0 && typeof colours[k] === 'string' ? colours[k] : design.secondary ?? '#27282a'));
+  // (HOODIE/MODELQ6 2026-11-20: a model with Zip colour pieces of its own (the zip hoodie's pocket zips, 'plain:zone:zip|...')
+  // has its front zip's tape in that colour too)
+  const kz = keys.findIndex((x) => x.startsWith('plain:zone:zip|'));
+  part.zip.tape.material.color.set(band ?? (kz >= 0 && typeof colours[kz] === 'string' ? colours[kz] : k >= 0 && typeof colours[k] === 'string' ? colours[k] : design.secondary ?? '#27282a'));
   const metal = HEX6.test(design.zoneColors?.quarterZip ?? '') ? design.zoneColors.quarterZip : '#c9ccd1';
   part.zip.teeth.material.color.set(metal);
   part.zip.pull.material.color.set(metal);

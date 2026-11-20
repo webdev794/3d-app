@@ -1,0 +1,43 @@
+{
+  "about": "Sweatshirt (new Sweatshirt tiles, flag sweatshirt; HOODIE/MODELQ6 2026-11-20, first version): Tripo model sweatshirt-textured.glb (its shape only; coloured from sweatshirt-parts.glb by viewer/tripo-hoodie.mjs), booklet cards 92867 (front) / 93442 (back): a white drop-shoulder crew-neck sweatshirt with rib neck, cuffs and waistband; our marks only. Shown as the Hoodie part (the made hoodie's hood, pocket and cords are not added on a model). Look: the hoodie tile look with its flag.",
+  "glb": "../../../tripo/sweatshirt-textured.glb",
+  "converter": "top",
+  "part": "hoodie",
+  "flag": "sweatshirt",
+  "baseLook": "hoodie",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "hoodie",
+    "creaseDeg": 25,
+    "top": 0.95,
+    "pit": 0.515
+  },
+  "look": {
+    "main": "#161616",
+    "marks": {
+      "top_crest": {
+        "x": 0,
+        "y": 0.565,
+        "scale": 0.85
+      },
+      "top_wordmark": {
+        "x": 0,
+        "y": 0.5,
+        "scale": 0.6
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

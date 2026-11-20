@@ -1,0 +1,43 @@
+{
+  "about": "Sleeveless hoodie (new Sleeveless hoodie tiles, flag sleevelessHoodie; HOODIE/MODELQ6 2026-11-20, first version): Tripo model sleeveless-hoodie-textured.glb (its shape only; coloured from sleeveless-hoodie-parts.glb by viewer/tripo-hoodie.mjs), booklet cards 112294 (front) / 112322 (back): a white sleeveless pullover hoodie, lined hood with cords, kangaroo pocket, bound armholes, rib waistband; our marks only. Shown as the Hoodie part (the made hoodie's hood, pocket and cords are not added on a model). Look: the hoodie tile look with its flag.",
+  "glb": "../../../tripo/sleeveless-hoodie-textured.glb",
+  "converter": "top",
+  "part": "hoodie",
+  "flag": "sleevelessHoodie",
+  "baseLook": "hoodie",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "hoodie",
+    "creaseDeg": 25,
+    "top": 0.86,
+    "pit": 0.515
+  },
+  "look": {
+    "main": "#161616",
+    "marks": {
+      "top_crest": {
+        "x": 0,
+        "y": 0.565,
+        "scale": 0.85
+      },
+      "top_wordmark": {
+        "x": 0,
+        "y": 0.5,
+        "scale": 0.6
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

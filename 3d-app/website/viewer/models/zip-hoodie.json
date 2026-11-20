@@ -1,0 +1,38 @@
+{
+  "about": "Zip hoodies (every tile of the made Zip hoodie garment in every sport, the Studio's Zip hoodie, saved designs, presets; not the pullover Hoodie, not the Basketball Warm-up hoodie (its own full-zip model), not the Fishing hoodie): Tripo model zip-hoodie-textured.glb (its shape only: its painted colours and its own UV atlas are not used; coloured from zip-hoodie-parts.glb by viewer/tripo-hoodie.mjs, HOODIE/MODELQ6 2026-11-20), booklet cards 11287 (front) / 11288 (back): a light grey raglan full-zip hoodie, lined hood with cords, zipped side pockets, rib cuffs, a curved hem; our marks only. WIDE: on every tile of its garment with the tile's own look; `look` is only the check design.",
+  "glb": "../../../tripo/zip-hoodie-textured.glb",
+  "converter": "top",
+  "part": "ziphoodie",
+  "wide": true,
+  "flag": "zipHoodie",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "ziphoodie",
+    "creaseDeg": 25,
+    "top": 0.84,
+    "pit": 0.515
+  },
+  "look": {
+    "main": "#27282a",
+    "secondary": "#16b4f0",
+    "accent": "#16b4f0",
+    "patternColor": "#16b4f0",
+    "number": "",
+    "zoneColors": {},
+    "marks": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

@@ -10,18 +10,28 @@
 //   roles    { <part node name>: role }: what each part is (body, sleeveL, sleeveR, cuffL, cuffR, hem, hood, lining,
 //            pocket, cord, ...); `split` [{ part, where, role }]: a part's triangles whose middle passes `where` (x y z,
 //            placed, metres) another role (a part Tripo made of two pieces)
-//   regions  { <region>: { roles: [...], key } }: the pieces whose borders are smooth lines (hood, sleeves, pocket); the
+//   regions  { <region>: { roles: [...], key, sigma, steps } }: the pieces whose borders are smooth lines (hood, sleeves, pocket)
+//            (`steps`: passes smoothing its share before the line is found, default 12: more where the parts' border is ragged;
+//            `reach`: how far out its line decides the side, default `reach`; `oneSide`: its line's side decided once for
+//            the whole line, not per place); the
 //            print (key null) everywhere else; `order` which wins where two meet
 //   lining   { region, key }: in that region the cloth facing into the hood (towards its middle, per height) is the lining
 //   rings    { <role>: { key, dir: 'out' | 'down' | 'up', width, beyond } }: a rib band of one even width from its opening's fold
-//            (cuffs, waistband): its own colour up to `width`, the piece round it (`beyond`: a region, else the print) after
+//            (cuffs, waistband): its own colour up to `width`, the piece round it (`beyond`: a region, else the print) after;
+//            `margin`: how far past its width it still reaches the cloth round it (default 0.015; more on a coarse mesh),
+//            `wide`: out to how many times its opening's radius (default 1.4); `first`: its even edge wins in a triangle it shares;
+//            `endSpan`: its fold per angle the furthest within that many of 72 bins (a coarse mesh)
 //   plain    { <role>: key }: pieces of their own shape (cords), one colour, never smoothed
 //   sleeveMap { region: { armhole: [top, bottom], cuff: [top, bottom] } }: each sleeve's print places laid onto the made
 //            garment's sleeve (u from its seam to its cuff, v round from its top), the body's places kept as uvBody (altUv),
 //            so a design picture's sleeves land on the sleeves and the raglan seam prints straight
 //   stitches { seams: [{ region, at }], rings: [{ role, at }], sigma }: thin stitch lines (main.js stitchStrips): `at` metres
 //            from a region's border (+ into the region, - out of it) or from a ring's opening fold
+//   mirror   [{ from, to, with, side }]: on the `side` half (x sign, default +) a point that is `to` or `with` (default
+//            ['body']) takes `to` where its mirror image (-x) is `from`, else the `with` role there (a ragged border one side)
 //   form     [roles]: points kept out of the form inside (data side bit 2: the hood, cords)
+//   zipLine  { top, sigma, end }: a full zip down the centre front (data `zip`, as viewer/tripo-glbparts.mjs: main.js lays our
+//            own tape and teeth along it, the print under it): from `top` (the parts file's own height) down to the hem
 //   data     fields copied into the data (insideCloth)
 // The model's shape is never changed: only which piece each point is on, its signed distance from the line between its
 // piece and the next (data `piece` / `pieceTri`), its print places, and the stitch lines.
@@ -163,6 +173,22 @@ for (let v = 0; v < V; v++) {
   for (const u of nearPts(P3(v), bd)) { if (!outside[u] || dot(N3(u), N3(v)) > -0.5 || dot(sub(P3(u), P3(v)), N3(v)) > 0) continue; const d = Math.hypot(...sub(P3(u), P3(v))); if (d < bd) { bd = d; facing[v] = u; } }
 }
 // (the hood's inside is cloth of its own (the lining), never the other face of the outside: hood points keep their role)
+// (`mirror` [{ from, to, with }] (HOODIE/MODELQ6 2026-11-20, the zip hoodie: its left raglan seam ragged in the parts file, the
+// right one clean): on the other half (x of the other sign), a point that is `to` or one of `with` takes `to` where the mirrored
+// point (-x) is `from`, else the first of `with` there; the garment is the same both sides)
+for (const M of settings.mirror ?? []) {
+  const from = RI(M.from), to = RI(M.to), other = (M.with ?? ['body']).map(RI), swap = new Set([to, ...other]), sx = Math.sign(M.side ?? 1); let n = 0;
+  const was = Int16Array.from(role);
+  for (let v = 0; v < V; v++) {
+    if (Math.sign(A.P[v * 3]) !== sx || !swap.has(was[v])) continue;
+    const q = [-A.P[v * 3], A.P[v * 3 + 1], A.P[v * 3 + 2]]; let best = -1, bd = 0.02;
+    for (const u of nearPts(q, 0.02)) { if (dot(N3(u), [-A.PN[v * 3], A.PN[v * 3 + 1], A.PN[v * 3 + 2]]) < 0.3) continue; const d = Math.hypot(...sub(P3(u), q)); if (d < bd) { bd = d; best = u; } }
+    if (best < 0) continue;
+    const r = was[best] === from ? to : other.includes(was[best]) ? was[best] : null;
+    if (r !== null && r !== role[v]) { role[v] = r; n++; }
+  }
+  report.push(`mirror ${M.from} -> ${M.to}: ${n} points changed`);
+}
 const hoodRoles = new Set([...(settings.regions?.[settings.lining?.region]?.roles ?? []), ...Object.values(settings.regions ?? {}).filter((R) => R.own).flatMap((R) => R.roles)].map(RI));
 let lined = 0; for (let v = 0; v < V; v++) if (facing[v] >= 0 && role[v] !== role[facing[v]] && !hoodRoles.has(role[v]) && !plainRoles.has(role[v])) { role[v] = role[facing[v]]; lined++; }
 report.push(`outside ${outside.reduce((a, b) => a + b, 0)} / ${V}; inside points facing outside cloth ${[...facing].filter((x) => x >= 0).length} (role changed ${lined}); no part near ${far}`);
@@ -175,7 +201,7 @@ function shareOf(inPiece, steps = 12) {
   for (let it = 0; it < steps; it++) { const n = new Float32Array(V); for (let v = 0; v < V; v++) { const L = nbs[v]; let s = 0; for (const u of L) s += w[u]; n[v] = L.length ? 0.5 * w[v] + (0.5 * s) / L.length : w[v]; } w = n; }
   return w;
 }
-function linesOf(w, sg, region = (v) => outside[v], minLen = 8) {
+function linesOf(w, sg, region = (v) => outside[v], minLen = 8, oneSide = false) {
   const ek = (u, v) => (u < v ? u * 1e6 + v : v * 1e6 + u), segs = [];
   const cut = (u, v) => { const f = (w[u] - 0.5) / (w[u] - w[v] || 1e-9); return P3(u).map((x, k) => x + (A.P[v * 3 + k] - x) * f); };
   for (let t = 0; t < A.T; t++) {
@@ -203,14 +229,16 @@ function linesOf(w, sg, region = (v) => outside[v], minLen = 8) {
     const n = L.length, normal = L.map((p, i) => { const own = nearV[i] >= 0 ? N3(nearV[i]) : null; let s = [0, 0, 0]; for (const v of nearPts(p, 0.015)) if (region(v) && (!own || dot(N3(v), own) > 0)) s = s.map((x, k) => x + A.PN[v * 3 + k]); return nrm(s); });
     let side = L.map((p, i) => nrm(cross(nrm(sub(L[closed ? (i + 1) % n : Math.min(n - 1, i + 1)], L[closed ? (i - 1 + n) % n : Math.max(0, i - 1)])), normal[i])));
     for (let i = 1; i < n; i++) if (dot(side[i], side[i - 1]) < 0) side[i] = side[i].map((x) => -x);
-    side = side.map((d, i) => { let s2 = 0, m2 = 0; for (const v of nearPts(L[i], 0.012)) if (region(v)) { s2 += dot(sub(P3(v), L[i]), d) * (w[v] - 0.5); m2 += Math.abs(dot(sub(P3(v), L[i]), d) * (w[v] - 0.5)); } return m2 > 0 && s2 < -0.3 * m2 ? d.map((x) => -x) : d; });
+    // (`oneSide`: the whole line turned once, by all its places' say together (a ragged border's places disagree))
+    if (oneSide) { let s2 = 0; side.forEach((d, i) => { for (const v of nearPts(L[i], 0.03)) if (region(v)) s2 += dot(sub(P3(v), L[i]), d) * (w[v] - 0.5); }); if (s2 < 0) side = side.map((d) => d.map((x) => -x)); }
+    else side = side.map((d, i) => { let s2 = 0, m2 = 0; for (const v of nearPts(L[i], 0.012)) if (region(v)) { s2 += dot(sub(P3(v), L[i]), d) * (w[v] - 0.5); m2 += Math.abs(dot(sub(P3(v), L[i]), d) * (w[v] - 0.5)); } return m2 > 0 && s2 < -0.3 * m2 ? d.map((x) => -x) : d; });
     out.push({ C: L, side, normal, closed, len: n * 2 });
   }
   return out;
 }
-function distOf(lines, w, ok = (v) => outside[v]) {
+function distOf(lines, w, ok = (v) => outside[v], far2 = reach) {
   const d = Float32Array.from({ length: V }, (_, v) => (w[v] >= 0.5 ? reach : -reach)), bd = new Float32Array(V).fill(9);
-  for (const L of lines) L.C.forEach((p, i) => { for (const v of nearPts(p, reach)) {
+  for (const L of lines) L.C.forEach((p, i) => { for (const v of nearPts(p, far2)) {
     if (!ok(v) || dot(N3(v), L.normal[i]) < -0.2) continue;
     const e = Math.hypot(...sub(P3(v), p)); if (e >= bd[v]) continue;
     if (!L.closed && (i === 0 || i === L.C.length - 1) && e > 0.004) continue;
@@ -222,7 +250,7 @@ function distOf(lines, w, ok = (v) => outside[v]) {
 const src = (v) => (outside[v] ? v : facing[v] >= 0 ? facing[v] : v);
 const regionNames = settings.order ?? Object.keys(settings.regions ?? {});
 const regions = regionNames.map((rn) => {
-  const R = settings.regions[rn], rs = new Set(R.roles.map(RI)), w = shareOf((v) => rs.has(role[R.own ? v : src(v)])), L = linesOf(w, R.sigma ?? sigma), d = distOf(L, w);
+  const R = settings.regions[rn], rs = new Set(R.roles.map(RI)), w = shareOf((v) => rs.has(role[R.own ? v : src(v)]), R.steps ?? 12), L = linesOf(w, R.sigma ?? sigma, undefined, 8, !!R.oneSide), d = distOf(L, w, undefined, R.reach ?? reach);
   report.push(`${rn}: border ${L.map((x) => `${x.len} mm${x.closed ? ' closed' : ''}`).join(', ') || 'none'}`);
   return { name: rn, roles: rs, key: keyIdx(R.key), w, lines: L, d, inside: (v) => (outside[v] ? d[v] : facing[v] >= 0 && !R.own ? d[facing[v]] : w[v] >= 0.5 ? reach : -reach) };
 });
@@ -283,6 +311,8 @@ for (const [rn, R] of Object.entries(settings.rings ?? {})) {
   const bin = (v) => Math.min(NB - 1, Math.floor(((ang(v) + Math.PI) / (2 * Math.PI)) * NB));
   const end = new Float32Array(NB).fill(-9); for (const v of cp) end[bin(v)] = Math.max(end[bin(v)], along(v));
   for (let k = 0; k < NB; k++) if (end[k] < -1) { let j2 = 1; while (end[(k + j2) % NB] < -1 && end[(k - j2 + NB) % NB] < -1 && j2 < NB) j2++; end[k] = Math.max(end[(k + j2) % NB], end[(k - j2 + NB) % NB]); }
+  // (`endSpan`: each angle's fold the furthest within that many bins either side first: on a coarse mesh many bins miss the edge)
+  if (R.endSpan) { const e0 = Float32Array.from(end); for (let k = 0; k < NB; k++) for (let o = -R.endSpan; o <= R.endSpan; o++) end[k] = Math.max(end[k], e0[(k + o + NB) % NB]); }
   const endS = end.map((_, k) => { let s2 = 0, ws = 0; for (let o = -4; o <= 4; o++) { const w2 = Math.exp(-0.5 * (o / 2) ** 2); s2 += end[(k + o + NB) % NB] * w2; ws += w2; } return s2 / ws; });
   const depth = (v) => { const f2 = ((ang(v) + Math.PI) / (2 * Math.PI)) * NB - 0.5, k0 = Math.floor(f2), t2 = f2 - k0; return endS[((k0 % NB) + NB) % NB] * (1 - t2) + endS[(((k0 + 1) % NB) + NB) % NB] * t2 - along(v); };
   const Rm = cp.reduce((acc, v) => acc + rad(v), 0) / cp.length;
@@ -292,21 +322,21 @@ for (const [rn, R] of Object.entries(settings.rings ?? {})) {
   // a sleeve, never a pocket or cord lying over it)
   const own = new Uint8Array(V), q2 = []; for (const v of cp) { const dp = depth(v); if (dp > -0.03 && dp < W) { own[v] = 1; q2.push(v); } }
   const blocked = (u) => plainKey.has(role[u]) || (R.not ?? []).some((r) => role[u] === RI(r));
-  while (q2.length) { const v = q2.pop(); for (const u of A.nb[v]) { if (own[u] || !outside[u] || blocked(u)) continue; const dp = depth(u); if (dp > -0.03 && dp < W + 0.015 && rad(u) < Rm * 1.4) { own[u] = 1; q2.push(u); } } }
+  while (q2.length) { const v = q2.pop(); for (const u of A.nb[v]) { if (own[u] || !outside[u] || blocked(u)) continue; const dp = depth(u); if (dp > -0.03 && dp < W + (R.margin ?? 0.015) && rad(u) < Rm * (R.wide ?? 1.4)) { own[u] = 1; q2.push(u); } } }
   const inward = (v) => { const d = sub(P3(v), c0), t = dot(d, ax); return dot(N3(v), nrm(d.map((x, i) => x - ax[i] * t))) < -0.3; };
-  const near = (v) => rad(v) < Rm * 1.3;
+  const near = (v) => rad(v) < Rm * ((R.wide ?? 1.4) - 0.1);
   // (`strayTo` { region, where } (RUGBYJ 2026-11-20, the hoodie's pocket): where `where` passes, the cloth beyond the band is
   // that region (the waistband meets the pocket on its own line), else as before)
   const stray = R.strayTo ? { key: regions[RN(R.strayTo.region)].key, test: new Function('x', 'y', 'z', 'nx', 'ny', 'nz', `return (${R.strayTo.where});`) } : null;
   const strayAt = (v) => (stray && outside[v] && stray.test(...P3(v), ...N3(v)) ? stray.key : null);
-  rings.push({ name: rn, key: K, beyond, W, depth, own, inward, near, c0, ax, rad, Rm, strayAt });
+  rings.push({ name: rn, key: K, beyond, W, margin: R.margin ?? 0.015, first: !!R.first, depth, own, inward, near, c0, ax, rad, Rm, strayAt });
   report.push(`${rn} even width ${(W * 1000).toFixed(1)} mm (ring ${(Rm * 1000).toFixed(0)} mm, border ${edge.length})`);
 }
 for (const [ri, E] of rings.entries()) for (let v = 0; v < V; v++) {
   if (plainKey.has(role[v])) continue;
   const dp = E.depth(v);
   const onIt = E.own[v] || (!outside[v] && E.near(v) && E.inward(v) && (E.own[src(v)] || facing[v] < 0));
-  if (onIt && dp > -0.03 && dp < E.W + 0.03) { pair[v * 2] = E.key; pair[v * 2 + 1] = E.beyond ? E.beyond.key : E.strayAt(v) ?? 0; S[v] = E.W - dp; field[v] = 100 + ri; continue; }
+  if (onIt && dp > -0.03 && dp < E.W + Math.max(0.03, E.margin)) { pair[v * 2] = E.key; pair[v * 2 + 1] = E.beyond ? E.beyond.key : E.strayAt(v) ?? 0; S[v] = E.W - dp; field[v] = 100 + ri; continue; }
   // (a stray bit of the ring's parts beyond its band: the piece round it)
   if (field[v] >= 100 && field[v] !== 100 + ri) continue;
   if (pair[v * 2] === E.key || pair[v * 2 + 1] === E.key) { const k = E.beyond && E.beyond.w[v] > 0.3 ? E.beyond.key : E.strayAt(v) ?? 0; pair[v * 2] = pair[v * 2 + 1] = k; S[v] = 0.01; field[v] = -1; }
@@ -476,7 +506,9 @@ for (let t = 0; t < A.T; t++) {
   const live = c.filter((v) => field[v] >= 0 && pair[v * 2] !== pair[v * 2 + 1]);
   if (!live.length) { const ks = c.map(colourOf), k = ks.sort((x, y) => ks.filter((z) => z === y).length - ks.filter((z) => z === x).length)[0]; tris.push(t & 255, (t >> 8) & 255, (t >> 16) & 255, k, k, q(0.01), q(0.01), q(0.01)); continue; }
   const fs2 = [...new Set(live.map((v) => field[v]))], mean = (f2) => Math.abs(c.reduce((acc, v) => acc + valueIn(v, f2), 0) / 3);
-  const f = fs2.length > 1 ? fs2.reduce((x, y) => (mean(y) < mean(x) ? y : x)) : fs2[0];
+  // (a rib band marked `first` cuts its own even edge through a triangle it shares with another piece)
+  const firstR = fs2.find((f2) => f2 >= 100 && rings[f2 - 100].first);
+  const f = firstR !== undefined ? firstR : fs2.length > 1 ? fs2.reduce((x, y) => (mean(y) < mean(x) ? y : x)) : fs2[0];
   const vf = live.find((v) => field[v] === f); const a = pair[vf * 2], b = pair[vf * 2 + 1];
   tris.push(t & 255, (t >> 8) & 255, (t >> 16) & 255, a, b, ...c.map((v) => q(valueIn(v, f))));
 }
@@ -512,6 +544,35 @@ for (let t = 0; t < A.T; t++) {
   report.push(`triangles by two pieces ${mixed}; specks ${fixed}`);
 }
 if (stitches.length) D.stitches = stitches; else delete D.stitches;
+// (`zipLine` (HOODIE/MODELQ6 2026-11-20, the zip hoodie; as viewer/tripo-glbparts.mjs, MODELQ5's Zip-up polo): the centre
+// front's line (x = 0) over the outside cloth from `top` (the parts file's own height: the zip's top) down to the hem's fold,
+// smoothed: data `zip`, along which main.js lays our own zip tape and teeth (the model's shape unchanged, the print under it).)
+if (settings.zipLine) {
+  const yTop = place([0, settings.zipLine.top, 0])[1];
+  const zr = (v) => outside[v] && A.P[v * 3 + 2] > 0 && A.P[v * 3 + 1] < yTop && Math.abs(A.P[v * 3]) < 0.05;
+  let Lz = linesOf(Float32Array.from({ length: V }, (_, v) => 0.5 + A.P[v * 3] * 50), settings.zipLine.sigma ?? 0.01, zr).sort((a2, b2) => b2.len - a2.len);
+  const rest = Lz.slice(1); Lz = Lz[0];
+  if (Lz) {
+    if (Lz.C[0][1] < Lz.C[Lz.C.length - 1][1]) { Lz.C.reverse(); Lz.normal.reverse(); }
+    // (a piece carrying on up from its top within 1 cm (a notch in the cloth breaks the line), all of it higher and on the
+    // front's outside (z > 8 cm), joined on: the zip hoodie's funnel neck up to its top edge)
+    for (let more = true; more;) {
+      more = false;
+      for (const L of rest) {
+        if (L.used) continue;
+        if (L.C[0][1] > L.C.at(-1)[1]) { L.C.reverse(); L.normal.reverse(); }
+        if (Math.hypot(...sub(L.C[0], Lz.C[0])) < 0.01 && L.C.every((q) => q[1] > Lz.C[0][1] - 0.005 && q[2] > 0.08)) {
+          Lz.C = [...[...L.C].reverse(), ...Lz.C]; Lz.normal = [...[...L.normal].reverse(), ...Lz.normal]; Lz.len += L.len; L.used = more = true;
+        }
+      }
+    }
+    // (down to its lowest point only (past it the line runs back up the hem's turned-up inside), ending above the fold)
+    const yLow = Math.min(...Lz.C.map((q) => q[1])), cutAt = Lz.C.findIndex((q) => q[1] <= yLow + (settings.zipLine.end ?? 0.006));
+    if (cutAt > 0) { Lz.C = Lz.C.slice(0, cutAt); Lz.normal = Lz.normal.slice(0, cutAt); Lz.len = Lz.C.length * 2; }
+    D.zip = [{ c: Lz.C.flatMap((q) => q.map((x) => +x.toFixed(5))), n: Lz.normal.map((q) => (q[2] < 0 ? q.map((x) => -x) : q)).flatMap((q) => q.map((x) => +x.toFixed(3))) }];
+    report.push(`zip line ${Lz.len} mm, from ${Lz.C[0][1].toFixed(3)} down to ${Lz.C[Lz.C.length - 1][1].toFixed(3)}`);
+  } else report.push('zip line: none found');
+} else delete D.zip;
 if (settings.data) Object.assign(D, settings.data);
 D.partKeys = keys; D.piece = Buffer.from(out).toString('base64'); D.pieceTri = Buffer.from(Uint8Array.from(tris)).toString('base64');
 fs.writeFileSync(path.join(here, `tripo-${name}.js`), `window.TRIPO_MESHES=window.TRIPO_MESHES||{};window.TRIPO_MESHES[${JSON.stringify(name)}]=${JSON.stringify(D)};\n`);

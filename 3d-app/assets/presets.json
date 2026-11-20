@@ -470,8 +470,8 @@
         "asset": "preset:rl-c03-03",
         "name": "Rugby League White Yoke",
         "roles": [
-          "front",
-          "back"
+          "back",
+          "front"
         ],
         "hemFold": false,
         "joinLines": false,
@@ -563,8 +563,8 @@
         "asset": "preset:rl-c03-06",
         "name": "Rugby League Hoops",
         "roles": [
-          "front",
-          "back"
+          "back",
+          "front"
         ],
         "hemFold": false,
         "joinLines": false,

@@ -229,6 +229,10 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'longsleevePolo' => ['main' => '#14213d', 'secondary' => '#ffffff', 'accent' => '#00a0d8', 'patternColor' => '#00a0d8', 'pattern' => 'None', 'number' => '', 'zoneColors' => ['longsleevePolo' => '#ffffff', 'collar' => '#ffffff', 'rib' => '#14213d'], 'marks' => ['top_wordmark' => ['x' => 0.09, 'y' => 0.6, 'scale' => 0.4], 'top_crest' => ['x' => -0.09, 'y' => 0.6, 'scale' => 0.6], 'top_number' => ['hidden' => true], 'top_name' => ['hidden' => true]], 'layers' => []],
+        'sleevelessHoodie' => ['main' => '#161616', 'zoneColors' => ['sleevelessHoodie' => '#ffffff', 'stripe' => '#00f6fe'], 'marks' => ['top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.85], 'top_wordmark' => ['x' => 0, 'y' => 0.5, 'scale' => 0.6]]],
+        'sweatshirt' => ['main' => '#161616', 'zoneColors' => ['sweatshirt' => '#ffffff', 'stripe' => '#00f6fe'], 'marks' => ['top_crest' => ['x' => 0, 'y' => 0.565, 'scale' => 0.85], 'top_wordmark' => ['x' => 0, 'y' => 0.5, 'scale' => 0.6]]],
+        'zipHoodie' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#16b4f0', 'patternColor' => '#16b4f0', 'number' => '', 'zoneColors' => [], 'marks' => [], 'layers' => []],
         'womenFootballJersey' => ['main' => '#1f4fa8', 'secondary' => '#ffffff', 'accent' => '#ffffff', 'patternColor' => '#ffffff', 'pattern' => 'None', 'number' => '9', 'zoneColors' => ['womenFootballJersey' => '#ffffff', 'rib' => '#ffffff'], 'marks' => ['top_wordmark' => ['x' => 0.09, 'y' => 0.6, 'scale' => 0.45], 'top_crest' => ['x' => -0.09, 'y' => 0.6, 'scale' => 0.7], 'top_number' => ['color' => '#ffffff'], 'top_name' => ['hidden' => true]], 'layers' => []],
         'windbreakerJacket' => ['zoneColors' => ['windbreakerJacket' => '#ffffff', 'body' => '#24272b', 'shoulder' => '#24272b', 'side' => '#00c4f0', 'stripe' => '#24272b', 'zip' => '#00c4f0']],
         'waterproofJacket' => ['zoneColors' => ['waterproofJacket' => '#ffffff', 'body' => '#24272b', 'shoulder' => '#24272b', 'side' => '#00c4f0', 'stripe' => '#24272b', 'zip' => '#00c4f0']],
@@ -439,6 +443,7 @@ $sports = [
     ['id' => 'golf', 'name' => 'Golf', 'description' => 'Clean lines for every round.', 'group' => 'sports',
         'prompt' => 'golf: a premium fitted performance polo, clean and understated; a quarter-zip pullover suits too', 'tiles' => [
             $tile('Golf polo', 'Premium fitted polo for every round.', 'polo'),
+            $tile('Long-sleeve polo', 'Long-sleeve raglan polo for cooler rounds.', 'polo', 'polo') + ['design' => $look('longsleevePolo')],
             $tile('Golf tee', 'Soft tee for the range.', 'tee'),
             $tile('Clubhouse hoodie', 'Warm hoodie for after the round.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for cool mornings.', 'ziphoodie'),
@@ -483,6 +488,7 @@ $sports = [
             // (Its marks as the Pool polo's (poloZip): the pocket polo's big wordmark ran off the model's chest, QATEST 2026-11-18.)
             $tile('Darts shirt', 'Polo with a chest pocket and your name on the back.', 'polo', 'pocketpolo') + ['design' => $look('poloZip')],
             $tile('Pool polo', 'Sublimated polo for league nights.', 'polo'),
+            $tile('Long-sleeve polo', 'Long-sleeve raglan polo for league nights.', 'polo', 'polo') + ['design' => $look('longsleevePolo')],
             $tile('Team tee', 'Soft tee for the team.', 'tee'),
             $tile('Team hoodie', 'Warm hoodie for the walk-on.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for travel.', 'ziphoodie'),
@@ -501,6 +507,7 @@ $sports = [
     ['id' => 'cricket', 'name' => 'Cricket', 'description' => 'Coloured kit for the short game.', 'group' => 'sports',
         'prompt' => 'cricket: a one-day cricket shirt with a polo collar (short or long sleeves) and matching long trousers; whites for the long format', 'tiles' => [
             $near('Cricket shirt', 'One-day shirt with a polo collar.', 'polo', 'cricket-shirt'),
+            $tile('Long-sleeve polo', 'Long-sleeve raglan polo for the field.', 'polo', 'polo') + ['design' => $look('longsleevePolo')],
             $soon('Cricket pants', 'Matching long trousers.', 'cricket-pants', 'track-pants'),
             $tile('Training tee', 'Breathable tee for the nets.', 'tee'),
             $tile('Hoodie', 'Warm hoodie for the rooms.', 'hoodie', 'team-hoodie'),
@@ -561,6 +568,7 @@ $sports = [
     ['id' => 'lawn-bowls', 'name' => 'Lawn Bowls', 'description' => 'Smart club colours for the green.', 'group' => 'sports',
         'prompt' => 'lawn bowls: a smart club polo with a collar, light sublimated patterns', 'tiles' => [
             $tile('Bowls polo', 'Smart club polo for the green.', 'polo'),
+            $tile('Long-sleeve polo', 'Long-sleeve raglan polo for the green.', 'polo', 'polo') + ['design' => $look('longsleevePolo')],
             $tile('Polo with pocket', 'Club polo with a chest pocket.', 'pocketpolo'),
             $tile('Club tee', 'Soft tee for social bowls.', 'tee'),
             $tile('Club hoodie', 'Warm hoodie for cool evenings.', 'hoodie', 'team-hoodie'),
@@ -584,6 +592,8 @@ $sports = [
         $tile('Training polo', 'Smart polo for coaches and staff.', 'polo'),
         $tile('Hoodie', 'Warm hoodie for warm-ups and travel.', 'hoodie', 'team-hoodie'),
         $tile('Zip hoodie', 'Full-zip layer for warm-ups.', 'ziphoodie'),
+        $tile('Sleeveless hoodie', 'Sleeveless hoodie for warm-ups.', 'hoodie', 'team-hoodie') + ['design' => $look('sleevelessHoodie')],
+        $tile('Sweatshirt', 'Crew-neck sweatshirt for warm-ups.', 'hoodie', 'team-hoodie') + ['design' => $look('sweatshirt')],
         $tile('Track jacket', 'Full-zip jacket for warm-ups and travel.', 'trackjacket'),
         $tile('Varsity jacket', 'Letterman jacket for the team.', 'varsity'),
     ]],
@@ -595,6 +605,7 @@ $sports = [
             $tile('Training singlet', 'Lightweight singlet for conditioning.', 'singlet') + ['design' => $look('singletModel')],
             $tile('Hoodie', 'Warm hoodie for the walk-out.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for weigh-ins.', 'ziphoodie'),
+            $tile('Sleeveless hoodie', 'Sleeveless hoodie for the walk-out.', 'hoodie', 'team-hoodie') + ['design' => $look('sleevelessHoodie')],
             $tile('Corner jacket', 'Full-zip jacket for the team.', 'trackjacket'),
             $tile('Compression spats', 'Compression tights for grappling.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
         ]],
@@ -630,16 +641,19 @@ $sports = [
             $tile('Leggings', 'Squat-proof leggings and tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Hoodie', 'Warm hoodie for warm-ups.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for the gym.', 'ziphoodie'),
+            $tile('Sleeveless hoodie', 'Sleeveless hoodie for training.', 'hoodie', 'team-hoodie') + ['design' => $look('sleevelessHoodie')],
             $tile('Track jacket', 'Full-zip jacket for warm-ups.', 'trackjacket'),
             $tile('Track pants', 'Tapered pants to match the jacket.', 'shorts', 'track-pants') + ['design' => $look('tpModel')],
         ]],
     ['id' => 'teamwear', 'name' => 'Club Casual', 'description' => 'Teamwear for travel, the sideline and the clubhouse.', 'group' => 'apparel',
         'prompt' => 'club casual teamwear: a smart club polo or tee with an embroidered crest', 'tiles' => [
             $tile('Club polo', 'Smart polo with your crest.', 'polo'),
+            $tile('Long-sleeve polo', 'Long-sleeve raglan polo with your crest.', 'polo', 'polo') + ['design' => $look('longsleevePolo')],
             $tile('Club tee', 'Soft tee for the clubhouse.', 'tee'),
             $tile('Club shorts', 'Casual shorts for travel.', 'shorts'),
             $tile('Club hoodie', 'Warm hoodie for the sideline.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for travel.', 'ziphoodie'),
+            $tile('Sweatshirt', 'Crew-neck sweatshirt for the sideline.', 'hoodie', 'team-hoodie') + ['design' => $look('sweatshirt')],
             $tile('Varsity jacket', 'Letterman jacket for the club.', 'varsity'),
             $tile('Track jacket', 'Full-zip jacket for travel.', 'trackjacket'),
             $tile('Club cap', 'Cap with your club crest.', 'cap'),
@@ -649,6 +663,7 @@ $sports = [
             $near('Leavers jersey', 'Rugby-collar jersey with every name on it.', 'jersey', 'leavers-jersey'),
             $tile('Leavers hoodie', 'Your year, big on the back.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip hoodie with your year.', 'ziphoodie'),
+            $tile('Sweatshirt', 'Crew-neck sweatshirt with your year.', 'hoodie', 'team-hoodie') + ['design' => $look('sweatshirt')],
             $tile('Varsity jacket', 'Letterman jacket for your year.', 'varsity'),
             $tile('Leavers polo', 'Smart polo with your year.', 'polo'),
             $tile('Leavers tee', 'Soft tee with every name.', 'tee'),

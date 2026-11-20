@@ -1,0 +1,23 @@
+{
+  "about": "Long-sleeve raglan polo (longsleeve-polo-textured.glb) coloured from longsleeve-polo-parts.glb (11 parts) by viewer/tripo-hoodie.mjs: body 19 with its inside 15 and raglan sleeves 3 / 4 the print; collar 6 and the under-collar band 18, the placket 22 and its button bit 23 the Collar colour; cuffs 7 / 9 and hem band new_0 rib rings (Rib colour). MODELQ5 2026-11-20.",
+  "hoodieParts": {
+    "glb": "../../../tripo/longsleeve-polo-parts.glb",
+    "roles": { "tripo_part_19": "body", "tripo_part_15": "body", "tripo_part_3": "body", "tripo_part_4": "body",
+      "tripo_part_6": "collar", "tripo_part_18": "collar", "tripo_part_22": "placket", "tripo_part_23": "placket",
+      "tripo_part_7": "cuffL", "tripo_part_9": "cuffR", "tripo_part_new_0": "hem" },
+    "order": ["collar", "placket"],
+    "regions": {
+      "collar": { "roles": ["collar"], "key": "plain:zone:collar|secondary" },
+      "placket": { "roles": ["placket"], "key": "plain:zone:collar|secondary" }
+    },
+    "rings": {
+      "cuffL": { "key": "plain:zone:rib|main", "dir": "out", "not": ["body"] },
+      "cuffR": { "key": "plain:zone:rib|main", "dir": "out", "not": ["body"] },
+      "hem": { "key": "plain:zone:rib|main", "dir": "down", "not": ["cuffL", "cuffR"] }
+    },
+    "plainKeys": ["plain:zone:collar|secondary"],
+    "stitches": { "sigma": 0.02, "seams": [ { "region": "collar", "at": -0.006 }, { "region": "placket", "at": -0.004 } ], "rings": [ { "role": "cuffL", "at": 0.004 }, { "role": "cuffR", "at": 0.004 }, { "role": "hem", "at": 0.004 } ] },
+    "sigma": 0.015, "reach": 0.03, "far": 0.03, "island": 60, "speck": 8,
+    "data": { "insideCloth": true }
+  }
+}

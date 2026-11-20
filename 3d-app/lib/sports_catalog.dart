@@ -1223,6 +1223,10 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'longsleevePolo': {'main': '#14213d', 'secondary': '#ffffff', 'accent': '#00a0d8', 'patternColor': '#00a0d8', 'pattern': 'None', 'number': '', 'zoneColors': {'longsleevePolo': '#ffffff', 'collar': '#ffffff', 'rib': '#14213d'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.4}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.6}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
+    'sleevelessHoodie': {'main': '#161616', 'zoneColors': {'sleevelessHoodie': '#ffffff', 'stripe': '#00f6fe'}, 'marks': {'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.85}, 'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.6}}},
+    'sweatshirt': {'main': '#161616', 'zoneColors': {'sweatshirt': '#ffffff', 'stripe': '#00f6fe'}, 'marks': {'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.85}, 'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.6}}},
+    'zipHoodie': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#16b4f0', 'patternColor': '#16b4f0', 'number': '', 'zoneColors': {}, 'marks': {}, 'layers': []},
     'womenFootballJersey': {'main': '#1f4fa8', 'secondary': '#ffffff', 'accent': '#ffffff', 'patternColor': '#ffffff', 'pattern': 'None', 'number': '9', 'zoneColors': {'womenFootballJersey': '#ffffff', 'rib': '#ffffff'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.7}, 'top_number': {'color': '#ffffff'}, 'top_name': {'hidden': true}}, 'layers': []},
     'windbreakerJacket': {'zoneColors': {'windbreakerJacket': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#00c4f0', 'stripe': '#24272b', 'zip': '#00c4f0'}},
     'waterproofJacket': {'zoneColors': {'waterproofJacket': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#00c4f0', 'stripe': '#24272b', 'zip': '#00c4f0'}},
@@ -1993,6 +1997,13 @@ const _sportTiles = <String, List<GarmentTile>>{
   ],
   'golf': [
     GarmentTile('Golf polo', 'Premium fitted polo for every round.', 'Polo'),
+    GarmentTile(
+      'Long-sleeve polo',
+      'Long-sleeve raglan polo for cooler rounds.',
+      'Polo',
+      image: 'polo',
+      look: 'longsleevePolo',
+    ),
     GarmentTile('Golf tee', 'Soft tee for the range.', 'Training Tee'),
     GarmentTile(
       'Clubhouse hoodie',
@@ -2122,6 +2133,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'poloZip',
     ),
     GarmentTile('Pool polo', 'Sublimated polo for league nights.', 'Polo'),
+    GarmentTile(
+      'Long-sleeve polo',
+      'Long-sleeve raglan polo for league nights.',
+      'Polo',
+      image: 'polo',
+      look: 'longsleevePolo',
+    ),
     GarmentTile('Team tee', 'Soft tee for the team.', 'Training Tee'),
     GarmentTile(
       'Team hoodie',
@@ -2169,6 +2187,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       'One-day shirt with a polo collar.',
       'Polo',
       future: 'cricket-shirt',
+    ),
+    GarmentTile(
+      'Long-sleeve polo',
+      'Long-sleeve raglan polo for the field.',
+      'Polo',
+      image: 'polo',
+      look: 'longsleevePolo',
     ),
     GarmentTile.soon(
       'Cricket pants',
@@ -2330,6 +2355,13 @@ const _sportTiles = <String, List<GarmentTile>>{
   'lawn-bowls': [
     GarmentTile('Bowls polo', 'Smart club polo for the green.', 'Polo'),
     GarmentTile(
+      'Long-sleeve polo',
+      'Long-sleeve raglan polo for the green.',
+      'Polo',
+      image: 'polo',
+      look: 'longsleevePolo',
+    ),
+    GarmentTile(
       'Polo with pocket',
       'Club polo with a chest pocket.',
       'Polo with pocket',
@@ -2398,6 +2430,20 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for warm-ups.', 'Zip hoodie'),
     GarmentTile(
+      'Sleeveless hoodie',
+      'Sleeveless hoodie for warm-ups.',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'sleevelessHoodie',
+    ),
+    GarmentTile(
+      'Sweatshirt',
+      'Crew-neck sweatshirt for warm-ups.',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'sweatshirt',
+    ),
+    GarmentTile(
       'Track jacket',
       'Full-zip jacket for warm-ups and travel.',
       'Track jacket',
@@ -2437,6 +2483,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for weigh-ins.', 'Zip hoodie'),
+    GarmentTile(
+      'Sleeveless hoodie',
+      'Sleeveless hoodie for the walk-out.',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'sleevelessHoodie',
+    ),
     GarmentTile(
       'Corner jacket',
       'Full-zip jacket for the team.',
@@ -2538,6 +2591,13 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for the gym.', 'Zip hoodie'),
     GarmentTile(
+      'Sleeveless hoodie',
+      'Sleeveless hoodie for training.',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'sleevelessHoodie',
+    ),
+    GarmentTile(
       'Track jacket',
       'Full-zip jacket for warm-ups.',
       'Track jacket',
@@ -2552,6 +2612,13 @@ const _sportTiles = <String, List<GarmentTile>>{
   ],
   'teamwear': [
     GarmentTile('Club polo', 'Smart polo with your crest.', 'Polo'),
+    GarmentTile(
+      'Long-sleeve polo',
+      'Long-sleeve raglan polo with your crest.',
+      'Polo',
+      image: 'polo',
+      look: 'longsleevePolo',
+    ),
     GarmentTile('Club tee', 'Soft tee for the clubhouse.', 'Training Tee'),
     GarmentTile('Club shorts', 'Casual shorts for travel.', 'Shorts'),
     GarmentTile(
@@ -2561,6 +2628,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for travel.', 'Zip hoodie'),
+    GarmentTile(
+      'Sweatshirt',
+      'Crew-neck sweatshirt for the sideline.',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'sweatshirt',
+    ),
     GarmentTile(
       'Varsity jacket',
       'Letterman jacket for the club.',
@@ -2583,6 +2657,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Zip hoodie', 'Full-zip hoodie with your year.', 'Zip hoodie'),
+    GarmentTile(
+      'Sweatshirt',
+      'Crew-neck sweatshirt with your year.',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'sweatshirt',
+    ),
     GarmentTile(
       'Varsity jacket',
       'Letterman jacket for your year.',

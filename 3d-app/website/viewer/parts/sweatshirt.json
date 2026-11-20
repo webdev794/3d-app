@@ -1,0 +1,210 @@
+{
+  "about": "Sweatshirt (sweatshirt-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (sweatshirt-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the drop-shoulder sleeves the Left / Right sleeve areas (else the print), their print places on the made hoodie's sleeves; the crew neck, cuffs and waistband rib (Rib colour, else Main), each one even band from its opening's fold. Stitch lines beside the shoulder seams and along each rib band.",
+  "hoodieParts": {
+    "glb": "../../../tripo/sweatshirt-parts.glb",
+    "roles": {
+      "tripo_part_11": "cuffR",
+      "tripo_part_12": "cuffR",
+      "tripo_part_16": "cuffL",
+      "tripo_part_19": "sleeveR",
+      "tripo_part_20": "cuffL",
+      "tripo_part_21": "body",
+      "tripo_part_25": "cuffL",
+      "tripo_part_26": "body",
+      "tripo_part_30": "hem",
+      "tripo_part_32": "body",
+      "tripo_part_5": "hem"
+    },
+    "split": [
+      {
+        "part": "tripo_part_19",
+        "where": "y > 0.62 && Math.abs(x) < 0.16",
+        "role": "neck"
+      },
+      {
+        "part": "tripo_part_19",
+        "where": "x > 0",
+        "role": "sleeveL"
+      }
+    ],
+    "order": [
+      "cuffL",
+      "cuffR",
+      "sleeveL",
+      "sleeveR"
+    ],
+    "regions": {
+      "cuffL": {
+        "roles": [
+          "cuffL"
+        ],
+        "key": "plain:zone:rib|main@cuff",
+        "steps": 60,
+        "sigma": 0.02,
+        "oneSide": true
+      },
+      "cuffR": {
+        "roles": [
+          "cuffR"
+        ],
+        "key": "plain:zone:rib|main@cuff",
+        "steps": 60,
+        "sigma": 0.02,
+        "oneSide": true
+      },
+      "sleeveL": {
+        "roles": [
+          "sleeveL"
+        ],
+        "key": "area:leftSleeve",
+        "steps": 60,
+        "sigma": 0.02,
+        "oneSide": true
+      },
+      "sleeveR": {
+        "roles": [
+          "sleeveR"
+        ],
+        "key": "area:rightSleeve",
+        "steps": 60,
+        "sigma": 0.02,
+        "oneSide": true
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR",
+          "sleeveL",
+          "sleeveR"
+        ],
+        "margin": 0.03,
+        "first": true
+      },
+      "neck": {
+        "key": "plain:zone:rib|main",
+        "dir": "up",
+        "margin": 0.02,
+        "first": true
+      }
+    },
+    "sleeveMap": {
+      "sleeveL": {
+        "armhole": [
+          [
+            0.316,
+            0.698
+          ],
+          [
+            0.326,
+            0.523
+          ]
+        ],
+        "cuff": [
+          [
+            0.79,
+            0.16
+          ],
+          [
+            0.715,
+            0.09
+          ]
+        ]
+      },
+      "sleeveR": {
+        "armhole": [
+          [
+            0.316,
+            0.698
+          ],
+          [
+            0.326,
+            0.523
+          ]
+        ],
+        "cuff": [
+          [
+            0.79,
+            0.16
+          ],
+          [
+            0.715,
+            0.09
+          ]
+        ]
+      }
+    },
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "sleeveL",
+          "at": -0.005
+        },
+        {
+          "region": "sleeveR",
+          "at": -0.005
+        },
+        {
+          "region": "cuffL",
+          "at": 0.004
+        },
+        {
+          "region": "cuffR",
+          "at": 0.004
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        },
+        {
+          "role": "neck",
+          "at": 0.004
+        }
+      ]
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "bodyEdge": [
+      [
+        0.515,
+        0.324
+      ],
+      [
+        0.4,
+        0.336
+      ],
+      [
+        0.3,
+        0.344
+      ],
+      [
+        0.2,
+        0.35
+      ],
+      [
+        0.1,
+        0.356
+      ],
+      [
+        0.03,
+        0.354
+      ]
+    ],
+    "bodyPit": 0.515,
+    "plainKeys": [
+      "plain:zone:rib|main@cuff"
+    ]
+  }
+}
