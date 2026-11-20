@@ -1,38 +1,51 @@
 {
-  "about": "Training singlet (training-singlet.glb): the model's own neck binding (Collar colour, else Secondary), its armhole bindings (Secondary), its inner back facing plain inside colour, per triangle from its own seams; its hem band printed as cloth (MODELQ3 2026-11-16).",
-  "glb": "../../../tripo/training-singlet.glb",
-  "creaseDeg": 25,
-  "keys": [
-    "collar",
-    "trim",
-    "inside"
-  ],
-  "rules": [
-    {
-      "regions": [
-        1
-      ],
-      "part": "collar"
+  "about": "Training singlet (training-singlet-textured.glb, MODELQ5 2026-11-19): coloured from the same garment split into 20 parts by Tripo (training-singlet-parts.glb) by viewer/tripo-glbparts.mjs: the body, side panels and hem band the print (Main); the neck band the Collar colour, one even width, its foot one smooth line; each armhole band (its own part) the trim colour as the tee's cuffs, one even width round the armhole, its lining the same. Stitch lines: the neck band foot, a line round each armhole and a hem line, drawn by main.js as thin darker strips.",
+  "glbParts": {
+    "glb": "../../../tripo/training-singlet-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_1": null,
+      "tripo_part_2": null,
+      "tripo_part_3": "part:leftCuff",
+      "tripo_part_4": "part:rightCuff",
+      "tripo_part_5": "collar",
+      "tripo_part_6": null,
+      "tripo_part_7": null,
+      "tripo_part_8": null,
+      "tripo_part_9": null,
+      "tripo_part_11": null,
+      "tripo_part_12": null,
+      "tripo_part_15": null,
+      "tripo_part_16": null,
+      "tripo_part_17": null,
+      "tripo_part_18": null,
+      "tripo_part_19": null,
+      "tripo_part_20": null,
+      "tripo_part_22": null,
+      "tripo_part_23": null
     },
-    {
-      "regions": [
-        4,
-        5,
-        7,
-        8,
-        10,
-        11,
-        12,
-        13
-      ],
-      "part": "trim"
+    "collar": "collar",
+    "sleeves": [
+      "part:leftCuff",
+      "part:rightCuff"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.006,
+      "cuff": 0.015,
+      "hem": 0.017,
+      "sigma": 0.03
     },
-    {
-      "regions": [
-        9
-      ],
-      "part": "inside"
-    }
-  ],
-  "smooth": 1
+    "evenCuffs": true,
+    "evenCollar": true,
+    "data": {
+      "insideCloth": true
+    },
+    "cuffWidth": 0.01
+  }
 }

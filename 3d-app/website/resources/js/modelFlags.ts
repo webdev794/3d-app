@@ -7,7 +7,7 @@ import { fixedNeck, isModelCollar, modelCollarsFor } from './garmentStyle';
  * customer picks: presets, resets and other looks that clear zoneColors keep it, so the model (and its neck choices)
  * stays. Add each new model's flag here; the apps keep the same list (lib/model_flags.dart).
  */
-export const MODEL_FLAGS = ['bballSinglet', 'bballBand', 'rlShorts', 'rlSocks', 'fbJersey', 'fbV', 'scJersey', 'netballBib', 'aflGuernsey', 'trainingShorts', 'womenRugbyShorts', 'trackPants', 'womenLeggings', 'fitnessBottoms', 'tsPants', 'poloShirt', 'trainingTee', 'fitnessTop', 'rashGuard', 'rugbyJersey', 'poloZip'] as const;
+export const MODEL_FLAGS = ['bballSinglet', 'bballBand', 'rlShorts', 'rlSocks', 'fbJersey', 'fbV', 'scJersey', 'netballBib', 'aflGuernsey', 'trainingShorts', 'womenRugbyShorts', 'trackPants', 'womenLeggings', 'fitnessBottoms', 'tsPants', 'poloShirt', 'trainingTee', 'fitnessTop', 'rashGuard', 'rugbyJersey', 'poloZip', 'rugbyVJersey', 'trainingSinglet', 'bballHoodie', 'fishingHoodie'] as const;
 
 type Colours = Record<string, string> | null | undefined;
 /** `next` zoneColors (null: none) with the model flags of `was` it lacks put back; null when there is nothing. */

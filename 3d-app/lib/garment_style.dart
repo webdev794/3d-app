@@ -139,8 +139,11 @@ List<(String, String, String)> fitsFor(
 /// 2026-11-16: nothing is cut; other neck styles come later, laid on top), as
 /// garmentStyle.ts MODEL_OWN_NECKS: its look's flag and the model's own neck.
 const modelOwnNecks = {
+  // (The Rugby Union jersey's V-neck model, RUGBYV 2026-11-19.)
+  'rugbyVJersey': 'v',
   'scJersey': 'v',
   'aflGuernsey': 'round',
+  'trainingSinglet': 'round',
   'trainingTee': 'round',
   'rugbyJersey': 'round',
   // (the retired old Rugby League jersey model's flag: its designs show the new model: RUGBYJ)

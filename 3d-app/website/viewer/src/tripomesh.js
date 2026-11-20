@@ -556,7 +556,7 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
     const idx = Array.from(index), P = Array.from(pos), N = Array.from(nor), U = Array.from(uvs), C = Array.from(cols), K = partKey ? Array.from(partKey) : null;
     // (altUv: a triangle across a sleeve's seam (its two pieces a sleeve and the print) printed from the sleeve's place, all its
     // corners on one half)
-    const sleeveK = alt ? new Set((M.data.partKeys ?? []).map((k, j) => (/^part:(left|right)Sleeve/.test(k) ? j + 1 : 0)).filter(Boolean)) : null;
+    const sleeveK = alt ? new Set((M.data.partKeys ?? []).map((k, j) => (/^(part|area):(left|right)Sleeve/.test(k) ? j + 1 : 0)).filter(Boolean)) : null;
     for (let e = 0; e + 7 < T.length; e += 8) {
       const t = T[e] | (T[e + 1] << 8) | (T[e + 2] << 16);
       if (t * 3 + 2 >= idx.length) continue;

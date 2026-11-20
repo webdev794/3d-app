@@ -1,0 +1,65 @@
+{
+  "about": "Rugby Union > Jersey tile only (RUGBYV 2026-11-18, the user chose that tile): Tripo model rugby-vneck-jersey-textured.glb (shape only; its painted colours and its own UV atlas are not used). Reference Yellow Images card 14475 (Men's Rugby Kit with V-Neck Jersey; not in the booklet: its colours as Tripo painted them from the card): yellow front panel, V-neck band and hem band; navy back, side panels and shoulder yoke (one piece: Accent), navy sleeves and cuffs; our marks only. Colour edges: the borders of the same garment split by Tripo (rugby-vneck-jersey-parts.glb), smoothed over the model (viewer/tripo-glbparts.mjs). Tile wired by hand (the name 'Jersey' is used by many tiles): config/catalog.php and lib/sports_catalog.dart, the RU Jersey tile's look 'rugbyVJersey'. The kits and every other jersey keep their own shapes.",
+  "glb": "../../../tripo/rugby-vneck-jersey-textured.glb",
+  "converter": "top",
+  "part": "jersey",
+  "garment": "jersey",
+  "flag": "rugbyVJersey",
+  "ownNeck": "v",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "jersey",
+    "creaseDeg": 25
+  },
+  "look": {
+    "main": "#ffca00",
+    "secondary": "#ffca00",
+    "accent": "#11183f",
+    "patternColor": "#11183f",
+    "parts": {
+      "leftSleeve": {
+        "colour": "#11183f"
+      },
+      "rightSleeve": {
+        "colour": "#11183f"
+      }
+    },
+    "zoneColors": {
+      "rugbyVJersey": "#11183f"
+    },
+    "marks": {
+      "top_number": {
+        "color": "#ffffff"
+      },
+      "top_frontNumber": {
+        "hidden": true
+      },
+      "top_wordmark": {
+        "x": -0.07,
+        "y": 0.575,
+        "scale": 0.34
+      },
+      "top_crest": {
+        "x": 0.075,
+        "y": 0.575,
+        "scale": 0.85
+      },
+      "top_name": {
+        "color": "#ffffff"
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90",
+      "zoomD70Y700P60"
+    ]
+  }
+}

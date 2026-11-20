@@ -1,0 +1,94 @@
+{
+  "about": "Rugby Union > Jersey (rugby-vneck-jersey-textured.glb, RUGBYV 2026-11-18): coloured from the same garment split into 15 parts by Tripo (rugby-vneck-jersey-parts.glb) by viewer/tripo-glbparts.mjs: the front panel and the hem band the print (yellow Main); the back, side panels and shoulder yoke one piece in the Accent (navy); each sleeve with its cuff and lining its Left / Right sleeve part (navy), each armhole seam one smooth line; the V-neck band the Collar colour (yellow), its foot one smooth line; the neck facing and other linings as the cloth behind them. Stitch lines: the V band's foot, a cuff line and a hem line, drawn by main.js as thin darker strips.",
+  "glbParts": {
+    "glb": "../../../tripo/rugby-vneck-jersey-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_44": "accent",
+      "tripo_part_15": "collar",
+      "tripo_part_3": null,
+      "tripo_part_48": null,
+      "tripo_part_5": "part:rightSleeve",
+      "tripo_part_9": "part:rightSleeve",
+      "tripo_part_27": "part:leftSleeve",
+      "tripo_part_23": "part:leftSleeve",
+      "tripo_part_31": "part:leftSleeve",
+      "tripo_part_38": null,
+      "tripo_part_47": null,
+      "tripo_part_51": null,
+      "tripo_part_53": null,
+      "tripo_part_55": null
+    },
+    "collar": "collar",
+    "sleeves": [
+      "part:leftSleeve",
+      "part:rightSleeve"
+    ],
+    "panels": [
+      "accent"
+    ],
+    "hemBand": {
+      "part": "tripo_part_38",
+      "width": 0.018
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.006,
+      "cuff": 0.017,
+      "hem": 0.017,
+      "sigma": 0.03
+    },
+    "data": {
+      "insideCloth": true
+    },
+    "sleeveMap": {
+      "armhole": [
+        [
+          0.258,
+          0.688
+        ],
+        [
+          0.258,
+          0.53
+        ]
+      ],
+      "cuff": [
+        [
+          0.418,
+          0.566
+        ],
+        [
+          0.372,
+          0.476
+        ]
+      ]
+    },
+    "localSide": true,
+    "facingCut": 0.4,
+    "collarBand": {
+      "width": 0.011,
+      "tol": 0.002,
+      "foldR": 0.01,
+      "foldDot": 0.3,
+      "rimTop": 0.006
+    },
+    "liningParts": [
+      "tripo_part_3",
+      "tripo_part_48"
+    ],
+    "shareSign": 0.2,
+    "openKeys": {
+      "accent": 0.008
+    },
+    "flatSmoothY": {
+      "sigma": 0.02,
+      "profile": 0.02
+    },
+    "looseBits": 200
+  }
+}

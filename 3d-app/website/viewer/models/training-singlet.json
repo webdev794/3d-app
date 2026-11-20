@@ -1,6 +1,6 @@
 {
-  "about": "Training singlets (every singlet tile with the singletTile look, and Netball > Training singlet): Tripo model training-singlet.glb, booklet card 106702. Each tile keeps its EXISTING look + the model flag (coordinator 2026-11-16); look is only the check design. Our marks only (MODELQ3 2026-11-16).",
-  "glb": "../../../tripo/training-singlet.glb",
+  "about": "Training singlets (the 11 plain singlet tiles: Netball, AFL, Training and Fight wear 'Training singlet', Tennis singlet, Racing singlet, Club singlet, Touch singlet, Volleyball singlet, Race singlet, Muscle singlet): Tripo model training-singlet-textured.glb (its shape only: its painted colours and its own UV atlas are not used; coloured from training-singlet-parts.glb by viewer/tripo-glbparts.mjs, MODELQ5 2026-11-19), Yellow Images cards 42084 front / 42088 back (a plain running singlet: neck band, armhole bands, hem). Each tile keeps its own existing look with the model's flag added (catalog.php looks singletModel / bladesSidesModel), so Singlet with bib, Training bibs, Lacrosse pinnie, Tennis dress and the singlets with models of their own keep theirs; `look` is only the check design (our marks only).",
+  "glb": "../../../tripo/training-singlet-textured.glb",
   "converter": "top",
   "part": "singlet",
   "flag": "trainingSinglet",
@@ -10,19 +10,38 @@
   "pictures": [],
   "convert": {
     "made": "singlet",
-    "creaseDeg": 25,
-    "pit": 0.5
+    "creaseDeg": 25
   },
   "look": {
-    "main": "#27282a",
-    "secondary": "#16b4f0",
-    "accent": "#16b4f0",
-    "patternColor": "#16b4f0",
+    "main": "#f4f5f7",
+    "secondary": "#1e2a44",
+    "accent": "#1e2a44",
+    "patternColor": "#1e2a44",
     "number": "",
     "zoneColors": {
-      "trainingSinglet": "#16b4f0"
+      "trainingSinglet": "#1e2a44"
     },
-    "marks": {},
+    "parts": {
+      "collar": {
+        "colour": "#1e2a44"
+      }
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_crest": {
+        "hidden": true
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
     "layers": []
   },
   "check": {
@@ -30,10 +49,11 @@
       "Front",
       "Back",
       "Q45",
+      "Q-45",
+      "Q90",
       "Q135",
       "zoomD70Y700P60",
-      "zoomQ40D70Y700P60"
+      "zoomQ180D70Y700P60"
     ]
-  },
-  "baseLook": "bladesSides"
+  }
 }

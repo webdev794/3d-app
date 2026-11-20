@@ -229,6 +229,17 @@ const reliefs = new Map();
 // for every garment, neck and collar shown in a session, filling a modest PC's memory. A kit uses at most two.)
 const RELIEFS_KEPT = 4;
 /** Adds the sewing relief on top of the fabric weave (both are normal maps, blended in the shader). */
+// (A collar style laid on the model (modelcollars.js, RUGBYJ): the GLSL that leaves the model's own collar pieces (and the
+// cloth inside a V) undrawn, for the print and for the inside (needs vPiece, vMcPos).)
+function mcDiscard(mcHide) {
+  const v = mcHide.v;
+  return `
+	int mcKey = int( vPiece.z >= 0.0 ? vPiece.x + 0.5 : vPiece.y + 0.5 ) - 1;
+	if ( int( vPiece.x + 0.5 ) - 1 == int( vPiece.y + 0.5 ) - 1 ) mcKey = int( vPiece.x + 0.5 ) - 1;
+	if ( mcKey >= 0 && ( mcKey == ${mcHide.keys[0]} || mcKey == ${mcHide.keys[1]} ) ) discard;${v ? `
+	if ( vMcPos.z > ${v.zc.toFixed(4)} && vMcPos.y > ${v.apexY.toFixed(4)} && vMcPos.y < ${v.topY.toFixed(4)} && abs( vMcPos.x ) < ( vMcPos.y - ${v.apexY.toFixed(4)} ) * ${v.slope.toFixed(4)} ) discard;` : ''}`;
+}
+
 function addRelief(target, painter) {
   // A garment cut like a drawing has its own (only the latest such is kept).
   // (The crew-neck jersey, FN6: its own, its neck sewn round.)
@@ -295,7 +306,8 @@ function addRelief(target, painter) {
   // (A collar style laid on the model (modelcollars.js, RUGBYJ): the model's own collar pieces and the cloth inside a V not drawn.)
   const mcHide = pieced && painter.model?.collarHide ? painter.model.collarHide : null, mcV = mcHide?.v;
   // (A model whose data asks for it (`narrowEdge`, RUGBYJ 2026-11-18: the rugby jersey's folded sleeve openings showed specks of
-  // the edge light): the edge light only right at the outline, as the Football jersey's.)
+  // the edge light): the edge light only right at the outline, as the Football jersey's; RUGBYJ 2026-11-19, QATEST -365: still
+  // pale dots along the openings' folded rims, so none at all on it.)
   const narrowEdge = !!painter.model?.narrowEdge;
   target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '') + (insideCloth ? '-insidecloth' : '') + (narrowEdge ? '-narrowedge' : '') + (altUv ? '-altuv' : '') + (mcHide ? `-mc${mcHide.keys.join('_')}${mcV ? `v${mcV.apexY.toFixed(4)}_${mcV.slope.toFixed(4)}` : ''}` : '');
   target.onBeforeCompile = (shader) => {
@@ -344,7 +356,7 @@ function addRelief(target, painter) {
     // faces the camera and keeps its colours.)
     if (Q) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
       float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
-      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball || matte ? '0.08' : narrowEdge ? '0.18' : '0.5'}${lipKey ? (insideCloth ? ' * ( pieceLip || ! gl_FrontFacing ? 0.0 : 1.0 )' : ' * ( pieceLip ? 0.0 : 1.0 )') : ''} * smoothstep(${dress || bball || matte || insideCloth || narrowEdge ? '0.9, 0.995' : '0.62, 0.95'}, edge);
+      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball || matte ? '0.08' : narrowEdge ? '0.0' : '0.5'}${lipKey ? (insideCloth ? ' * ( pieceLip || ! gl_FrontFacing ? 0.0 : 1.0 )' : ' * ( pieceLip ? 0.0 : 1.0 )') : ''} * smoothstep(${dress || bball || matte || insideCloth || narrowEdge ? '0.9, 0.995' : '0.62, 0.95'}, edge);
     }
 #include <opaque_fragment>`);
     if (dress) shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
@@ -463,7 +475,9 @@ const recipeFor = (part) => {
   const all = Object.entries(RECIPE_MODELS).filter(([, m]) => m.part === part && (!m.garment || m.garment === design.garment));
   // (the retired football-jersey model's flag (fbJersey) counts as the rugby jersey's: old saved designs show the new model)
   const flagged = (f) => HEX6.test(design.zoneColors?.[f] ?? '') || (f === 'rugbyJersey' && HEX6.test(design.zoneColors?.fbJersey ?? ''));
-  return (all.find(([, m]) => !m.wide && flagged(m.flag)) ?? all.find(([, m]) => m.wide && design.garment === part))?.[0] ?? null;
+  // (`except`: a wide model's tiles that keep another model of their own (HOODIE 2026-11-19: the pullover hoodie's model on every
+  // Hoodie but the Basketball Warm-up hoodie and the Fishing hoodie, flags bballHoodie / fishingHoodie).)
+  return (all.find(([, m]) => !m.wide && flagged(m.flag)) ?? all.find(([, m]) => m.wide && design.garment === part && !(m.except ?? []).some((f) => HEX6.test(design.zoneColors?.[f] ?? ''))))?.[0] ?? null;
 };
 // The singlet's model (the basketball singlet's or a recipe one's, both mapped as the basketball singlet's: data neckFront,
 // insert, bands), or null.
@@ -543,12 +557,14 @@ function paintPlains(part, design) {
     // own sleeves show there (QATEST / CLIENT598: a flat garment picture's navy sleeves came out in the body's colour).)
     if (layout && (key === 'part:leftSleeve' || key === 'part:rightSleeve')) { tint[k].set(1, 1, 1, 0); return; }
     if (layout && key === 'inside') { const c = new THREE.Color(part.layoutInside ?? design.main).multiplyScalar(0.9); tint[k].set(c.r, c.g, c.b, 1); return; }
-    const c = new THREE.Color(layout && (key === 'collar' || key === 'waistband' || key === 'part:cuffs' || key === 'part:leftCuff' || key === 'part:rightCuff') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? design.secondary);
+    // (HOODIE 2026-11-19: the hoodie's rib bands ('plain:zone:rib...') take the picture's band colour; its hood, lining and cords the
+    // picture's own colour.)
+    const c = new THREE.Color(layout && key.startsWith('plain:') && !key.startsWith('plain:zone:rib') && part.layoutInside ? part.layoutInside : layout && (key.startsWith('plain:zone:rib') || key === 'collar' || key === 'waistband' || key === 'part:cuffs' || key === 'part:leftCuff' || key === 'part:rightCuff') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? design.secondary);
     if (key === 'inside') c.multiplyScalar(0.9);
     // (On a model split into pieces (main.js `pieced`): a band (collar, waistband) one plain colour all over (w 2); any
     // other piece takes its colour where the print shows the Main (w 1).)
     // (and a trim named by its design part, 'part:<key>' (a hem band, cuffs), MODELQ2 2026-11-17)
-    tint[k].set(c.r, c.g, c.b, part.tripo.pieces && (key === 'collar' || key === 'waistband' || key.startsWith('part:')) ? 2 : 1);
+    tint[k].set(c.r, c.g, c.b, part.tripo.pieces && (key === 'collar' || key === 'waistband' || key.startsWith('part:') || key.startsWith('plain:')) ? 2 : 1);
     // (Its part's own look printed in it: its colour only where the print shows the Main, or the print itself: PATTERNDND-6.)
     if (!layout) { const w = pieceTintW(part.painter, design, k, '#' + c.getHexString()); if (w !== null) tint[k].w = w; }
   });
@@ -870,11 +886,20 @@ function buildKit(kind) {
     // drawn on them.)
     const insideLip = painter.model?.pieces ? painter.model.keys.indexOf('lip') + 1 : 0;
     if (insideLip && painter.model?.insideCloth) inside.visible = false;
-    if (insideLip) {
-      inside.customProgramCacheKey = () => `inside-lips${insideLip}`;
+    // (A collar style on the model (RUGBYJ 2026-11-19): its own collar not drawn from inside either: the collar's inner layer
+    // is wound inward, so that layer's outer face is drawn by this material.)
+    const mcIn = painter.model?.pieces && painter.model.collarHide ? painter.model.collarHide : null;
+    if (insideLip || mcIn) {
+      inside.customProgramCacheKey = () => `inside-lips${insideLip}${mcIn ? `-mc${mcIn.keys.join('_')}${mcIn.v ? `v${mcIn.v.apexY.toFixed(4)}_${mcIn.v.slope.toFixed(4)}` : ''}` : ''}`;
       inside.onBeforeCompile = (shader) => {
-        shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float partKey;\nvarying float vPartKey;').replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvPartKey = partKey;');
-        shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPartKey;').replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n\tif ( abs( vPartKey - ${insideLip}.0 ) < 0.5 ) discard;`);
+        if (insideLip) {
+          shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float partKey;\nvarying float vPartKey;').replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvPartKey = partKey;');
+          shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPartKey;').replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>\n\tif ( abs( vPartKey - ${insideLip}.0 ) < 0.5 ) discard;`);
+        }
+        if (mcIn) {
+          shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute vec3 piece;\nvarying vec3 vPiece;\nvarying vec3 vMcPos;').replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvPiece = piece;\n\tvMcPos = position;');
+          shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vPiece;\nvarying vec3 vMcPos;').replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>${mcDiscard(mcIn)}`);
+        }
       };
     }
     group.add(new THREE.Mesh(shape, inside));
@@ -929,7 +954,8 @@ function buildKit(kind) {
     // Hoodies: heavy brushed fleece (matt, a soft sheen, hardly any knit showing), the lined hood, the kangaroo pocket,
     // rib cuffs and waistband, the zip and the hood's drawstring (hoodie.js).
     let hoodie = null;
-    if (garment.hoodie) {
+    // (Not on the hoodie's ready-made model: its hood, pocket, rib bands and cords are its own, HOODIE 2026-11-19.)
+    if (garment.hoodie && !tripo) {
       const h = garment.hoodie;
       // (FX-H 2026-11-02, DT11: smooth matt fabric as the pictures, not fuzzy fleece.)
       partMaterial.roughness = 0.9;

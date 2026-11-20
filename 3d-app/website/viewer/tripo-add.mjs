@@ -79,7 +79,7 @@ if (steps.includes('wire')) {
   const all = {};
   for (const f of fs.readdirSync(path.join(here, 'models')).filter((f) => f.endsWith('.json')).sort()) {
     const m = JSON.parse(read(path.join(here, 'models', f)));
-    all[f.slice(0, -5)] = { part: m.part, ...(m.garment ? { garment: m.garment } : {}), ...(m.wide ? { wide: true } : {}), flag: m.flag, ownNeck: m.ownNeck, necks: {} };   // (Own neck only for now (user 2026-11-16): no neck is cut; other necks come later, laid on top.)
+    all[f.slice(0, -5)] = { part: m.part, ...(m.garment ? { garment: m.garment } : {}), ...(m.wide ? { wide: true } : {}), ...(m.except ? { except: m.except } : {}), flag: m.flag, ownNeck: m.ownNeck, necks: {} };   // (Own neck only for now (user 2026-11-16): no neck is cut; other necks come later, laid on top.)
   }
   write(path.join(here, 'src/recipemodels.js'), `// Made by viewer/tripo-add.mjs from viewer/models/*.json: the ready-made models added by the shared recipe. Do not edit.\nexport const RECIPE_MODELS = ${JSON.stringify(all)};\n`);
   // The flag kept by presets and resets (website and app).

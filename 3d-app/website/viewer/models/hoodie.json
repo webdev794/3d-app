@@ -1,0 +1,42 @@
+{
+  "about": "Pullover hoodies (every tile of the made Hoodie garment, the Studio's Hoodie, saved designs, presets; not the Basketball Warm-up hoodie (bballHoodie, its own model to come), the Fishing hoodie (fishingHoodie) or any zip hoodie): Tripo model hoodie-textured.glb (its shape only: its painted colours and its own UV atlas are not used; coloured from hoodie-parts.glb by viewer/tripo-hoodie.mjs, HOODIE 2026-11-19), booklet cards 10562 (front) / 10640 (back): a light grey raglan pullover, lined hood with cords, kangaroo pocket, rib cuffs and waistband; our marks only. WIDE: on every tile of its garment with the tile's own look; `look` is only the check design.",
+  "glb": "../../../tripo/hoodie-textured.glb",
+  "converter": "top",
+  "part": "hoodie",
+  "wide": true,
+  "except": [
+    "bballHoodie",
+    "fishingHoodie"
+  ],
+  "flag": "pulloverHoodie",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "hoodie",
+    "creaseDeg": 25,
+    "top": 0.84,
+    "pit": 0.515
+  },
+  "look": {
+    "main": "#c9cacc",
+    "secondary": "#c9cacc",
+    "accent": "#1e2a44",
+    "patternColor": "#1e2a44",
+    "number": "",
+    "zoneColors": {},
+    "marks": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

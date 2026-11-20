@@ -73,6 +73,10 @@ const keys = [...(D.partKeys ?? [])];
 const keyIdx = (k) => { if (k == null) return 0; let i = keys.indexOf(k); if (i < 0) { keys.push(k); i = keys.length - 1; } return i + 1; };
 const partKey = parts.map((p) => { if (!(p.name in settings.keys)) throw new Error(`no key for part ${p.name}`); return keyIdx(settings.keys[p.name]); });
 const COLLAR = keyIdx(settings.collar), SLEEVES = (settings.sleeves ?? []).map(keyIdx), BAND = settings.band ? keyIdx(settings.band.key) : -1;
+// (`panels` (RUGBYV 2026-11-18, the Rugby Union V-neck jersey's navy back, side panels and yoke): body pieces with one smooth
+// border, as a sleeve's seam, but no cuff stitch, no sleeve map and nothing past the body's side made theirs. LINED: every
+// piece with such a border, the sleeves first.)
+const PANELS = (settings.panels ?? []).map(keyIdx), LINED = [...SLEEVES, ...PANELS];
 // (`cuffOn` (MODELQ5 2026-11-19, the polo): { cuff key: sleeve key }: each cuff (a `sleeves` key, an even band with
 // evenCuffs) lies on its own sleeve piece (another `sleeves` key), not on the print; the sleeve's piece takes in its cuff's
 // cloth, so its only border is its seam with the body. `keysWhere`: [{ part, where, key }]: a part's triangles whose middle
@@ -110,16 +114,33 @@ parts.forEach((p, pi) => { for (let k = 0; k < p.tris.length; k += 3) {
   const mn = [0, 1, 2].map((a) => Math.floor(Math.min(...tri.map((q) => q[a])) / G)), mx = [0, 1, 2].map((a) => Math.floor(Math.max(...tri.map((q) => q[a])) / G));
   for (let x = mn[0]; x <= mx[0]; x++) for (let y = mn[1]; y <= mx[1]; y++) for (let z = mn[2]; z <= mx[2]; z++) { const kk = gk(x, y, z); (grid.get(kk) ?? grid.set(kk, []).get(kk)).push(id); }
 } });
-const key = new Int16Array(V).fill(-1); let far = 0;
+const key = new Int16Array(V).fill(-1), rawPart = new Int16Array(V).fill(-1); let far = 0;
+// (`hemBand` (RUGBYV 2026-11-18): each point's height above the bottom fold (the lowest cloth per 5 degrees round the body,
+// smoothed round); the band's part matched only within its width, and every point within it the band's)
+let hemDepth = null, hemPi = -1;
+if (settings.hemBand) {
+  hemPi = parts.findIndex((p) => p.name === settings.hemBand.part);
+  if (hemPi < 0) throw new Error(`hemBand: no part ${settings.hemBand.part}`);
+  let yMin = 9; for (let v = 0; v < V; v++) yMin = Math.min(yMin, A.P[v * 3 + 1]);
+  const bp = []; for (let v = 0; v < V; v++) if (A.P[v * 3 + 1] < yMin + 0.1) bp.push(v);
+  const c0 = bp.reduce((acc, v) => acc.map((x, i) => x + A.P[v * 3 + i] / bp.length), [0, 0, 0]), NB = 72;
+  const ang = (v) => Math.atan2(A.P[v * 3] - c0[0], A.P[v * 3 + 2] - c0[2]), bin = (v) => Math.min(NB - 1, Math.floor(((ang(v) + Math.PI) / (2 * Math.PI)) * NB));
+  const low = new Float32Array(NB).fill(9); for (const v of bp) low[bin(v)] = Math.min(low[bin(v)], A.P[v * 3 + 1]);
+  for (let k = 0; k < NB; k++) if (low[k] > 1) { let j2 = 1; while (low[(k + j2) % NB] > 1 && low[(k - j2 + NB) % NB] > 1 && j2 < NB) j2++; low[k] = Math.min(low[(k + j2) % NB], low[(k - j2 + NB) % NB]); }
+  const lowS = low.map((_, k) => { let s2 = 0, ws = 0; for (let o = -4; o <= 4; o++) { const w2 = Math.exp(-0.5 * (o / 2) ** 2); s2 += low[(k + o + NB) % NB] * w2; ws += w2; } return s2 / ws; });
+  hemDepth = Float32Array.from({ length: V }, (_, v) => { const f2 = ((ang(v) + Math.PI) / (2 * Math.PI)) * NB - 0.5, k0 = Math.floor(f2), t2 = f2 - k0; return A.P[v * 3 + 1] - (lowS[((k0 % NB) + NB) % NB] * (1 - t2) + lowS[(((k0 + 1) % NB) + NB) % NB] * t2); });
+}
 for (let v = 0; v < V; v++) {
   const p = P3(v), c = p.map((x) => Math.floor(x / G)), pn = N3(v);
   let best = -1, bd = Infinity;
+  if (hemDepth && hemDepth[v] < settings.hemBand.width) { key[v] = partKey[hemPi]; continue; }
   for (let r = 1; r <= 3 && best < 0; r++) for (let a = -r; a <= r; a++) for (let b = -r; b <= r; b++) for (let d = -r; d <= r; d++) for (const id of grid.get(gk(c[0] + a, c[1] + b, c[2] + d)) ?? []) {
+    if (hemDepth && TR[id].pi === hemPi) continue;
     // (a triangle facing away from the point's own cloth (the other layer) counts 2 cm further away)
     const q = closestOnTri(p, ...TR[id].tri), dd = Math.hypot(...sub(q, p)) + (dot(TR[id].n, pn) < 0 && !TR[id].two ? 0.02 : 0); if (dd < bd) { bd = dd; best = id; }
   }
   if (best < 0 || bd > (settings.far ?? 0.03) + 0.02) { far++; continue; }
-  key[v] = TR[best].k;
+  key[v] = TR[best].k; rawPart[v] = TR[best].pi;
 }
 for (let it = 0; it < 30 && key.includes(-1); it++) for (let v = 0; v < V; v++) if (key[v] < 0) for (const u of A.nb[v]) if (key[u] >= 0) { key[v] = key[u]; break; }
 for (let v = 0; v < V; v++) if (key[v] < 0) key[v] = 0;
@@ -170,7 +191,59 @@ for (let v = 0; v < V; v++) {
     const d = Math.hypot(...sub(P3(u), P3(v))); if (d < bd) { bd = d; facing[v] = u; } }
 }
 let lined = 0; for (let v = 0; v < V; v++) if (facing[v] >= 0 && key[v] !== key[facing[v]]) { key[v] = key[facing[v]]; lined++; }
+// (`liningParts` (RUGBYV 2026-11-18): those parts' points take the key of the cloth right behind them, though they count as outside)
+if (settings.liningParts) {
+  const LP = new Set(settings.liningParts.map((n) => parts.findIndex((p) => p.name === n)));
+  let relined = 0; const was = Int16Array.from(key);
+  for (let v = 0; v < V; v++) {
+    if (!LP.has(rawPart[v])) continue;
+    let bd = settings.wall ?? 0.025, bu = -1;
+    for (const u of nearPts(P3(v), bd)) { if (LP.has(rawPart[u]) || dot(N3(u), N3(v)) > -0.5 || dot(sub(P3(u), P3(v)), N3(v)) > 0) continue; const d = Math.hypot(...sub(P3(u), P3(v))); if (d < bd) { bd = d; bu = u; } }
+    if (bu >= 0 && was[bu] !== key[v]) { key[v] = was[bu]; relined++; }
+  }
+  say(`lining parts: ${relined} points took the cloth behind them`);
+}
 const isl2 = islands(key, settings.island ?? 60);
+if (settings.collarBand) {
+  const CB = settings.collarBand, W = CB.width, tol = CB.tol ?? 0.002;
+  // (the fold: a point with cloth within 4 mm (over its neighbours) facing the other way; seeds: those by the collar)
+  const foldAt = (v) => { const seen = new Set([v]), q = [v]; for (let i = 0; i < q.length; i++) for (const u of A.nb[q[i]]) { if (seen.has(u) || Math.hypot(...sub(P3(u), P3(v))) > (CB.foldR ?? 0.006)) continue; seen.add(u); q.push(u); if (dot(N3(u), N3(v)) < (CB.foldDot ?? 0)) return true; } return false; };
+  const nearC = new Uint8Array(V); { const cp = []; for (let v = 0; v < V; v++) if (key[v] === COLLAR) cp.push(v); const g3 = new Map(); for (const v of cp) { const kk = P3(v).map((x) => Math.floor(x / 0.02)).join(','); (g3.get(kk) ?? g3.set(kk, []).get(kk)).push(v); } for (let v = 0; v < V; v++) { const c = P3(v).map((x) => Math.floor(x / 0.02)); search: for (let a2 = -1; a2 <= 1; a2++) for (let b2 = -1; b2 <= 1; b2++) for (let c2 = -1; c2 <= 1; c2++) for (const u of g3.get(`${c[0] + a2},${c[1] + b2},${c[2] + c2}`) ?? []) if (Math.hypot(...sub(P3(u), P3(v))) < 0.02) { nearC[v] = 1; break search; } } }
+  const cand = new Set(); for (let v = 0; v < V; v++) if (nearC[v] && foldAt(v)) cand.add(v);
+  // (the opening's rim: the largest connected run of them (a step at the band's inside edge is not the rim))
+  // (rimTop: only the opening's own rim: per 2 degrees round the neck's upright middle, the candidates within rimTop of the
+  // highest there (a step lower inside the neck, where the band's inside edge ends, is not the rim))
+  if (CB.rimTop) { const cl0 = [...cand], cx = cl0.reduce((a2, v) => a2 + A.P[v * 3], 0) / cl0.length, cz = cl0.reduce((a2, v) => a2 + A.P[v * 3 + 2], 0) / cl0.length, NB2 = 180, bin2 = (v) => Math.min(NB2 - 1, Math.floor(((Math.atan2(A.P[v * 3] - cx, A.P[v * 3 + 2] - cz) + Math.PI) / (2 * Math.PI)) * NB2)), top2 = new Float32Array(NB2).fill(-9); for (const v of cl0) top2[bin2(v)] = Math.max(top2[bin2(v)], A.P[v * 3 + 1]); for (const v of cl0) if (A.P[v * 3 + 1] < top2[bin2(v)] - CB.rimTop) cand.delete(v); }
+  let seeds = []; { const cl = [...cand], seenS = new Set(), comps = []; for (const s0 of cl) { if (seenS.has(s0)) continue; const comp = [s0]; seenS.add(s0); for (let i = 0; i < comp.length; i++) for (const x of cl) if (!seenS.has(x) && Math.hypot(...sub(P3(x), P3(comp[i]))) < (CB.link ?? 0.015)) { seenS.add(x); comp.push(x); } comps.push(comp); } comps.sort((a2, b2) => b2.length - a2.length); seeds = comps[0] ?? []; if (process.env.DBG) console.log('DBG fold runs', comps.slice(0, 6).map((c) => c.length).join(' ')); }
+  const gd = new Float32Array(V).fill(9), q = [...seeds]; for (const v of seeds) gd[v] = 0;
+  while (q.length) { let bi = 0; for (let i = 1; i < q.length; i++) if (gd[q[i]] < gd[q[bi]]) bi = i; const v = q[bi]; q[bi] = q[q.length - 1]; q.pop(); if (gd[v] > W + 0.04) continue; for (const u of A.nb[v]) { const nd = gd[v] + Math.hypot(...sub(P3(u), P3(v))); if (nd < gd[u] - 1e-9) { gd[u] = nd; q.push(u); } } }
+  let tip = seeds[0]; for (const v of seeds) if (A.P[v * 3 + 1] < A.P[tip * 3 + 1]) tip = v;
+  const kept = (v) => CB.keepTip && Math.hypot(...sub(P3(v), P3(tip))) < CB.keepTip;
+  // (the parts file's own band edge: its median distance from the fold, for the report)
+  const edge = []; for (let v = 0; v < V; v++) if (key[v] === COLLAR && [...A.nb[v]].some((u) => key[u] !== COLLAR) && gd[v] < 0.05) edge.push(gd[v]); edge.sort((x, y) => x - y);
+  let added = 0, dropped = 0;
+  for (let v = 0; v < V; v++) { if (kept(v)) continue; if (gd[v] < W - tol && key[v] !== COLLAR) { key[v] = COLLAR; added++; } else if (gd[v] > W + tol && key[v] === COLLAR) { key[v] = -1; dropped++; } }
+  for (let it = 0; it < 60 && key.includes(-1); it++) for (let v = 0; v < V; v++) if (key[v] < 0) for (const u of A.nb[v]) if (key[u] >= 0 && key[u] !== COLLAR) { key[v] = key[u]; break; }
+  for (let v = 0; v < V; v++) if (key[v] < 0) key[v] = 0;
+  say(`collar band: fold seeds ${seeds.length}, the parts' band edge ${(edge[edge.length >> 1] * 1000).toFixed(1)} mm from the fold (median), kept to ${(W * 1000).toFixed(1)} mm: added ${added}, dropped ${dropped}`);
+}
+// (`openKeys` (RUGBYV 2026-11-19): each such piece's strips narrower than twice its radius taken in by the pieces beside them)
+if (settings.openKeys) for (const [kName, rad] of Object.entries(settings.openKeys)) {
+  const K = keys.indexOf(kName) + 1; if (K <= 0) continue;
+  // (shortest ways over the cloth from `seeds` through points `ok`, up to `max`; `lab` carried along when given)
+  const geoFrom = (seeds, ok, max, lab = null) => { const d = new Float32Array(V).fill(9), q = [...seeds]; for (const v of seeds) d[v] = 0; while (q.length) { let bi = 0; for (let i = 1; i < q.length; i++) if (d[q[i]] < d[q[bi]]) bi = i; const v = q[bi]; q[bi] = q[q.length - 1]; q.pop(); if (d[v] > max) continue; for (const u of nbs[v]) { if (!ok(u)) continue; const nd = d[v] + Math.hypot(...sub(P3(u), P3(v))); if (nd < d[u] - 1e-9) { d[u] = nd; if (lab) lab[u] = lab[v]; q.push(u); } } } return d; };
+  const edge = []; for (let v = 0; v < V; v++) if (key[v] === K && nbs[v].some((u) => key[u] !== K)) edge.push(v);
+  const dIn = geoFrom(edge, (u) => key[u] === K, rad + 0.01);
+  const core = []; for (let v = 0; v < V; v++) if (key[v] === K && dIn[v] >= rad) core.push(v);
+  const dCore = geoFrom(core, (u) => key[u] === K, rad + 0.01);
+  let taken = 0; for (let v = 0; v < V; v++) if (key[v] === K && dCore[v] > rad + 0.001) { key[v] = -1; taken++; }
+  const lab = Int16Array.from(key), rim = []; for (let v = 0; v < V; v++) if (key[v] >= 0 && key[v] !== K && nbs[v].some((u) => key[u] === -1)) rim.push(v);
+  geoFrom(rim, (u) => key[u] === -1, 9, lab);
+  for (let v = 0; v < V; v++) if (key[v] === -1 && lab[v] >= 0) key[v] = lab[v];
+  for (let it = 0; it < 80 && key.includes(-1); it++) for (let v = 0; v < V; v++) if (key[v] === -1) for (const u of A.nb[v]) if (key[u] >= 0 && key[u] !== K) { key[v] = key[u]; break; }
+  for (let v = 0; v < V; v++) if (key[v] < 0) key[v] = K;
+  say(`thin strips of ${kName} taken in: ${taken} points`);
+}
 // (Out beyond the body's side, every point is its sleeve's, outside, lining and the fold between (QATEST -353: specks
 // along the sleeve openings' edge).)
 let pastBody = 0;
@@ -238,11 +311,13 @@ function linesOf(w, sigma, region = null) {
 function distOf(lines, w) {
   const d = Float32Array.from({ length: V }, (_, v) => (w[v] >= 0.5 ? reach : -reach)), bd = new Float32Array(V).fill(9);
   for (const L of lines) L.C.forEach((p, i) => { for (const v of nearPts(p, reach)) {
-    if (!outside[v] || dot(N3(v), L.normal[i]) < -0.2) continue;
+    if (!outside[v] || dot(N3(v), L.normal[i]) < (settings.facingCut ?? -0.2)) continue;
     const e = Math.hypot(...sub(P3(v), p)); if (e >= bd[v]) continue;
     if (!L.closed && (i === 0 || i === L.C.length - 1) && e > 0.004) continue;
     bd[v] = e; d[v] = dot(sub(P3(v), p), L.side[i]);
   } });
+  // (`shareSign` (RUGBYV 2026-11-19): the share's side where it is clear and the line's side disagrees)
+  if (settings.shareSign) for (let v = 0; v < V; v++) if (Math.abs(w[v] - 0.5) > settings.shareSign && (d[v] > 0) !== (w[v] > 0.5)) d[v] = -d[v];
   return d;
 }
 const report = [];
@@ -290,7 +365,7 @@ const evenShare = (s, up = false) => {
   report.push(`${keys[s - 1]} even width ${(W * 1000).toFixed(1)} mm (ring ${(R * 1000).toFixed(0)} mm, border ${edge.length}, outside reclaimed ${reclaimed})`);
   return Float32Array.from({ length: V }, (_, v) => { const dp = depth(v); return onSleeve(v) && dp > -0.03 && dp < 0.12 ? Math.max(0, Math.min(1, 0.5 + (W - dp) / 0.01)) : 0; });
 };
-const wC = settings.evenCollar ? evenShare(COLLAR, true) : shareOf((v) => key[v] === COLLAR), linesC = linesOf(wC, settings.collarSigma ?? sigma, settings.evenCollar ? (v) => outside[v] || evenRings.get(COLLAR).onSleeve(v) : null), dC = distOf(linesC, wC);
+const wC = settings.evenCollar ? evenShare(COLLAR, true) : shareOf((v) => key[v] === COLLAR, settings.collarSteps ?? 12), linesC = linesOf(wC, settings.collarSigma ?? sigma, settings.evenCollar ? (v) => outside[v] || evenRings.get(COLLAR).onSleeve(v) : settings.collarBand ? () => true : null), dC = distOf(linesC, wC);
 // (`neckRing` (RUGBYJ 2026-11-19, client 611 collars): the collar's foot line, the longest closed one, into the data: points
 // on the cloth and the cloth's outward normal there; main.js lays our own collar styles along it.)
 if (settings.neckRing) { const L = linesC.filter((l) => l.closed).sort((a, b) => b.len - a.len)[0]; if (L) D.neckRing = { c: L.C.flatMap((p) => p.map((x) => +x.toFixed(5))), n: L.normal.flatMap((p) => p.map((x) => +x.toFixed(3))) }; }
@@ -307,16 +382,20 @@ const below = Int16Array.from(key);
   }
 }
 const evenOf = (s) => settings.evenCuffs && (!CUFFON.size || CUFFON.has(s));
-const dS = SLEEVES.map((s) => { const w = evenOf(s) ? evenShare(s) : shareOf((v) => below[v] === s || CUFFON.get(below[v]) === s), L = linesOf(w, sigma, evenOf(s) ? (v) => outside[v] || evenRings.get(s).onSleeve(v) : null); report.push(`${keys[s - 1]} lines ${L.map((x) => `${x.len} mm${x.closed ? ' closed' : ''}`).join(', ')}`); return distOf(L, w); });
+const dS = LINED.map((s) => { const w = SLEEVES.includes(s) && evenOf(s) ? evenShare(s) : shareOf((v) => below[v] === s || CUFFON.get(below[v]) === s), L = linesOf(w, sigma, SLEEVES.includes(s) && evenOf(s) ? (v) => outside[v] || evenRings.get(s).onSleeve(v) : null); report.push(`${keys[s - 1]} lines ${L.map((x) => `${x.len} mm${x.closed ? ' closed' : ''}`).join(', ')}`); return distOf(L, w); });
 
 // ---- Per outside point: collar where it is in the collar, else the sleeve it is in, else the print; the line nearest it
 // with its two pieces. Inside points: as the outside cloth facing them (the band inside the collar below).
 const pair = new Int16Array(V * 2), S = new Float32Array(V), field = new Int8Array(V);   // field: 0 collar line, 1+k sleeve k
 const sleeveAt = (v) => { let k = -1, b = -9; dS.forEach((d, i) => { if (CUFFON.has(SLEEVES[i])) return; if (d[v] > b) { b = d[v]; k = i; } }); return [k, b]; };
 const setOutside = (v, src) => {
-  const [k, ds] = sleeveAt(src), lower = ds > 0 ? SLEEVES[k] : 0, dc = dC[src];
+  const [k, ds] = sleeveAt(src), lower = ds > 0 ? LINED[k] : 0, dc = dC[src];
+  // (with panels: the piece across this piece's line is the next lined piece when its own line lies there too (a sleeve
+  // meeting a panel), else the print)
+  let other = 0;
+  if (PANELS.length) { let k2 = -1, d2 = -9; dS.forEach((d, i) => { if (i !== k && d[src] > d2) { d2 = d[src]; k2 = i; } }); if (k2 >= 0 && Math.abs(d2) < reach - 1e-6 && (ds >= 0 ? d2 > -ds - 0.004 : ds > -0.003 && d2 > -0.003)) other = LINED[k2]; }
   if (dc > 0 || Math.abs(dc) <= Math.abs(ds)) { pair[v * 2] = COLLAR; pair[v * 2 + 1] = lower; S[v] = dc; field[v] = 0; }
-  else { pair[v * 2] = SLEEVES[k]; pair[v * 2 + 1] = 0; S[v] = ds; field[v] = 1 + k; }
+  else { pair[v * 2] = LINED[k]; pair[v * 2 + 1] = other; S[v] = other && LINED.includes(other) ? (ds - dS[LINED.indexOf(other)][src]) / 2 : ds; field[v] = 1 + k; }
 };
 for (let v = 0; v < V; v++) if (outside[v]) setOutside(v, v);
 for (let v = 0; v < V; v++) if (!outside[v]) {
@@ -592,8 +671,9 @@ for (let t = 0; t < A.T; t++) {
   const fs2 = [...new Set(live.map((v) => field[v]))], mean = (f2) => Math.abs(c.reduce((acc, v) => acc + valueIn(v, f2), 0) / 3);
   const f = fs2.length > 1 ? fs2.reduce((x, y) => (mean(y) < mean(x) ? y : x)) : field[v0];
   const vf = live.find((v) => field[v] === f) ?? v0; let a = pair[vf * 2], b = pair[vf * 2 + 1];
-  if (f === 0) { const lows = c.map((v) => { const [k, ds] = sleeveAt(outside[v] ? v : facing[v] >= 0 ? facing[v] : v); return ds > 0 ? SLEEVES[k] : 0; }); b = lows.sort((x, y) => lows.filter((z) => z === y).length - lows.filter((z) => z === x).length)[0]; }
-  tris.push(t & 255, (t >> 8) & 255, (t >> 16) & 255, a, b, ...c.map((v) => q(valueIn(v, f))));
+  if (f === 0) { const lows = c.map((v) => { const [k, ds] = sleeveAt(outside[v] ? v : facing[v] >= 0 ? facing[v] : v); return ds > 0 ? LINED[k] : 0; }); b = lows.sort((x, y) => lows.filter((z) => z === y).length - lows.filter((z) => z === x).length)[0]; }
+  const both = PANELS.length && a !== b && LINED.includes(a) && LINED.includes(b);
+  tris.push(t & 255, (t >> 8) & 255, (t >> 16) & 255, a, b, ...c.map((v) => { if (!both) return q(valueIn(v, f)); const src = outside[v] ? v : facing[v] >= 0 ? facing[v] : v; return q((dS[LINED.indexOf(a)][src] - dS[LINED.indexOf(b)][src]) / 2); }));
 }
 // ---- No specks: a patch of fewer than `speck` triangles of one colour inside another takes that colour.
 {
@@ -662,6 +742,16 @@ if (settings.zipLine) {
     D.zip = [{ c: Lz.C.flatMap((q) => q.map((x) => +x.toFixed(5))), n: Lz.normal.map((q) => (q[2] < 0 ? q.map((x) => -x) : q)).flatMap((q) => q.map((x) => +x.toFixed(3))) }];
     report.push(`zip line ${Lz.len} mm, from ${Lz.C[0][1].toFixed(3)} down to ${Lz.C[Lz.C.length - 1][1].toFixed(3)}`);
   } else report.push('zip line: none found');
+}
+// (`looseBits` (RUGBYV 2026-11-19): small loose bits of the mesh take the colour shown at the nearest point of the garment)
+if (settings.looseBits) {
+  const comp = new Int32Array(V).fill(-1), sizes = [];
+  for (let s0 = 0; s0 < V; s0++) { if (comp[s0] >= 0) continue; const c = [s0]; comp[s0] = sizes.length; for (let i = 0; i < c.length; i++) for (const u of A.nb[c[i]]) if (comp[u] < 0) { comp[u] = sizes.length; c.push(u); } sizes.push(c.length); }
+  const loose = (v) => sizes[comp[v]] < settings.looseBits, shown = (v) => (S[v] >= 0 ? pair[v * 2] : pair[v * 2 + 1]), colOf = new Int16Array(V).fill(-1);
+  let bits = 0; for (let v = 0; v < V; v++) { if (!loose(v)) continue; let bd = 9, bu = -1; for (const u of nearPts(P3(v), 0.03)) { if (loose(u) || !outside[u] || dot(N3(u), N3(v)) < 0.3) continue; const w = sub(P3(u), P3(v)), al = dot(w, N3(v)), d = Math.hypot(w[0] - al * N3(v)[0], w[1] - al * N3(v)[1], w[2] - al * N3(v)[2]) + 0.2 * Math.abs(al); if (d < bd) { bd = d; bu = u; } } if (bu >= 0) { colOf[v] = shown(bu); bits++; } }
+  for (let i = 0; i < m.n; i++) { const v = A.weld[i]; if (colOf[v] < 0) continue; out[i * 3] = out[i * 3 + 1] = colOf[v]; out[i * 3 + 2] = q(0.01); }
+  for (let j = 0; j + 8 <= tris.length; j += 8) { const t = tris[j] | (tris[j + 1] << 8) | (tris[j + 2] << 16), v0 = A.F[t * 3]; if (colOf[v0] < 0) continue; tris[j + 3] = tris[j + 4] = colOf[v0]; tris[j + 5] = tris[j + 6] = tris[j + 7] = q(0.01); }
+  report.push(`loose bits coloured as the garment beside them: ${bits} points`);
 }
 D.stitches = stitches.length ? stitches : undefined; if (!stitches.length) delete D.stitches;
 // (`data`: fields copied into the data as they are, e.g. { insideCloth: true } (main.js: the cloth's inside drawn as cloth,

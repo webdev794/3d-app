@@ -26,6 +26,10 @@ const modelFlags = [
   'rashGuard',
   'rugbyJersey',
   'poloZip',
+  'rugbyVJersey',
+  'trainingSinglet',
+  'bballHoodie',
+  'fishingHoodie',
 ];
 
 /// [next] zoneColors with the model flags of [was] it lacks put back.
