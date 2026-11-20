@@ -1,0 +1,35 @@
+{
+  "about": "Waterproof jacket (Rugby Union, Rugby League and American football > Waterproof Jacket): Tripo model puffer-jacket-textured.glb (made for card 112456, but it came out as a smooth hooded shell, no quilting: coordinator 20 Nov: it goes on the Waterproof Jacket tiles, whose pictures show a hood; the real puffer is remade); shape only, coloured from puffer-jacket-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/waterproof-jacket.json): body and sleeves printed through the made track jacket's pattern (so the tiles' own look 'waterproof': dark shell, cyan lower sides), the hood one colour (Hood colour, else the Body colour, else Main) with its lining, the full-length zip and the pocket zips the Zip colour, cuffs and hem band the Rib colour (else Body, else Main). Shown by the flag waterproofJacket in the look 'waterproof'. MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/puffer-jacket-textured.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "waterproofJacket",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25,
+    "top": 0.84
+  },
+  "look": {
+    "zoneColors": {
+      "waterproofJacket": "#ffffff",
+      "body": "#24272b",
+      "shoulder": "#24272b",
+      "side": "#00c4f0",
+      "stripe": "#24272b",
+      "zip": "#00c4f0"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

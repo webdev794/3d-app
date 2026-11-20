@@ -1,0 +1,82 @@
+{
+  "about": "Windbreaker (windbreaker-textured.glb) coloured from windbreaker-parts.glb (19 parts; the inner layers 3, 6, 7, 8, 12, 13, 14 and the small bits 21, 22, 24, 25, 27 count as the body) by viewer/tripo-hoodie.mjs: front + sleeves (15) and back (0) the print, side panels (4, 18) the Side colour, stand-up collar (19) the Collar colour, the zip (11) counts as the body: the made track jacket's pattern prints its zip line (Zip colour) down the middle front, as on the tracksuit jacket (Tripo's zip strip is too thin in the shape file to colour from), hem band (10) the rib. MODELQ5 2026-11-20.",
+  "hoodieParts": {
+    "glb": "../../../tripo/windbreaker-parts.glb",
+    "roles": {
+      "tripo_part_15": "body",
+      "tripo_part_0": "body",
+      "tripo_part_12": "body",
+      "tripo_part_13": "body",
+      "tripo_part_14": "body",
+      "tripo_part_3": "body",
+      "tripo_part_7": "body",
+      "tripo_part_8": "body",
+      "tripo_part_6": "body",
+      "tripo_part_21": "body",
+      "tripo_part_22": "body",
+      "tripo_part_24": "body",
+      "tripo_part_25": "body",
+      "tripo_part_27": "body",
+      "tripo_part_4": "side",
+      "tripo_part_18": "side",
+      "tripo_part_19": "collar",
+      "tripo_part_11": "body",
+      "tripo_part_10": "hem"
+    },
+    "order": [
+      "collar",
+      "side"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "plain:zone:collar|zone:body|main"
+      },
+      "side": {
+        "roles": [
+          "side"
+        ],
+        "key": "plain:zone:side|accent"
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "down"
+      }
+    },
+    "plainKeys": [
+      "plain:zone:collar|zone:body|main",
+      "plain:zone:side|accent"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "side",
+          "at": -0.005
+        },
+        {
+          "region": "collar",
+          "at": -0.006
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

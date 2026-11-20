@@ -318,7 +318,7 @@ export interface AssistantFormEdit { brand?: string; garment?: string; title?: s
 export interface AssistantItem { garment: string; fit: string; label: string; design: string; sizes: Record<string, number> }
 /** The collated order (OrderAssistController::resource). */
 export interface AssistantOrder {
-  token: string; title: string; summary: string; updated_at: string;
+  token: string; title: string; display_title?: string; summary: string; updated_at: string;
   made_by: { supplier_id: number | null; name: string; logo_url: string | null };
   messages: { role: 'user' | 'assistant'; text: string; files?: { name: string; kind: string }[]; at?: string }[];
   analysis: null | {

@@ -176,6 +176,7 @@ for (let v = 0; v < V; v++) {
   const n = N3(v), o = P3(v), own = new Set(vt[v]), t1 = nrm(cross(n, Math.abs(n[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0])), t2 = cross(n, t1);
   const dirs = [n, ...[0, 1, 2, 3, 4, 5].map((k) => { const a = (k * Math.PI) / 3; return nrm(n.map((x, i) => x + 0.7 * (Math.cos(a) * t1[i] + Math.sin(a) * t2[i]))); })];
   let out = 0; for (const d of dirs) if (!hits(o, d, own) && ++out >= 2) break;
+  if (out < 2 && settings.twoWayOut) { out = 0; for (const d of dirs) if (!hits(o, d.map((x) => -x), own) && ++out >= 2) break; }   // (`twoWayOut`, RUGBYV 2026-11-20)
   outside[v] = out >= 2 ? 1 : 0;
 }
 // (single stray points of either layer take their neighbours')
@@ -361,9 +362,16 @@ const evenShare = (s, up = false) => {
   const near = (v) => rad(v) < R * 1.3;
   // (a turned-in face: facing the axis)
   const inward = (v) => { const d = sub(P3(v), c0), t = dot(d, ax); return dot(N3(v), nrm(d.map((x, i) => x - ax[i] * t))) < -0.3; };
-  evenRings.set(s, { depth, W, onSleeve, near, inward, c0, ax });
+  // (`evenRadial` (RUGBYJ 2026-11-20, the training singlet's armholes dripped down the side at the underarm): the band's
+  // edge also no further from the axis than the opening's rim there (per 5 degrees round, smoothed) + evenRadial)
+  const rimR = new Float32Array(NB); for (const v of cp) if (depth(v) < 0.004) rimR[bin(v)] = Math.max(rimR[bin(v)], rad(v));
+  for (let k = 0; k < NB; k++) if (!rimR[k]) { let j2 = 1; while (!rimR[(k + j2) % NB] && !rimR[(k - j2 + NB) % NB] && j2 < NB) j2++; rimR[k] = Math.max(rimR[(k + j2) % NB], rimR[(k - j2 + NB) % NB]); }
+  const rimS = rimR.map((_, k) => { let s2 = 0, ws = 0; for (let o = -3; o <= 3; o++) { const w2 = Math.exp(-0.5 * (o / 1.5) ** 2); s2 += rimR[(k + o + NB) % NB] * w2; ws += w2; } return s2 / ws; });
+  const rimAt = (v) => { const f2 = ((ang(v) + Math.PI) / (2 * Math.PI)) * NB - 0.5, k0 = Math.floor(f2), t2 = f2 - k0; return rimS[((k0 % NB) + NB) % NB] * (1 - t2) + rimS[(((k0 + 1) % NB) + NB) % NB] * t2; };
+  const edgeOf = (v) => settings.evenRadial == null ? W - depth(v) : Math.min(W - depth(v), rimAt(v) + settings.evenRadial - rad(v));
+  evenRings.set(s, { depth, W, onSleeve, near, inward, c0, ax, edgeOf });
   report.push(`${keys[s - 1]} even width ${(W * 1000).toFixed(1)} mm (ring ${(R * 1000).toFixed(0)} mm, border ${edge.length}, outside reclaimed ${reclaimed})`);
-  return Float32Array.from({ length: V }, (_, v) => { const dp = depth(v); return onSleeve(v) && dp > -0.03 && dp < 0.12 ? Math.max(0, Math.min(1, 0.5 + (W - dp) / 0.01)) : 0; });
+  return Float32Array.from({ length: V }, (_, v) => { const dp = depth(v); return onSleeve(v) && dp > -0.03 && dp < 0.12 ? Math.max(0, Math.min(1, 0.5 + edgeOf(v) / 0.01)) : 0; });
 };
 const wC = settings.evenCollar ? evenShare(COLLAR, true) : shareOf((v) => key[v] === COLLAR, settings.collarSteps ?? 12), linesC = linesOf(wC, settings.collarSigma ?? sigma, settings.evenCollar ? (v) => outside[v] || evenRings.get(COLLAR).onSleeve(v) : settings.collarBand ? () => true : null), dC = distOf(linesC, wC);
 // (`neckRing` (RUGBYJ 2026-11-19, client 611 collars): the collar's foot line, the longest closed one, into the data: points
@@ -409,7 +417,7 @@ const evenList = [...evenRings];
 for (const [ei, [k, E]] of evenList.entries()) for (let v = 0; v < V; v++) {
   // (its cloth round the opening, outside and turned in: the band up to depth W, its edge smooth (the depth's own measure))
   const dp = E.depth(v);
-  if ((E.onSleeve(v) || (!outside[v] && E.near(v) && E.inward(v))) && dp > -0.03 && dp < E.W + 0.03) { pair[v * 2] = k; pair[v * 2 + 1] = CUFFON.get(k) ?? 0; S[v] = E.W - dp; field[v] = 100 + ei; continue; }
+  if ((E.onSleeve(v) || (!outside[v] && E.near(v) && E.inward(v))) && dp > -0.03 && dp < E.W + 0.03) { pair[v * 2] = k; pair[v * 2 + 1] = CUFFON.get(k) ?? 0; S[v] = E.edgeOf(v); field[v] = 100 + ei; continue; }
   if (pair[v * 2] !== k && pair[v * 2 + 1] !== k) continue;
   if (E.onSleeve(v) && E.depth(v) < E.W + 0.004) continue;
   // (beside an even band but out of it: back to the sleeve piece it lies on (a sleeve that is a piece of its own, cuffOn /
@@ -502,7 +510,7 @@ if (settings.stitches) {
     // (of the rings at that depth (its outside face; a turned-in lining reached at the opening) the one furthest from the
     // sleeve's axis, its normals turned away from the axis)
     const E = evenRings.get(k), radial = (p) => { const d = sub(p, E.c0), t = dot(d, E.ax); return d.map((x, i) => x - E.ax[i] * t); };
-    const Ls = linesOf(Float32Array.from({ length: V }, (_, v) => 0.5 + ((E.onSleeve(v) ? E.depth(v) : 9) - T2.cuff)), sg2, (v) => E.onSleeve(v)).filter((L) => L.len >= (T2.minLen ?? 60));
+    const Ls = linesOf(Float32Array.from({ length: V }, (_, v) => 0.5 + ((E.onSleeve(v) ? E.W - E.edgeOf(v) : 9) - T2.cuff)), sg2, (v) => E.onSleeve(v)).filter((L) => L.len >= (T2.minLen ?? 60));
     const mr = (L) => L.C.reduce((acc, p) => acc + Math.hypot(...radial(p)), 0) / L.C.length, L = Ls.sort((a2, b2) => (T2.cuffLongest ? b2.len - a2.len : 0) || mr(b2) - mr(a2))[0];
     if (!L) continue;
     const n2 = L.C.map((p, i) => { const r = nrm(radial(p)); return dot(L.normal[i], r) < 0 ? L.normal[i].map((x) => -x) : L.normal[i]; });
@@ -594,6 +602,40 @@ if (settings.sleeveMap) {
     D.flatB = Buffer.from(altB.buffer).toString('base64'); D.sideB = Buffer.from(altSideB).toString('base64');
   }
 }
+// (`armMap` (RUGBYV 2026-11-19): the arms' print places on the made sleeves, the arms given by their parts)
+let ARMSET = null;
+if (settings.armMap) {
+  ARMSET = new Uint8Array(V);
+  const SM = settings.armMap, [A0, B0] = SM.armhole, [C0, D0] = SM.cuff, lerp = (a2, b2, t) => [a2[0] + (b2[0] - a2[0]) * t, a2[1] + (b2[1] - a2[1]) * t];
+  const AP = new Set(SM.parts.map((n) => parts.findIndex((q) => q.name === n)));
+  const geoAll = (seeds, region) => { const d = new Float32Array(V).fill(9), q = []; for (const v of seeds) { d[v] = 0; q.push(v); } while (q.length) { let bi = 0; for (let i = 1; i < q.length; i++) if (d[q[i]] < d[q[bi]]) bi = i; const v = q[bi]; q[bi] = q[q.length - 1]; q.pop(); for (const u of A.nb[v]) { if (!region(u)) continue; const nd = d[v] + Math.hypot(...sub(P3(u), P3(v))); if (nd < d[u] - 1e-9) { d[u] = nd; q.push(u); } } } return d; };
+  const flat = new Int16Array(new Uint8Array(Buffer.from(D.flat, 'base64')).buffer), side = new Uint8Array(Buffer.from(D.side, 'base64')), U0 = D.flatUnit;
+  const placeOf = new Map();
+  for (const sg of [1, -1]) {
+    const sp = []; for (let v = 0; v < V; v++) if (AP.has(rawPart[v]) && (outside[v] || (facing[v] >= 0 && AP.has(rawPart[facing[v]]))) && sg * A.P[v * 3] > 0.12) sp.push(v);
+    if (sp.length < 50) continue;
+    const inK = new Uint8Array(V); for (const v of sp) inK[v] = 1;
+    let mx = 0; for (const v of sp) mx = Math.max(mx, Math.abs(A.P[v * 3]));
+    const ends = sp.filter((v) => Math.abs(A.P[v * 3]) > mx - 0.04), cE = ends.reduce((a2, v) => a2.map((x, i) => x + A.P[v * 3 + i] / ends.length), [0, 0, 0]), cA = sp.reduce((a2, v) => a2.map((x, i) => x + A.P[v * 3 + i] / sp.length), [0, 0, 0]);
+    const ax2 = nrm(sub(cE, cA)), radialOf = (v) => { const d = sub(P3(v), cA), t = dot(d, ax2); return d.map((x, i) => x - ax2[i] * t); };
+    const outer = (v) => inK[v] && outside[v] && dot(N3(v), nrm(radialOf(v))) > 0;
+    const endA = Math.max(...ends.map((v) => dot(sub(P3(v), cA), ax2)));
+    const seam = sp.filter((v) => outer(v) && [...A.nb[v]].some((u) => !inK[u]));
+    const rim = sp.filter((v) => outer(v) && dot(sub(P3(v), cA), ax2) > endA - 0.05 && [...A.nb[v]].some((u) => inK[u] && !outer(u)));
+    const gS = geoAll(seam, outer), gC = geoAll(rim, outer);
+    const sq = (w) => nrm(w.map((x, i) => x - ax2[i] * dot(w, ax2))), eUp = sq([0, 1, 0]), eF = sq([0, 0, 1]);
+    const outs = sp.filter(outer), PG2 = 0.012, g2 = new Map(); for (const v of outs) { const kk = P3(v).map((x) => Math.floor(x / PG2)).join(','); (g2.get(kk) ?? g2.set(kk, []).get(kk)).push(v); }
+    const nearOuter = (v) => { const c = P3(v).map((x) => Math.floor(x / PG2)); let best = -1, bd = 9; for (let a2 = -2; a2 <= 2; a2++) for (let b2 = -2; b2 <= 2; b2++) for (let c2 = -2; c2 <= 2; c2++) for (const u of g2.get(`${c[0] + a2},${c[1] + b2},${c[2] + c2}`) ?? []) { const d = Math.hypot(...sub(P3(u), P3(v))); if (d < bd) { bd = d; best = u; } } return best; };
+    for (const v of sp) {
+      const o = outer(v) ? v : nearOuter(v), ok = o >= 0 && gS[o] < 8 && gC[o] < 8;
+      const u = ok ? Math.max(0, Math.min(1, gS[o] / (gS[o] + gC[o] || 1))) : 0, r = radialOf(v), th = Math.atan2(dot(r, eF), dot(r, eUp)), vv = Math.min(1, Math.abs(th) / Math.PI);
+      const [px, py] = lerp(lerp(A0, C0, 0.04 + 0.92 * u), lerp(B0, D0, 0.04 + 0.92 * u), (SM.inset ?? 0.07) + (1 - 2 * (SM.inset ?? 0.07)) * vv);
+      placeOf.set(v, [sg * px, py, th >= 0 ? 0 : 1]); ARMSET[v] = 1;
+    }
+  }
+  for (let i = 0; i < m.n; i++) { const pl = placeOf.get(A.weld[i]); if (!pl) continue; flat[i * 2] = Math.round(pl[0] / U0); flat[i * 2 + 1] = Math.round(pl[1] / U0); side[i] = (side[i] & ~1) | pl[2]; mapped++; }
+  D.flat = Buffer.from(flat.buffer).toString('base64'); D.side = Buffer.from(side).toString('base64');
+}
 report.push(`sleeve points laid on the made sleeves: ${mapped}`);
 // ---- 7. `flatSmoothY` { sigma, profile } (RUGBYJ 2026-11-19, the user: the back number came out wavy): the body's print
 // place across (x) measured again round a SMOOTHED cross-section: per half of the pattern and per 5 mm of height, the body's
@@ -603,7 +645,7 @@ report.push(`sleeve points laid on the made sleeves: ${mapped}`);
 // are left as they are; only print places change.
 if (settings.flatSmoothY) {
   const flat = new Int16Array(new Uint8Array(Buffer.from(D.flat, 'base64')).buffer), side = new Uint8Array(Buffer.from(D.side, 'base64')), n = m.n;
-  const sk = new Set(SLEEVES), isSleeve = (i) => { const v = A.weld[i]; return sk.has(S[v] >= 0 ? pair[v * 2] : pair[v * 2 + 1]); };
+  const sk = new Set(SLEEVES), isSleeve = (i) => { const v = A.weld[i]; return (ARMSET && ARMSET[v] === 1) || sk.has(S[v] >= 0 ? pair[v * 2] : pair[v * 2 + 1]); };
   const YB = 0.005, XB = 0.005, sgY = settings.flatSmoothY.sigma ?? 0.02, sgX = settings.flatSmoothY.profile ?? 0.02;
   let yMin = 9, yMax = -9, xMax = 0; for (let i = 0; i < n; i++) { yMin = Math.min(yMin, m.pos[i * 3 + 1]); yMax = Math.max(yMax, m.pos[i * 3 + 1]); xMax = Math.max(xMax, Math.abs(m.pos[i * 3])); }
   const NY = Math.ceil((yMax - yMin) / YB) + 1, NX = Math.ceil(xMax / XB) + 2;
@@ -697,7 +739,9 @@ for (let t = 0; t < A.T; t++) {
   for (const [t, j] of [...own]) {
     if (tris[j + 3] === tris[j + 4]) continue;
     const sv = (tris[j + 5] + tris[j + 6] + tris[j + 7]) / 3 - 128, mid = sv >= 0 ? tris[j + 3] : tris[j + 4], minor = sv >= 0 ? tris[j + 4] : tris[j + 3];
-    if (adjT[t].some((u) => shows(u).has(minor))) continue;
+    // (`strictCorners` (RUGBYJ 2026-11-20): only a neighbour wholly of that colour keeps it, so two or three mixed triangles
+    // showing a colour only to each other (a speck by the singlet's strap) are one colour too)
+    if (adjT[t].some((u) => (settings.strictCorners ? shows(u).size === 1 && shows(u).has(minor) : shows(u).has(minor)))) continue;
     tris.splice(j, 8, t & 255, (t >> 8) & 255, (t >> 16) & 255, mid, mid, q(0.01), q(0.01), q(0.01)); corners++;
   }
   // (the band only where it is: a triangle showing the band anywhere further than 3 mm from the band's own depth below

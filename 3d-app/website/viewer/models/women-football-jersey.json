@@ -1,0 +1,30 @@
+{
+  "about": "Football > Women's football jersey (new tile after Football jersey; coordinator 20 Nov, cards 67909 / 67787: the jersey of the women's football kit; the shorts come later as their own model): Tripo model women-football-jersey-textured.glb (fitted, V-neck, short set-in sleeves; shape only: its plain white colours are not used), coloured from women-football-jersey-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/women-football-jersey.json): body and sleeves the print, cuff bands and hem band the Rib colour (else Secondary). Shown by the flag womenFootballJersey. MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/women-football-jersey-textured.glb",
+  "converter": "top",
+  "part": "jersey",
+  "garment": "jersey",
+  "flag": "womenFootballJersey",
+  "ownNeck": "v",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": { "made": "jersey", "creaseDeg": 25 },
+  "look": {
+    "main": "#1f4fa8",
+    "secondary": "#ffffff",
+    "accent": "#ffffff",
+    "patternColor": "#ffffff",
+    "pattern": "None",
+    "number": "9",
+    "zoneColors": { "womenFootballJersey": "#ffffff", "rib": "#ffffff" },
+    "marks": {
+      "top_wordmark": { "x": 0.09, "y": 0.6, "scale": 0.45 },
+      "top_crest": { "x": -0.09, "y": 0.6, "scale": 0.7 },
+      "top_number": { "color": "#ffffff" },
+      "top_name": { "hidden": true }
+    },
+    "layers": []
+  },
+  "check": { "views": ["Front", "Back", "Q45", "Q135"] }
+}

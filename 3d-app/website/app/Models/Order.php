@@ -369,7 +369,8 @@ class Order extends Model
             default => 'system',
         };
 
-        $data = ['author' => $author] + ($fields['data'] ?? []);
+        // (QA8: a line may name its own author, e.g. billing lines are 3DEEZI's ('system'), never "You".)
+        $data = ($fields['data'] ?? []) + ['author' => $author];
 
         return $this->updates()->create(['kind' => $kind, 'data' => $data] + $fields + ['user_id' => $user?->id, 'visibility' => 'customer']);
     }

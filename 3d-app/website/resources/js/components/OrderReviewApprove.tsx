@@ -649,7 +649,8 @@ export function OrderReviewApprove(p: OrderReviewApproveProps) {
     !delivery.phone?.trim() && 'Mobile',
     delivery.phoneProblem && delivery.phone?.trim() && 'A valid mobile',
     !delivery.neededBy && !delivery.dateOptional && 'Required date',
-    delivery.method !== 'pickup' && !address && p.onEditDelivery && 'Delivery address',
+    // (QA8: only a country, no street, is still a missing address, as in the app.)
+    delivery.method !== 'pickup' && !(typeof delivery.address === 'string' ? delivery.address.trim() : delivery.address?.street?.trim()) && p.onEditDelivery && 'Delivery address',
   ].filter((x): x is string => !!x);
   const toCheck = p.toCheck ?? [];
   const checkCard = missing.length || toCheck.length

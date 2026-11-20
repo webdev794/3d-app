@@ -35,7 +35,7 @@ export default function OrderSummaryPage() {
   return <main className="os-page" data-testid="order-summary">
     <header className="os-head">
       <img src={order.made_by.logo_url || media('images/brand-final.png')} alt={order.made_by.name} />
-      <div><h1>{order.title || 'Order'}</h1><p>Order Form &amp; Production Breakdown · Made by {order.made_by.name}</p></div>
+      <div><h1>{order.display_title || order.title || 'Order'}</h1><p>Order Form &amp; Production Breakdown · Made by {order.made_by.name}</p></div>
       <div className="os-head-actions">
         <a href={order.links.pdf} className="os-btn"><FileDown size={17} /> PDF</a>
         <a href={order.links.xlsx} className="os-btn"><FileSpreadsheet size={17} /> Excel</a>

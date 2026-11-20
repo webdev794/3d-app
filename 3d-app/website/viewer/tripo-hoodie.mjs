@@ -295,17 +295,21 @@ for (const [rn, R] of Object.entries(settings.rings ?? {})) {
   while (q2.length) { const v = q2.pop(); for (const u of A.nb[v]) { if (own[u] || !outside[u] || blocked(u)) continue; const dp = depth(u); if (dp > -0.03 && dp < W + 0.015 && rad(u) < Rm * 1.4) { own[u] = 1; q2.push(u); } } }
   const inward = (v) => { const d = sub(P3(v), c0), t = dot(d, ax); return dot(N3(v), nrm(d.map((x, i) => x - ax[i] * t))) < -0.3; };
   const near = (v) => rad(v) < Rm * 1.3;
-  rings.push({ name: rn, key: K, beyond, W, depth, own, inward, near, c0, ax, rad, Rm });
+  // (`strayTo` { region, where } (RUGBYJ 2026-11-20, the hoodie's pocket): where `where` passes, the cloth beyond the band is
+  // that region (the waistband meets the pocket on its own line), else as before)
+  const stray = R.strayTo ? { key: regions[RN(R.strayTo.region)].key, test: new Function('x', 'y', 'z', 'nx', 'ny', 'nz', `return (${R.strayTo.where});`) } : null;
+  const strayAt = (v) => (stray && outside[v] && stray.test(...P3(v), ...N3(v)) ? stray.key : null);
+  rings.push({ name: rn, key: K, beyond, W, depth, own, inward, near, c0, ax, rad, Rm, strayAt });
   report.push(`${rn} even width ${(W * 1000).toFixed(1)} mm (ring ${(Rm * 1000).toFixed(0)} mm, border ${edge.length})`);
 }
 for (const [ri, E] of rings.entries()) for (let v = 0; v < V; v++) {
   if (plainKey.has(role[v])) continue;
   const dp = E.depth(v);
   const onIt = E.own[v] || (!outside[v] && E.near(v) && E.inward(v) && (E.own[src(v)] || facing[v] < 0));
-  if (onIt && dp > -0.03 && dp < E.W + 0.03) { pair[v * 2] = E.key; pair[v * 2 + 1] = E.beyond ? E.beyond.key : 0; S[v] = E.W - dp; field[v] = 100 + ri; continue; }
+  if (onIt && dp > -0.03 && dp < E.W + 0.03) { pair[v * 2] = E.key; pair[v * 2 + 1] = E.beyond ? E.beyond.key : E.strayAt(v) ?? 0; S[v] = E.W - dp; field[v] = 100 + ri; continue; }
   // (a stray bit of the ring's parts beyond its band: the piece round it)
   if (field[v] >= 100 && field[v] !== 100 + ri) continue;
-  if (pair[v * 2] === E.key || pair[v * 2 + 1] === E.key) { const k = E.beyond && E.beyond.w[v] > 0.3 ? E.beyond.key : 0; pair[v * 2] = pair[v * 2 + 1] = k; S[v] = 0.01; field[v] = -1; }
+  if (pair[v * 2] === E.key || pair[v * 2 + 1] === E.key) { const k = E.beyond && E.beyond.w[v] > 0.3 ? E.beyond.key : E.strayAt(v) ?? 0; pair[v * 2] = pair[v * 2 + 1] = k; S[v] = 0.01; field[v] = -1; }
 }
 // (no stray patches of the final colours on their layer)
 {
@@ -491,6 +495,19 @@ for (let t = 0; t < A.T; t++) {
     const votes = new Map(); for (const t of comp) for (const u of adjT[t]) if (tk[u] !== tk[s0]) votes.set(tk[u], (votes.get(tk[u]) ?? 0) + 1);
     const to = [...votes].sort((x, y) => y[1] - x[1])[0]?.[0]; if (to === undefined) continue;
     for (const t of comp) { const j = own.get(t), row = [t & 255, (t >> 8) & 255, (t >> 16) & 255, to, to, q(0.01), q(0.01), q(0.01)]; if (j !== undefined) tris.splice(j, 8, ...row); else { own.set(t, tris.length); tris.push(...row); } fixed++; }
+  }
+  // (`strictCorners` (RUGBYJ 2026-11-20, hoodie item 13: tiny hood-coloured dashes under the hood seam): a triangle showing a
+  // colour in a corner keeps it only if a triangle beside it is wholly that colour, else it is one colour (its middle's).)
+  if (settings.strictCorners) {
+    const shows = (t) => { const j = own.get(t); if (j === undefined) return new Set([colourOf(A.F[t * 3]), colourOf(A.F[t * 3 + 1]), colourOf(A.F[t * 3 + 2])]); const o = new Set(); for (const k of [5, 6, 7]) o.add(tris[j + k] >= 128 ? tris[j + 3] : tris[j + 4]); return o; };
+    let corners = 0;
+    for (const [t, j] of [...own]) {
+      if (tris[j + 3] === tris[j + 4]) continue;
+      const sv = (tris[j + 5] + tris[j + 6] + tris[j + 7]) / 3 - 128, mid = sv >= 0 ? tris[j + 3] : tris[j + 4], minor = sv >= 0 ? tris[j + 4] : tris[j + 3];
+      if (adjT[t].some((u) => { const sh = shows(u); return sh.size === 1 && sh.has(minor); })) continue;
+      tris.splice(j, 8, t & 255, (t >> 8) & 255, (t >> 16) & 255, mid, mid, q(0.01), q(0.01), q(0.01)); corners++;
+    }
+    report.push(`lone corners made one colour: ${corners}`);
   }
   report.push(`triangles by two pieces ${mixed}; specks ${fixed}`);
 }

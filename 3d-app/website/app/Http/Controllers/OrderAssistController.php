@@ -315,6 +315,8 @@ class OrderAssistController extends Controller
         return [
             'token' => $assist->token,
             'title' => $assist->title,
+            // (QA8: the share page's heading, as on the PDF: the order's title, else its garments.)
+            'display_title' => $assist->displayTitle(),
             'made_by' => ['supplier_id' => $assist->supplier_id, 'name' => $assist->brandName(), 'logo_url' => $assist->supplier?->logoUrl()],
             'messages' => $assist->messages ?? [],
             'analysis' => $a,

@@ -1,0 +1,34 @@
+{
+  "about": "Windbreaker (new Windbreaker tile after each Waterproof Jacket tile: Rugby Union, Rugby League, American football; coordinator 20 Nov): Tripo model windbreaker-textured.glb (cards 31265 / 31271: stand-up collar, full zip, side panels, no hood; shape only), coloured from windbreaker-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/windbreaker.json): front, back and raglan sleeves printed through the made track jacket's pattern, the side panels the Side colour, the stand-up collar (outside and inside) the Collar colour (else the Body colour, else Main), the zip line printed by the made track jacket's pattern (Zip colour), the hem band the Rib colour (else Body, else Main). Its look windbreakerJacket = the waterproof jacket's colours (dark shell, cyan sides and zip) + the flag. MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/windbreaker-textured.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "windbreakerJacket",
+  "ownNeck": "stand",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25
+  },
+  "look": {
+    "zoneColors": {
+      "windbreakerJacket": "#ffffff",
+      "body": "#24272b",
+      "shoulder": "#24272b",
+      "side": "#00c4f0",
+      "stripe": "#24272b",
+      "zip": "#00c4f0"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

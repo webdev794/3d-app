@@ -336,6 +336,9 @@ You can try the Studio and the Artboard without one. To save designs, use Projec
 ### How do I save my design?
 In the 3D Studio click Save (top right) and give the kit a name. It appears in [Projects](/projects); each save keeps a new version.
 
+### How do I order?
+Open the Orders page and choose how: Create Order Form (pick your garments, sizes and artwork, or paste your order and 3DEEZI AI fills it in), Upload Your Order (send your own order sheet or notes) or the Order Form Maker (drop your design pictures and say the sizes). You check everything on Review & Approve before it is sent. [Open Orders](/order-now)
+
 ### How do I download my design?
 In the 3D Studio open Export: 3D mockup, Front & back, print panels, the PDF design sheet or the design specification. In the Artboard use File > Export (PDF, SVG, PNG).
 

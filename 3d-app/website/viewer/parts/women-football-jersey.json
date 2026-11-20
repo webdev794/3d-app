@@ -1,0 +1,24 @@
+{
+  "about": "Women's football jersey (women-football-jersey-textured.glb) coloured from women-football-jersey-parts.glb (17 parts; outer body 41, its inside 10, sleeves 37 (one part, split at x = 0), inner sleeve layers 7 / 29 and bits 13, 20, 44 their sleeves; part 36 = the hem band plus the right cuff band (split by place: the cuff band, the underarm bit beside it the body), 16 the left cuff band (its inside bits 35, 40 the body: as the left cuff's ring they spread under the arm); the side bits 47, 61, the neck label 51 and specks 55, 60 count as the body / hem) by viewer/tripo-hoodie.mjs: body and sleeves the print, cuff and hem bands the Rib colour (the cuff rings kept off the body cloth: `not`). The V-neck band is not its own part (printed with the body: pending). MODELQ5 2026-11-20.",
+  "hoodieParts": {
+    "glb": "../../../tripo/women-football-jersey-parts.glb",
+    "roles": {
+      "tripo_part_41": "body", "tripo_part_10": "body", "tripo_part_51": "body", "tripo_part_55": "body", "tripo_part_47": "body", "tripo_part_61": "body",
+      "tripo_part_37": "body", "tripo_part_7": "body", "tripo_part_29": "body", "tripo_part_13": "body", "tripo_part_20": "body", "tripo_part_44": "body",
+      "tripo_part_16": "cuffL", "tripo_part_35": "body", "tripo_part_40": "body",
+      "tripo_part_36": "hem", "tripo_part_60": "hem"
+    },
+    "split": [ { "part": "tripo_part_36", "where": "y > 0.25 && x > 0.175", "role": "cuffR" }, { "part": "tripo_part_36", "where": "y > 0.25", "role": "body" } ],
+    "order": [],
+    "regions": {},
+    "rings": {
+      "cuffL": { "key": "plain:zone:rib|secondary", "dir": "out", "not": ["body"] },
+      "cuffR": { "key": "plain:zone:rib|secondary", "dir": "out", "not": ["body"] },
+      "hem": { "key": "plain:zone:rib|secondary", "dir": "down", "not": ["cuffL", "cuffR"] }
+    },
+    "plainKeys": [],
+    "stitches": { "sigma": 0.02, "seams": [], "rings": [ { "role": "cuffL", "at": 0.004 }, { "role": "cuffR", "at": 0.004 }, { "role": "hem", "at": 0.004 } ] },
+    "sigma": 0.015, "reach": 0.03, "far": 0.03, "island": 60, "speck": 8,
+    "data": { "insideCloth": true }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "about": "Basketball > Warm-up hoodie (basketball-hoodie.glb, booklet card 50942: a full-zip hooded warm-up with a lined hood, rib cuffs and hem; our marks only). The tile keeps its own look (bbHoodie: black, cyan sleeves, cyan lining) with its flag bballHoodie, which now shows this model (HOODIE/MODELQ6 2026-11-20; it was the 'keep the made hoodie' flag). First version: its own seams split it into parts per triangle (viewer/parts/basketball-hoodie.json).",
+  "glb": "../../../tripo/basketball-hoodie.glb",
+  "converter": "top",
+  "part": "hoodie",
+  "flag": "bballHoodie",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "hoodie",
+    "creaseDeg": 25,
+    "top": 0.8,
+    "pit": 0.515,
+    "share": 1
+  },
+  "look": {
+    "main": "#161616",
+    "zoneColors": {
+      "stripe": "#00f6fe",
+      "bballHoodie": "#ffffff"
+    },
+    "marks": {
+      "top_crest": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_wordmark": {
+        "x": -0.09,
+        "y": 0.6,
+        "scale": 0.4
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

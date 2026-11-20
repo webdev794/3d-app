@@ -1,0 +1,180 @@
+{
+  "about": "Hooded long-sleeve tee (hooded-tee-textured.glb) coloured from hooded-tee-parts.glb (18 parts; the inner layers 0, 1, 5, 22, 23, 24, 33, 41, 43, 46 count as the body, 12 / 18 (inside the cuffs) as their sleeves) by viewer/tripo-hoodie.mjs, the pullover hoodie's settings (HOODIE): body the print, sleeves their areas, hood plain with its lining, rib cuffs and hem. MODELQ5 2026-11-20.",
+  "hoodieParts": {
+    "glb": "../../../tripo/hooded-tee-parts.glb",
+    "roles": {
+      "tripo_part_20": "body",
+      "tripo_part_32": "sleeveL",
+      "tripo_part_8": "hood",
+      "tripo_part_7": "hem",
+      "tripo_part_25": "cuffL",
+      "tripo_part_28": "cuffR",
+      "tripo_part_0": "body",
+      "tripo_part_1": "body",
+      "tripo_part_5": "body",
+      "tripo_part_22": "body",
+      "tripo_part_23": "body",
+      "tripo_part_24": "body",
+      "tripo_part_33": "body",
+      "tripo_part_41": "body",
+      "tripo_part_43": "body",
+      "tripo_part_46": "body",
+      "tripo_part_12": "sleeveR",
+      "tripo_part_18": "sleeveL"
+    },
+    "split": [
+      {
+        "part": "tripo_part_32",
+        "where": "x < 0",
+        "role": "sleeveR"
+      }
+    ],
+    "order": [
+      "hood",
+      "sleeveL",
+      "sleeveR"
+    ],
+    "regions": {
+      "hood": {
+        "roles": [
+          "hood"
+        ],
+        "key": "plain:zone:hood|main",
+        "own": true
+      },
+      "sleeveL": {
+        "roles": [
+          "sleeveL",
+          "cuffL"
+        ],
+        "key": "area:leftSleeve"
+      },
+      "sleeveR": {
+        "roles": [
+          "sleeveR",
+          "cuffR"
+        ],
+        "key": "area:rightSleeve"
+      }
+    },
+    "lining": {
+      "region": "hood",
+      "key": "plain:zone:lining|secondary"
+    },
+    "rings": {
+      "cuffL": {
+        "key": "plain:zone:rib|main",
+        "dir": "out",
+        "beyond": "sleeveL"
+      },
+      "cuffR": {
+        "key": "plain:zone:rib|main",
+        "dir": "out",
+        "beyond": "sleeveR"
+      },
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR",
+          "sleeveL",
+          "sleeveR"
+        ]
+      }
+    },
+    "plainKeys": [
+      "plain:zone:hood|main",
+      "plain:zone:lining|secondary"
+    ],
+    "sleeveMap": {
+      "sleeveL": {
+        "armhole": [
+          [
+            0.316,
+            0.698
+          ],
+          [
+            0.326,
+            0.523
+          ]
+        ],
+        "cuff": [
+          [
+            0.79,
+            0.16
+          ],
+          [
+            0.715,
+            0.09
+          ]
+        ]
+      },
+      "sleeveR": {
+        "armhole": [
+          [
+            0.316,
+            0.698
+          ],
+          [
+            0.326,
+            0.523
+          ]
+        ],
+        "cuff": [
+          [
+            0.79,
+            0.16
+          ],
+          [
+            0.715,
+            0.09
+          ]
+        ]
+      }
+    },
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "sleeveL",
+          "at": -0.005
+        },
+        {
+          "region": "sleeveR",
+          "at": -0.005
+        },
+        {
+          "region": "hood",
+          "at": -0.006
+        }
+      ],
+      "rings": [
+        {
+          "role": "cuffL",
+          "at": 0.004
+        },
+        {
+          "role": "cuffR",
+          "at": 0.004
+        },
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "form": [
+      "hood"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "neckReach": 0.16
+  }
+}

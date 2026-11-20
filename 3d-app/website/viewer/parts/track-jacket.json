@@ -1,0 +1,34 @@
+{
+  "about": "Track jacket (track-jacket-textured.glb, RUGBYV 2026-11-20): coloured from the same garment split into 12 parts by Tripo (track-jacket-parts.glb) by viewer/tripo-glbparts.mjs: body and sleeves the print (Main; the sleeves' print places laid on the made jacket's sleeves); the stand collar the Collar colour area (else Main); the rib cuffs and hem band the Cuffs colour area (else Main); the zip and the pocket openings the Zip colour area (else Secondary); linings as the cloth behind them.",
+  "glbParts": {
+    "glb": "../../../tripo/track-jacket-parts.glb",
+    "keys": {
+      "tripo_part_25": null,
+      "tripo_part_9": null,
+      "tripo_part_11": null,
+      "tripo_part_15": "zone:collar|main",
+      "tripo_part_33": "zone:cuffs|main",
+      "tripo_part_51": "zone:cuffs|main",
+      "tripo_part_23": null,
+      "tripo_part_31": null,
+      "tripo_part_12": null,
+      "tripo_part_26": null,
+      "tripo_part_53": null,
+      "tripo_part_61": null
+    },
+    "collar": "zone:collar|main",
+    "sleeves": [],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "looseBits": 200,
+    "data": {
+      "insideCloth": true
+    },
+    "panels": [
+      "zone:cuffs|main"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "about": "Track jacket (RUGBYV 2026-11-20, the user's next-model queue): Tripo model track-jacket-textured.glb (shape only; cards 103721 front / 103786 back), coloured from the same garment split into parts by Tripo (track-jacket-parts.glb) by viewer/tripo-glbparts.mjs. Shown by the flag tjModel on the collar-style track jacket tiles.",
+  "glb": "../../../tripo/track-jacket-textured.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "tjModel",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "pictures": [
+    "trackjacket"
+  ],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90"
+    ]
+  },
+  "baseLook": "track"
+}

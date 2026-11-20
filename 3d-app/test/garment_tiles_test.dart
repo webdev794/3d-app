@@ -180,7 +180,7 @@ void main() {
         'Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', //
         'Training Tee', 'Training Shorts', 'Compression Top',
         'Compression Shorts', 'Game Socks', 'Hoodie', 'Varsity Jacket',
-        'Hooded Tracksuit', 'Waterproof Jacket', 'Cap', 'Bucket Hat',
+        'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker', 'Cap', 'Bucket Hat',
         'Beanie',
       ]);
       expect(GarmentScreen.moreFor('American Football'), isEmpty);

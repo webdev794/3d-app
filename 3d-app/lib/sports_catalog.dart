@@ -231,7 +231,7 @@ const pictureLooks = {
   'team-hoodie': 'hoodie',
   'nfl-hoodie': 'nflHoodie',
   'netball-hoodie': 'netballHoodie',
-  'trackjacket': 'track',
+  'trackjacket': 'tjModel',
   'netball-tracksuit': 'trackSuit',
   'tracksuit': 'bballTracksuit',
   'rugby-hooded-tracksuit': 'rugbyTracksuit',
@@ -595,6 +595,27 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // "3" over a flat pale blue wordmark high on the chest; the shorts plain
     // black with pointed pale blue blades low on the outer legs, no drawstring,
     // number, crest or word.
+    // (The Football Full kit: its jersey on the Football jersey's model,
+    // football-shirt (flag scJersey): RUGBYV 2026-11-19.)
+    'fbKitModel': {
+      'secondary': '#27282a',
+      'accent': '#76c6ec',
+      'patternColor': '#5b98bb',
+      'zones': {'yoke': 'Swirl'},
+      'zoneColors': {
+        'scJersey': '#27282a',
+        'crewNeck': '#27282a',
+        'kitBlade': '#76c6ec',
+        'brandInk': '#7ccdf2',
+      },
+      'marks': {
+        'top_crest': {'x': 0.035, 'y': 0.655, 'scale': 0.6},
+        'top_wordmark': {'y': 0.587, 'scale': 0.85},
+        'shorts_number': {'hidden': true},
+        'shorts_crest': {'hidden': true},
+        'shorts_wordmark': {'hidden': true},
+      },
+    },
     'tribalKit': {
       'secondary': '#27282a',
       'accent': '#76c6ec',
@@ -861,7 +882,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     },
     'fishingHoodie': {
       'main': '#161616',
-      'zoneColors': {'fishingHoodie': '#ffffff', 'stripe': '#00f6fe'},
+      'zoneColors': {'hoodedTee': '#ffffff', 'fishingHoodie': '#ffffff', 'stripe': '#00f6fe'},
       'marks': {
         'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.85},
         'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.6},
@@ -991,6 +1012,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     },
     'waterproof': {
       'zoneColors': {
+        'waterproofJacket': '#ffffff',
         'body': '#24272b',
         'shoulder': '#24272b',
         'side': cyan,
@@ -1029,7 +1051,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'collar': {'colour': '#0b0d10'},
         'sides': {'colour': '#006fc4'},
       },
-      'zoneColors': {'collarStripe': '#0096f0', 'badge': '#27282a'},
+      'zoneColors': {'afJersey': '#ffffff', 'collarStripe': '#0096f0', 'badge': '#27282a'},
       'number': '86',
       'marks': {
         'top_number': {
@@ -1048,7 +1070,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#0096f0',
       'accent': '#0096f0',
       'patternColor': '#0096f0',
-      'zoneColors': {'stripe': '#0090f0', 'vInsert': '#00c0f8'},
+      'zoneColors': {'afJersey': '#ffffff', 'stripe': '#0090f0', 'vInsert': '#00c0f8'},
       // FX3: black side panels (the picture has none).
       'parts': {
         'collar': {'colour': '#27282a'},
@@ -1201,6 +1223,16 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'womenFootballJersey': {'main': '#1f4fa8', 'secondary': '#ffffff', 'accent': '#ffffff', 'patternColor': '#ffffff', 'pattern': 'None', 'number': '9', 'zoneColors': {'womenFootballJersey': '#ffffff', 'rib': '#ffffff'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.7}, 'top_number': {'color': '#ffffff'}, 'top_name': {'hidden': true}}, 'layers': []},
+    'windbreakerJacket': {'zoneColors': {'windbreakerJacket': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#00c4f0', 'stripe': '#24272b', 'zip': '#00c4f0'}},
+    'waterproofJacket': {'zoneColors': {'waterproofJacket': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#00c4f0', 'stripe': '#24272b', 'zip': '#00c4f0'}},
+    'hoodedTee': {'main': '#f2f4f6', 'secondary': '#1e2a44', 'accent': '#00a0d8', 'patternColor': '#00a0d8', 'number': '', 'zoneColors': {'hoodedTee': '#ffffff', 'hood': '#f2f4f6', 'lining': '#1e2a44', 'rib': '#1e2a44'}, 'marks': {'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.3}, 'top_wordmark': {'x': 0, 'y': 0.45, 'scale': 0.6}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
+    'afJersey': {'zoneColors': {'afJersey': '#ffffff'}},
+    'bballHoodie': {'main': '#161616', 'zoneColors': {'stripe': '#00f6fe', 'bballHoodie': '#ffffff'}, 'marks': {'top_crest': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_wordmark': {'x': -0.09, 'y': 0.6, 'scale': 0.4}}},
+    'baseballJersey': {'main': '#1f6fa6', 'secondary': '#262e48', 'accent': '#262e48', 'patternColor': '#262e48', 'number': '23', 'zones': [], 'parts': {'leftSleeve': {'colour': '#262e48'}, 'rightSleeve': {'colour': '#262e48'}, 'collar': {'colour': '#262e48'}}, 'zoneColors': {'baseballJersey': '#262e48'}, 'marks': {'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.75}, 'top_crest': {'x': 0.09, 'y': 0.6, 'scale': 0.3}, 'top_number': {'color': '#ffffff'}}, 'layers': []},
+    'tpModel': {'main': '#27282a', 'zoneColors': {'tpModel': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_crest': {'x': 0.17, 'y': 0.84}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802}}},
+    // FN10 2026-11-02: the word and the "3" level either side of the zip.
+    'tjModel': {'zoneColors': {'tjModel': '#ffffff',  'body': '#1d2123', 'shoulder': '#1d2123', 'side': '#1d2123', 'cuffs': '#1c2229', 'stripe': cyan, 'zip': cyan}, 'marks': {'top_wordmark': {'x': -0.105, 'y': 0.575, 'scale': 1.0}, 'top_crest': {'x': 0.105, 'y': 0.575, 'scale': 1.0}}},
     'tsJacket': {'zoneColors': {'tsJacket': '#ffffff'}},
     'womenRugbyJersey': {'main': '#272e48', 'secondary': '#e2bf3a', 'accent': '#e2bf3a', 'patternColor': '#e2bf3a', 'pattern': 'None', 'number': '7', 'parts': {'collar': {'colour': '#e2bf3a'}}, 'zoneColors': {'womenRugbyJersey': '#e2bf3a'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.7}, 'top_number': {'color': '#e2bf3a'}, 'top_name': {'hidden': true}}, 'layers': []},
     'fitnessBottoms': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#1c58c8', 'patternColor': '#16b4f0', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'fitnessBottoms': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'side': 'back', 'x': 0.1, 'y': 0.83, 'scale': 0.7}, 'shorts_wordmark': {'side': 'back', 'x': 0.1, 'y': 0.79, 'scale': 0.5}}, 'layers': []},
@@ -1491,13 +1523,19 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Bucket hat',
       image: 'rugby-bucket-hat',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Waterproof Jacket',
       'Weatherproof jacket with hood.',
       'Track jacket',
-      future: 'waterproof-jacket',
       image: 'rugby-waterproof-jacket',
       trackStyle: 'hood',
+    ),
+    GarmentTile(
+      'Windbreaker',
+      'Light stand-collar jacket that keeps the wind out.',
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'windbreakerJacket',
     ),
   ],
   'rugby-union': [
@@ -1573,13 +1611,19 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Bucket hat',
       image: 'rugby-bucket-hat',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Waterproof Jacket',
       'Weatherproof jacket with hood.',
       'Track jacket',
-      future: 'waterproof-jacket',
       image: 'rugby-waterproof-jacket',
       trackStyle: 'hood',
+    ),
+    GarmentTile(
+      'Windbreaker',
+      'Light stand-collar jacket that keeps the wind out.',
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'windbreakerJacket',
     ),
   ],
   'football': [
@@ -1590,11 +1634,23 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'scJersey',
     ),
     GarmentTile(
+      "Women's football jersey",
+      "Fitted women's football jersey with a V-neck.",
+      'Jersey',
+      image: 'jersey',
+      look: 'womenFootballJersey',
+    ),
+    GarmentTile(
       'Football shorts',
       'Light shorts that move with you.',
       'Shorts',
     ),
-    GarmentTile('Full kit', 'Shirt and shorts, designed together.', 'Full Kit'),
+    GarmentTile(
+      'Full kit',
+      'Shirt and shorts, designed together.',
+      'Full Kit',
+      look: 'fbKitModel',
+    ),
     GarmentTile(
       'Training tee',
       'Breathable tee for training and warm-ups.',
@@ -1907,13 +1963,19 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'nfl-hooded-tracksuit',
       trackStyle: 'hood',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Waterproof Jacket',
       'Weatherproof jacket with hood.',
       'Track jacket',
-      future: 'waterproof-jacket',
       image: 'nfl-waterproof-jacket',
       trackStyle: 'hood',
+    ),
+    GarmentTile(
+      'Windbreaker',
+      'Light stand-collar jacket that keeps the wind out.',
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'windbreakerJacket',
     ),
     GarmentTile('Cap', 'Curved brim sports cap.', 'Cap', image: 'nfl-cap'),
     GarmentTile(
@@ -2009,11 +2071,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for warm-ups.',
       'Track jacket',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Track pants',
       'Tapered pants to match the jacket.',
-      'track-pants',
-      'track-pants',
+      'Shorts',
+      image: 'track-pants',
+      look: 'tpModel',
     ),
     GarmentTile(
       'Hoodie',
@@ -2125,11 +2188,12 @@ const _sportTiles = <String, List<GarmentTile>>{
     GarmentTile('Bucket hat', 'Wide-brim hat for the field.', 'Bucket hat'),
   ],
   'softball': [
-    GarmentTile.nearest(
+    GarmentTile(
       'Softball jersey',
       'Button-front jersey with script lettering.',
       'Jersey',
-      future: 'softball-jersey',
+      image: 'jersey',
+      look: 'baseballJersey',
     ),
     GarmentTile('Training tee', 'Breathable tee for practice.', 'Training Tee'),
     GarmentTile('Club polo', 'Smart polo for coaches.', 'Polo'),
@@ -2387,11 +2451,12 @@ const _sportTiles = <String, List<GarmentTile>>{
     ),
   ],
   'fishing': [
-    GarmentTile.nearest(
+    GarmentTile(
       'Fishing shirt',
       'Light sun-smart shirt with ocean graphics.',
-      'Jersey',
-      future: 'fishing-shirt',
+      'Hoodie',
+      image: 'team-hoodie',
+      look: 'hoodedTee',
     ),
     GarmentTile(
       'Fishing polo',
@@ -2477,11 +2542,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for warm-ups.',
       'Track jacket',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Track pants',
       'Tapered pants to match the jacket.',
-      'track-pants',
-      'track-pants',
+      'Shorts',
+      image: 'track-pants',
+      look: 'tpModel',
     ),
   ],
   'teamwear': [

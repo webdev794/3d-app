@@ -309,8 +309,18 @@ function addRelief(target, painter) {
   // the edge light): the edge light only right at the outline, as the Football jersey's; RUGBYJ 2026-11-19, QATEST -365: still
   // pale dots along the openings' folded rims, so none at all on it.)
   const narrowEdge = !!painter.model?.narrowEdge;
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '') + (insideCloth ? '-insidecloth' : '') + (narrowEdge ? '-narrowedge' : '') + (altUv ? '-altuv' : '') + (mcHide ? `-mc${mcHide.keys.join('_')}${mcV ? `v${mcV.apexY.toFixed(4)}_${mcV.slope.toFixed(4)}` : ''}` : '');
+  // (A model's cloth wound inward (tripomesh.js innerOf: facings, the collar's inside, hems and cuffs turned up) drawn in the
+  // inside's colour (uniform insidePlain, paintAll), never the print mirrored; a part's own colour kept; no edge light.)
+  const innerPlain = !!painter.innerPlain;
+  if (innerPlain) target.userData.insidePlain ??= { value: new THREE.Color(0.5, 0.5, 0.5) };
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '') + (insideCloth ? '-insidecloth' : '') + (narrowEdge ? '-narrowedge' : '') + (altUv ? '-altuv' : '') + (innerPlain ? '-inner' : '') + (mcHide ? `-mc${mcHide.keys.join('_')}${mcV ? `v${mcV.apexY.toFixed(4)}_${mcV.slope.toFixed(4)}` : ''}` : '');
   target.onBeforeCompile = (shader) => {
+    if (innerPlain) {
+      shader.uniforms.insidePlain = target.userData.insidePlain;
+      shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float inner;\nvarying float vInner;').replace('#include <begin_vertex>', '#include <begin_vertex>\n\tvInner = inner;');
+      shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vInner;\nuniform vec3 insidePlain;')
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n\tif ( vInner > 0.5 ) totalEmissiveRadiance = vec3( 0.0 );');
+    }
     if (keyed) {
       shader.uniforms.partTint = target.userData.partTint;
       shader.vertexShader = shader.vertexShader
@@ -348,6 +358,7 @@ function addRelief(target, painter) {
 	totalEmissiveRadiance = mix( totalEmissiveRadiance, emissive * pieceRep, pieceW );
 #endif`);
     }
+    if (innerPlain) shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `\tif ( vInner > 0.5${pieced ? ' && pieceW < 0.5' : ''} ) diffuseColor.rgb = insidePlain;\n#include <color_fragment>`);
     if (insideCloth) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `if ( ! gl_FrontFacing ) outgoingLight = max( outgoingLight, diffuseColor.rgb * 0.45 );
 #include <opaque_fragment>`);
     if (skirtLight) shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
@@ -356,7 +367,7 @@ function addRelief(target, painter) {
     // faces the camera and keeps its colours.)
     if (Q) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `{
       float edge = 1.0 - abs(dot(normalize(vNormal), normalize(vViewPosition)));
-      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball || matte ? '0.08' : narrowEdge ? '0.0' : '0.5'}${lipKey ? (insideCloth ? ' * ( pieceLip || ! gl_FrontFacing ? 0.0 : 1.0 )' : ' * ( pieceLip ? 0.0 : 1.0 )') : ''} * smoothstep(${dress || bball || matte || insideCloth || narrowEdge ? '0.9, 0.995' : '0.62, 0.95'}, edge);
+      outgoingLight += vec3(0.62, 0.86, 1.0) * ${dress ? '0.0' : bball || matte ? '0.08' : narrowEdge ? '0.0' : '0.5'}${lipKey ? (insideCloth ? ' * ( pieceLip || ! gl_FrontFacing ? 0.0 : 1.0 )' : ' * ( pieceLip ? 0.0 : 1.0 )') : ''}${innerPlain ? ' * ( vInner > 0.5 ? 0.0 : 1.0 )' : ''} * smoothstep(${dress || bball || matte || insideCloth || narrowEdge ? '0.9, 0.995' : '0.62, 0.95'}, edge);
     }
 #include <opaque_fragment>`);
     if (dress) shader.fragmentShader = shader.fragmentShader.replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
@@ -534,7 +545,9 @@ const netballBib = () => (!layout || drawnOn('singlet')) && HEX6.test(design.zon
 // and rolled cuffs). Every neck is built on the model (tripomesh.js): its own V, a deeper V cut in it, a round neck or a
 // shallow V filled in with our own cloth and band.
 const SC_JERSEY = 'soccer-jersey';
-const scJerseyOn = () => (!layout || drawnOn('jersey')) && design.garment === 'jersey' && HEX6.test(design.zoneColors?.scJersey ?? '');
+// (RUGBYV 2026-11-19, the user: the soccer-jersey model is retired: its flag scJersey now shows the Football jersey's new model,
+// football-shirt, through the shared recipe (recipeFor), on the Jersey and in the Football Full kit.)
+const scJerseyOn = () => false && (!layout || drawnOn('jersey')) && design.garment === 'jersey' && HEX6.test(design.zoneColors?.scJersey ?? '');
 const tripoOf = (part) => TRIPO_PARTS[part] ?? (part === 'singlet' && singletModel() ? singletModel() : part === 'jersey' && fbJerseyOn() ? FB_JERSEY : null) ?? (part === 'shorts' && rlShortsOn() ? RL_SHORTS : null) ?? (part === 'socks' && rlSocks() ? 'rugby-socks' : null) ?? (part === 'singlet' && netballBib() ? 'netball-bib' : null) ?? (part === 'jersey' && scJerseyOn() ? SC_JERSEY : null) ?? (part !== 'singlet' ? recipeFor(part) : null);
 /** The most parts per triangle a model may have (its partKeys): the print shader's part colours (addRelief). */
 const PART_TINTS = 8;
@@ -593,6 +606,16 @@ function stitchStrips(stitches, width = 0.0016, lift = 0.0007) {
   // (never picked by a click: the cloth under it is)
   mesh.raycast = () => {};
   mesh.renderOrder = 2;
+  return mesh;
+}
+
+/** A model's printed piping (data `piping`: [{ c, n, closed }], RUGBYJ 2026-11-20, the rash guard's card: a thin line at
+ * the neck's base): a 4 mm strip lying on the cloth along it, in the trim colour (paintAll), the model's shape unchanged.
+ * Never picked by a click. */
+function pipingStrip(lines, width = 0.004, lift = 0.0008) {
+  const mesh = stitchStrips(lines, width, lift);
+  mesh.material.dispose();
+  mesh.material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
   return mesh;
 }
 
@@ -821,9 +844,10 @@ function buildKit(kind) {
     // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
     // (A collar style laid on the model: its own collar (and a V's cloth) not drawn: addRelief.)
     const mcData = partKind === 'jersey' && mCollar && tripo?.data?.neckRing ? tripo.data : null;
-    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
     // (A model split into its pieces: its shape, for each part's own look inside its own pieces, PATTERNDND-5 piecepaint.js.)
     if (tripo?.pieces) painter.pieceGeometry = tripo.geometry;
+    if (tripo?.geometry?.getAttribute('inner')) painter.innerPlain = true;
     if (mcData && painter.model?.keys) painter.model.collarHide = { keys: [painter.model.keys.indexOf('collar'), painter.model.keys.findIndex((k) => k.startsWith('part:collarBand'))], v: modelCollarV(mcData, mCollar) };
     // (The Rugby League shorts' model: its own waistband, printed from the waist down the made rib's width: texture.js.)
     if (tripo && partKind === 'shorts' && !tripo.partKeys) painter.modelBand = (garment.points?.CF?.[1] ?? 0.35) - garment.rimWidth;
@@ -925,6 +949,9 @@ function buildKit(kind) {
     // cuff and hem stitching as its pictures 592 / 600 / 601): thin strips laid just on the cloth, a little darker than the
     // cloth under them, whatever its colour or print; the model's shape is unchanged.)
     if (tripo?.data?.stitches) group.add(stitchStrips(tripo.data.stitches));
+    // (A model's printed piping (data `piping`, RUGBYJ 2026-11-20): coloured in paintAll.)
+    const piping = tripo?.data?.piping ? pipingStrip(tripo.data.piping) : null;
+    if (piping) group.add(piping);
     // (A model's zip (its data's `zip`, MODELQ5 2026-11-19, the Zip-up polo: its own short neck zip carried on straight down
     // the centre front to the hem, the user's mockup 612): our own tape and metal teeth laid on the cloth, the print under it.)
     const zip = tripo?.data?.zip ? zipStrips(tripo.data.zip) : null;
@@ -1117,6 +1144,7 @@ function buildKit(kind) {
     kit.add(group);
     group.add(glow);
     parts.push({ plains, insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo, zip, modelCollar });
+    parts[parts.length - 1].piping = piping;
   }
   dressParts(true);
   frameKit();
@@ -1385,9 +1413,14 @@ async function paintAll() {
   // The football jersey's square block numerals (texture.js NFL_FONT).
   // (Also a text object's own font: texture.js LAYER_FONTS.)
   if (design.garment === 'nfljersey' || (design.layers ?? []).some((l) => l?.font === 'JerseyBlock')) await document.fonts.load('700 100px JerseyBlock').catch(() => {});
+  // (The training tee's model (RUGBYJ 2026-11-20, coordinator, pending item 9): the wordmark and the "3" mark where the tee
+  // tile look has them unless the design places them itself; the made tee's mid-chest wordmark wraps round this model.)
+  const TEE_MODEL_MARKS = { wordmark: { x: 0.09, y: 0.6, scale: 0.45 }, crest: { x: -0.09, y: 0.6, scale: 0.3 } };
   for (const part of parts) {
     step('painting the print');
-    await part.painter.paint(design);
+    const teeModel = part.tripo && tripoOf(part.painter.kind) === 'training-tee', pn = part.painter.partName;
+    const teeMarks = teeModel ? Object.fromEntries(Object.entries(TEE_MODEL_MARKS).filter(([k]) => !design.marks?.[`${pn}_${k}`]).map(([k, v]) => [`${pn}_${k}`, v])) : {};
+    await part.painter.paint(Object.keys(teeMarks).length ? { ...design, marks: { ...teeMarks, ...(design.marks ?? {}) } } : design);
     part.texture.needsUpdate = true;
     step('adding the neck label');
     await neckPrint(part);
@@ -1427,6 +1460,10 @@ async function paintAll() {
       part.inside.color.set(layout && part.painter.layoutSwatch ? part.painter.layoutSwatch.inside ?? design.main : HEX6.test(design.zoneColors?.reverseSide ?? '') ? design.zoneColors.reverseSide : design.main).multiplyScalar(0.9);
       part.insideFront?.color.copy(part.inside.color);
     }
+    part.material.userData.insidePlain?.value.copy(part.inside.color);
+    // (A model's printed piping: the trim colour (the painter's, texture.js model.colours[1]), else the Secondary; under a
+    // design picture its band colour.)
+    if (part.piping) { const t = part.painter.model?.colours?.[1]; part.piping.material.color.set(layout ? part.layoutBand ?? design.secondary : typeof t === 'string' ? t : design.secondary); }
     if (part.plains) paintPlains(part, design);
     if (part.zip) paintZip(part, design);
     part.inside.envMapIntensity = nfl ? 0.3 : part.garment?.bball ? 0.12 : 1;

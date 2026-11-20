@@ -1,0 +1,56 @@
+{
+  "about": "Hooded long-sleeve tee (Fishing > Fishing shirt and Fishing hoodie): Tripo model hooded-tee-textured.glb (cards 40505 front / 40532 back; shape only: its painted colours and UV atlas are not used), coloured from hooded-tee-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/hooded-tee.json): body the print; sleeves the Left / Right sleeve areas (else the print); the hood one colour (Hood colour, else Main), its lining the Lining colour (else Secondary); rib cuffs and hem band the Rib colour (else Main). Shown by the flag hoodedTee (Fishing hoodie: its look fishingHoodie + the flag; Fishing shirt: look hoodedTee). MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/hooded-tee-textured.glb",
+  "converter": "top",
+  "part": "hoodie",
+  "flag": "hoodedTee",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "hoodie",
+    "creaseDeg": 25,
+    "top": 0.86
+  },
+  "look": {
+    "main": "#f2f4f6",
+    "secondary": "#1e2a44",
+    "accent": "#00a0d8",
+    "patternColor": "#00a0d8",
+    "number": "",
+    "zoneColors": {
+      "hoodedTee": "#ffffff",
+      "hood": "#f2f4f6",
+      "lining": "#1e2a44",
+      "rib": "#1e2a44"
+    },
+    "marks": {
+      "top_crest": {
+        "x": -0.1,
+        "y": 0.6,
+        "scale": 0.3
+      },
+      "top_wordmark": {
+        "x": 0,
+        "y": 0.45,
+        "scale": 0.6
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

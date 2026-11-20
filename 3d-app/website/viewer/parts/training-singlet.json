@@ -39,13 +39,16 @@
       "collarFoot": 0.006,
       "cuff": 0.015,
       "hem": 0.017,
-      "sigma": 0.03
+      "sigma": 0.03,
+      "cuffLongest": true
     },
     "evenCuffs": true,
     "evenCollar": true,
     "data": {
       "insideCloth": true
     },
-    "cuffWidth": 0.01
+    "cuffWidth": 0.01,
+    "evenRadial": 0.006,
+    "strictCorners": true
   }
 }

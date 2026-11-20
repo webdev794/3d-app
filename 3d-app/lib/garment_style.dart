@@ -141,7 +141,8 @@ List<(String, String, String)> fitsFor(
 const modelOwnNecks = {
   // (The Rugby Union jersey's V-neck model, RUGBYV 2026-11-19.)
   'rugbyVJersey': 'v',
-  'scJersey': 'v',
+  // (The Football jersey's model, football-shirt: its own round neck, RUGBYV 2026-11-19.)
+  'scJersey': 'round',
   'aflGuernsey': 'round',
   'trainingSinglet': 'round',
   'trainingTee': 'round',
@@ -149,6 +150,7 @@ const modelOwnNecks = {
   // (the retired old Rugby League jersey model's flag: its designs show the new model: RUGBYJ)
   'fbJersey': 'round',
   'womenRugbyJersey': 'v',
+  'womenFootballJersey': 'v',
 };
 
 /// A model's own neck by its name where it is not a plain round or V neck

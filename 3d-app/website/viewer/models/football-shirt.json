@@ -1,0 +1,37 @@
+{
+  "about": "Football > Football jersey tile and the Football kit's jersey (RUGBYV 2026-11-19, the user: replaces the soccer-jersey model there, everywhere): Tripo model football-jersey-textured.glb (shape only; its painted colours and its own UV atlas are not used), cards 13878 (front) / 10440 (back) 'Men's Full Soccer Kit'. The tile's accepted look kept (look 'scJersey': navy body and sleeves, yellow round neck band and cuffs, our marks: 3DEEZI wordmark across the chest, the 3 mark, on the back the wordmark and the 3 above the number). Colour edges: the borders of the same garment split by Tripo (football-jersey-parts.glb), smoothed over the model (viewer/tripo-glbparts.mjs). No garment restriction: any design with the flag scJersey shows it, the Jersey and the Football Full kit's jersey. (Size (RUGBYV 2026-11-20, merge gate): one uniform scale 7% above the made jersey's height fit, its middle kept, so it fills the picture as the jersey it replaces did (the Tripo shirt is slimmer than the old soccer jersey; its shape is unchanged).)",
+  "glb": "../../../tripo/football-jersey-textured.glb",
+  "converter": "top",
+  "part": "jersey",
+  "flag": "scJersey",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "jersey",
+    "creaseDeg": 25,
+    "scale": 0.8107,
+    "lift": -0.027
+  },
+  "look": {
+    "main": "#33496a",
+    "secondary": "#fff21a",
+    "accent": "#ffffff",
+    "patternColor": "#fff21a",
+    "zoneColors": {
+      "scJersey": "#fff21a"
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90",
+      "zoomD70Y700P60"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "about": "Track pants (track-pants.glb): the model's own waistband (from its top edge down to its own foot) in the Waistband part's colour (else Main), per triangle, as the tracksuit pants (RUGBYV 2026-11-20).",
+  "glb": "../../../tripo/track-pants.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "part:waistband|main"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.987,
+          0
+        ],
+        "len": 51,
+        "mode": "up",
+        "margin": -0.035
+      },
+      "where": "y > 0.8",
+      "part": "part:waistband|main"
+    },
+    {
+      "regions": [
+        1,
+        2
+      ],
+      "part": "cloth"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}

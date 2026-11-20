@@ -234,7 +234,9 @@ export default {
       for (let r = 0; r < NS; r++) if (Number.isNaN(k[r])) k[r] = r < firstK ? k[firstK] : r > lastK ? k[lastK] : k[r - 1];
       let sm = Array.from(k);
       for (let it = 0; it < 10; it++) sm = sm.map((_, r) => (sm[Math.max(0, r - 1)] + 2 * sm[r] + sm[Math.min(NS - 1, r + 1)]) / 4);
-      return sm.map((v) => Math.max(0.7, Math.min(1.35, Number.isFinite(v) ? v : 1)));
+      // (`share`: one fixed share for every slice (HOODIE/MODELQ6 2026-11-20: 1 = prints at true size on a model narrower or
+      // wider than the made pattern, so marks keep their shape).)
+      return sm.map((v) => C.share ?? Math.max(0.7, Math.min(1.35, Number.isFinite(v) ? v : 1)));
     });
     log.push(`underarm on the pattern at ${pitY.toFixed(3)}; share front ${share[0][Math.round((0.25 - yLo) / SL)]?.toFixed(3)} back ${share[1][Math.round((0.25 - yLo) / SL)]?.toFixed(3)} (at 25 cm)`);
 

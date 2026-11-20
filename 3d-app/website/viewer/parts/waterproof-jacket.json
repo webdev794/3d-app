@@ -1,0 +1,108 @@
+{
+  "about": "Waterproof jacket (puffer-jacket-textured.glb, a smooth hooded shell) coloured from puffer-jacket-parts.glb (11 parts) by viewer/tripo-hoodie.mjs: body + sleeves the print (the made track jacket's pattern), hood plain with its lining, zip strip (5; its inner neck ring above the zip, y > 0.66 behind z 0.13, goes with the hood) and pocket zips (11) the Zip colour, cuffs (8, 16, 17) and hem band (6) the rib. MODELQ5 2026-11-20.",
+  "hoodieParts": {
+    "glb": "../../../tripo/puffer-jacket-parts.glb",
+    "roles": {
+      "tripo_part_1": "body",
+      "tripo_part_2": "body",
+      "tripo_part_4": "hood",
+      "tripo_part_13": "hood",
+      "tripo_part_14": "hood",
+      "tripo_part_5": "zip",
+      "tripo_part_11": "pocket",
+      "tripo_part_6": "hem",
+      "tripo_part_8": "cuffL",
+      "tripo_part_17": "cuffL",
+      "tripo_part_16": "cuffR"
+    },
+    "split": [
+      {
+        "part": "tripo_part_8",
+        "where": "x < 0",
+        "role": "cuffR"
+      },
+      {
+        "part": "tripo_part_5",
+        "where": "y > 0.66 && z < 0.13",
+        "role": "hood"
+      }
+    ],
+    "order": [
+      "hood"
+    ],
+    "regions": {
+      "hood": {
+        "roles": [
+          "hood"
+        ],
+        "key": "plain:zone:hood|zone:body|main",
+        "own": true
+      }
+    },
+    "lining": {
+      "region": "hood",
+      "key": "plain:zone:lining|zone:body|main"
+    },
+    "rings": {
+      "cuffL": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "out"
+      },
+      "cuffR": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "out"
+      },
+      "hem": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR"
+        ]
+      }
+    },
+    "plain": {
+      "zip": "plain:zone:zip|main",
+      "pocket": "plain:zone:zip|main"
+    },
+    "plainKeys": [
+      "plain:zone:hood|zone:body|main",
+      "plain:zone:lining|zone:body|main"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "hood",
+          "at": -0.006
+        }
+      ],
+      "rings": [
+        {
+          "role": "cuffL",
+          "at": 0.004
+        },
+        {
+          "role": "cuffR",
+          "at": 0.004
+        },
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "form": [
+      "hood"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "neckReach": 0.16
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "about": "American football jersey (RUGBYV 2026-11-20, the user: all pending models on their tiles; cards 55833 front / 56345 back): Tripo model afootball-jersey-textured.glb (shape only, made at 50,000 polygons), coloured from afootball-jersey-parts.glb by viewer/tripo-glbparts.mjs. Printed through the made American football jersey's pattern (garment.js SPECS.nfljersey). Shown by the flag afJersey, added to the Game Jersey and Practice Jersey tiles' own looks (nflgameJersey, nflpracticeJersey); this model's own look line is not used by a tile.",
+  "glb": "../../../tripo/afootball-jersey-textured.glb",
+  "converter": "top",
+  "part": "nfljersey",
+  "garment": "nfljersey",
+  "flag": "afJersey",
+  "ownNeck": "v",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "nfljersey",
+    "creaseDeg": 25
+  },
+  "look": {
+    "zoneColors": {
+      "afJersey": "#ffffff"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90"
+    ]
+  }
+}

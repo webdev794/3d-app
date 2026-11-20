@@ -95,9 +95,8 @@ class OrderAssist extends Model
         if (count($names) > 2) {
             return $names[0].' + '.(count($names) - 1).' more garments';
         }
-        $rest = array_map(fn ($n) => mb_strtolower(mb_substr($n, 0, 1)).mb_substr($n, 1), array_slice($names, 1));
-
-        return implode(' & ', [$names[0], ...$rest]).' order';
+        // (QA8: each keeps its own capital, "Football jersey & Football shorts order", never "& football shorts".)
+        return implode(' & ', $names).' order';
     }
 
     /** Download name: "Reunion_2027_Order_Form", or "3DEEZI_Order_Form_2026-11-06" for an order with no title. */

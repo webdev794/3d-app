@@ -15,6 +15,9 @@ import 'flow_ui.dart';
 import 'showroom.dart' show ColorWheel;
 import 'ui.dart';
 
+// (RUGBYV 2026-11-20: a track jacket on its 3D model has its stand-up collar only: the Style panel offers no hood.)
+bool _trackModelOn(Map<String, String> z) => ['tjModel', 'tsJacket', 'windbreakerJacket'].any((f) => RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(z[f] ?? ''));
+
 /// "1 panel", "6 panels": a print layout's panels on the kit.
 String _panels(int n) => '$n panel${n == 1 ? '' : 's'}';
 
@@ -1255,11 +1258,13 @@ class StudioZoneTool extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: SegmentedButton<String>(
             key: const ValueKey('track-style'),
-            segments: const [
-              ButtonSegment(value: 'collar', label: Text('Stand-up collar')),
-              ButtonSegment(value: 'hood', label: Text('Hood')),
+            // (RUGBYV 2026-11-20: on a track jacket model (flags tjModel, tsJacket) only the stand-up collar: no hood.)
+            segments: [
+              const ButtonSegment(value: 'collar', label: Text('Stand-up collar')),
+              if (!_trackModelOn(c.zoneColors))
+                const ButtonSegment(value: 'hood', label: Text('Hood')),
             ],
-            selected: {c.trackStyle},
+            selected: {_trackModelOn(c.zoneColors) ? 'collar' : c.trackStyle},
             onSelectionChanged: (v) => c.edit(() => c.trackStyle = v.first),
           ),
         ),

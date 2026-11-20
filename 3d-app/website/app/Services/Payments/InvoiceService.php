@@ -307,7 +307,7 @@ class InvoiceService
         }
         try {
             $kind = defined(OrderUpdate::class.'::KINDS') && in_array('payment', OrderUpdate::KINDS, true) ? 'payment' : 'note';
-            $order->record($kind, ['message' => $text, 'visibility' => $kind === 'payment' ? $visibility : 'internal', 'data' => ['billing' => true]]);
+            $order->record($kind, ['message' => $text, 'visibility' => $kind === 'payment' ? $visibility : 'internal', 'data' => ['billing' => true, 'author' => 'system']]);
         } catch (Throwable $e) {
             Log::info('Billing history not recorded: '.$e->getMessage(), ['order' => $order->id]);
         }

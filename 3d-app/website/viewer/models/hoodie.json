@@ -1,11 +1,10 @@
 {
-  "about": "Pullover hoodies (every tile of the made Hoodie garment, the Studio's Hoodie, saved designs, presets; not the Basketball Warm-up hoodie (bballHoodie, its own model to come), the Fishing hoodie (fishingHoodie) or any zip hoodie): Tripo model hoodie-textured.glb (its shape only: its painted colours and its own UV atlas are not used; coloured from hoodie-parts.glb by viewer/tripo-hoodie.mjs, HOODIE 2026-11-19), booklet cards 10562 (front) / 10640 (back): a light grey raglan pullover, lined hood with cords, kangaroo pocket, rib cuffs and waistband; our marks only. WIDE: on every tile of its garment with the tile's own look; `look` is only the check design.",
+  "about": "Pullover hoodies (every tile of the made Hoodie garment, the Studio's Hoodie, saved designs, presets; not the Basketball Warm-up hoodie (bballHoodie: its own model basketball-hoodie, flagged first), the Fishing hoodie (fishingHoodie) or any zip hoodie): Tripo model hoodie-textured.glb (its shape only: its painted colours and its own UV atlas are not used; coloured from hoodie-parts.glb by viewer/tripo-hoodie.mjs, HOODIE 2026-11-19), booklet cards 10562 (front) / 10640 (back): a light grey raglan pullover, lined hood with cords, kangaroo pocket, rib cuffs and waistband; our marks only. WIDE: on every tile of its garment with the tile's own look; `look` is only the check design.",
   "glb": "../../../tripo/hoodie-textured.glb",
   "converter": "top",
   "part": "hoodie",
   "wide": true,
   "except": [
-    "bballHoodie",
     "fishingHoodie"
   ],
   "flag": "pulloverHoodie",

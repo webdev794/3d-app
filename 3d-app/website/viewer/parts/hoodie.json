@@ -51,7 +51,7 @@
         "roles": [
           "hood"
         ],
-        "key": "plain:zone:hood|main",
+        "key": "plain:zone:hood|print",
         "own": true
       },
       "sleeveL": {
@@ -96,14 +96,18 @@
           "cuffR",
           "sleeveL",
           "sleeveR"
-        ]
+        ],
+        "strayTo": {
+          "region": "pocket",
+          "where": "z > 0.05 && y < 0.06 && Math.abs(x) < 0.22 && nz > 0.3"
+        }
       }
     },
     "plain": {
       "cord": "plain:zone:cord|zone:rib|main"
     },
     "plainKeys": [
-      "plain:zone:hood|main",
+      "plain:zone:hood|print",
       "plain:zone:lining|secondary"
     ],
     "sleeveMap": {
@@ -227,6 +231,7 @@
       ]
     ],
     "bodyPit": 0.515,
-    "neckReach": 0.16
+    "neckReach": 0.16,
+    "strictCorners": true
   }
 }

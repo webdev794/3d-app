@@ -1,0 +1,25 @@
+{
+  "about": "Softball > Softball jersey (baseball-jersey.glb, booklet card 41138: blue body, navy raglan sleeves, navy neck band and two-button placket with white buttons; our 3DEEZI wordmark across the chest where the card has its script, nothing of the card's text). First version (HOODIE/MODELQ6 2026-11-20): the model is one closed piece with no seam lines of its own, so the sleeves' navy comes from the made jersey's Sleeves areas through the print (not on the model's raglan seam: pending_on_models.md); the buttons white per triangle.",
+  "glb": "../../../tripo/baseball-jersey.glb",
+  "converter": "top",
+  "part": "jersey",
+  "flag": "baseballJersey",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [{ "name": "Softball jersey", "image": "jersey" }],
+  "pictures": [],
+  "convert": { "made": "jersey", "creaseDeg": 25 },
+  "look": {
+    "main": "#1f6fa6",
+    "secondary": "#262e48",
+    "accent": "#262e48",
+    "patternColor": "#262e48",
+    "number": "23",
+    "zones": [],
+    "parts": { "leftSleeve": { "colour": "#262e48" }, "rightSleeve": { "colour": "#262e48" }, "collar": { "colour": "#262e48" } },
+    "zoneColors": { "baseballJersey": "#262e48" },
+    "marks": { "top_wordmark": { "x": 0, "y": 0.5, "scale": 0.75 }, "top_crest": { "x": 0.09, "y": 0.6, "scale": 0.3 }, "top_number": { "color": "#ffffff" } },
+    "layers": []
+  },
+  "check": { "views": ["Front", "Back", "Q45", "Q135"] }
+}

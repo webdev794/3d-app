@@ -395,6 +395,63 @@ function cutNeck(name, V = DRESS_V) {
  * its right. `neck`: 'v' for the dress's V-neck (cutNeck); then also `vEdge` (its edge's points) and `collar` (our
  * binding along it, collarGeometry).
  */
+// (The garment's inside plain (RUGBYJ 2026-11-19, the coordinator: with no display form the inside shows, and no print or
+// mark may show through it mirrored): a model's cloth wound inward (its facings, the collar's inside, a hem or cuff turned
+// up) is a point on the back half facing forward or on the front half facing back (side, normal). Per final point (copies
+// found by place) 1 there, else 0; islands of fewer than INNER_MIN triangles (a fold on the outside) left out. main.js
+// addRelief draws it in the inside's colour.)
+// (A model with its collar's foot line (data neckRing: the Rugby League jersey): also everything inside that line and below
+// it (its neck facing, lying across under the neck, showed the back's print mirrored) and the collar's inner face (above
+// the line's foot, facing the line's middle).)
+const INNER_FACING = 0.5, INNER_MIN = 24;
+function ringOf(R) {
+  const c = R.c, n = c.length / 3, B = 72, r = new Float32Array(B), y = new Float32Array(B).fill(NaN);
+  let cx = 0, cz = 0, ylo = Infinity;
+  for (let i = 0; i < n; i++) { cx += c[i * 3] / n; cz += c[i * 3 + 2] / n; }
+  for (let i = 0; i < n; i++) {
+    const b = Math.floor(((Math.atan2(c[i * 3] - cx, c[i * 3 + 2] - cz) + Math.PI) / (2 * Math.PI)) * B) % B;
+    r[b] = Math.max(r[b], Math.hypot(c[i * 3] - cx, c[i * 3 + 2] - cz)); y[b] = Number.isNaN(y[b]) ? c[i * 3 + 1] : Math.max(y[b], c[i * 3 + 1]); ylo = Math.min(ylo, c[i * 3 + 1]);
+  }
+  for (let k = 0; k < 3; k++) for (let b = 0; b < B; b++) if (!r[b]) { r[b] = r[(b + 1) % B] || r[(b + B - 1) % B]; if (Number.isNaN(y[b])) y[b] = y[(b + 1) % B]; }
+  return { cx, cz, r, y, B, ylo };
+}
+function innerOf(M, pos, index) {
+  const at = (P, i) => `${Math.round(P[i * 3] * 1e5)},${Math.round(P[i * 3 + 1] * 1e5)},${Math.round(P[i * 3 + 2] * 1e5)}`;
+  const own = new Map(), ring = M.data.neckRing?.c ? ringOf(M.data.neckRing) : null;
+  const byRing = (i) => {
+    if (!ring) return false;
+    const P = M.pos, N = M.nor, dx = P[i * 3] - ring.cx, dz = P[i * 3 + 2] - ring.cz, y = P[i * 3 + 1], rr = Math.hypot(dx, dz);
+    const b = Math.floor(((Math.atan2(dx, dz) + Math.PI) / (2 * Math.PI)) * ring.B) % ring.B, R = ring.r[b], Y = ring.y[b];
+    if (y < Y + 0.003 && y > ring.ylo - 0.15 && rr < R - 0.008) return true;
+    return y > Y - 0.01 && rr < R + 0.012 && (N[i * 3] * dx + N[i * 3 + 2] * dz) / (rr || 1) < -0.5;
+  };
+  for (let i = 0; i < M.count; i++) {
+    const k = at(M.pos, i), nz = M.nor[i * 3 + 2];
+    if (!own.has(k)) own.set(k, (M.side[i] & 1 ? nz > INNER_FACING : nz < -INNER_FACING) || byRing(i));
+  }
+  const n = pos.length / 3, flag = new Uint8Array(n), pid = new Int32Array(n), ids = new Map();
+  for (let i = 0; i < n; i++) {
+    const k = at(pos, i);
+    flag[i] = own.get(k) ? 1 : 0;
+    pid[i] = ids.get(k) ?? ids.set(k, ids.size).get(k);
+  }
+  const T = index.length / 3, tri = new Uint8Array(T), up = Int32Array.from({ length: ids.size }, (_, i) => i);
+  const find = (a) => { while (up[a] !== a) a = up[a] = up[up[a]]; return a; };
+  for (let t = 0; t < T; t++) {
+    if (flag[index[t * 3]] + flag[index[t * 3 + 1]] + flag[index[t * 3 + 2]] < 2) continue;
+    tri[t] = 1;
+    for (let k = 1; k < 3; k++) { const a = find(pid[index[t * 3]]), b = find(pid[index[t * 3 + k]]); if (a !== b) up[b] = a; }
+  }
+  const size = new Map();
+  for (let t = 0; t < T; t++) if (tri[t]) { const r = find(pid[index[t * 3]]); size.set(r, (size.get(r) ?? 0) + 1); }
+  const out = new Float32Array(n);
+  for (let t = 0; t < T; t++) {
+    if (!tri[t] || size.get(find(pid[index[t * 3]])) < INNER_MIN) continue;
+    for (let k = 0; k < 3; k++) { const v = index[t * 3 + k]; if (flag[v]) out[v] = 1; }
+  }
+  return out;
+}
+
 export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) {
   // (Only the dress's V is cut (DRESS_V). The basketball singlet keeps its model's own V whatever is chosen: a round
   // neck cannot be cut from it, its binding is a 2-2.5 cm slab filling its straps' tops: BBSINGLET 2026-11-13.)
@@ -584,6 +641,8 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   if (insideGroup) { geometry.addGroup(0, insideGroup[0], 0); geometry.addGroup(insideGroup[0], insideGroup[1], 1); }
   if (partKey) geometry.setAttribute('partKey', new THREE.BufferAttribute(partKey, 1));
   if (PC && PC.length === (pos.length / 3) * 3) geometry.setAttribute('piece', new THREE.BufferAttribute(Float32Array.from(PC), 3));
+  // (Its cloth wound inward drawn plain, in the inside's colour: innerOf, main.js addRelief.)
+  geometry.setAttribute('inner', new THREE.BufferAttribute(innerOf(M, pos, index), 1));
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   const points = geometry.getAttribute('position').array, side = new Uint8Array(points.length / 3);

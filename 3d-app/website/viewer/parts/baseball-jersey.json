@@ -1,0 +1,7 @@
+{
+  "about": "Softball jersey (baseball-jersey.glb, HOODIE/MODELQ6 2026-11-20): the model's two buttons (its own small pieces on the placket) white, per triangle; everything else the print (first version).",
+  "glb": "../../../tripo/baseball-jersey.glb",
+  "creaseDeg": 25,
+  "keys": ["#f4f4f2"],
+  "rules": [{ "where": "r > 0 && size < 70 && y > 0.8 && z > 0.12 && Math.abs(x) < 0.035", "part": "#f4f4f2" }]
+}
