@@ -1,0 +1,54 @@
+{
+  "about": "Gymwear > Women's fitness top (new tile, the user 2026-11-16): Tripo model women-fitness-top.glb (made facing away: turned round), booklet card 117908 (pink cropped long-sleeve top; our 3 mark and 3DEEZI wordmark small high on the back where the card has its neck text; nothing of its text). Tile look: the existing 'sides' look + the model flag (2026-11-16 coordinator); `look` is only the check design.",
+  "glb": "../../../tripo/women-fitness-top.glb",
+  "converter": "top",
+  "part": "compression",
+  "flag": "fitnessTop",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "convert": {
+    "made": "compression",
+    "creaseDeg": 25,
+    "turn": 180
+  },
+  "look": {
+    "main": "#d65aa8",
+    "secondary": "#b8478f",
+    "accent": "#ffffff",
+    "patternColor": "#b8478f",
+    "number": "",
+    "zoneColors": {
+      "fitnessTop": "#b8478f"
+    },
+    "marks": {
+      "top_wordmark": {
+        "side": "back",
+        "x": 0,
+        "y": 0.66,
+        "scale": 0.35
+      },
+      "top_crest": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.25
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q90"
+    ]
+  },
+  "baseLook": "sides"
+}

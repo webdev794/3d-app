@@ -18,6 +18,11 @@ class User extends Authenticatable
         return $this->hasMany(Project::class);
     }
 
+    public function aiSessions(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(AiSession::class);
+    }
+
     public function assets(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Asset::class);

@@ -1,0 +1,61 @@
+{
+  "about": "The Darts & Pool polos' Zip-up collar choice (zoneColors.poloZip, set by Garment style > Collar; the Button-up choice and every other polo keep polo-shirt.glb): Tripo model polo-shirt-textured.glb (its shape only: its painted colours and its own UV atlas are not used; coloured from polo-shirt-parts.glb by viewer/tripo-glbparts.mjs, MODELQ5 2026-11-19), cards 27480 (front) / 27486 (back): a stand-up collar with a short zip at the neck, which is carried on straight down the centre front to the hem as our own zip tape and metal teeth (the user's mockup 612; data `zip`, main.js). No tiles of its own: a choice on the Darts & Pool polo tiles. `look` is only the check design.",
+  "glb": "../../../tripo/polo-shirt-textured.glb",
+  "converter": "top",
+  "part": "polo",
+  "flag": "poloZip",
+  "ownNeck": "polo",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "polo",
+    "creaseDeg": 25,
+    "top": 0.969
+  },
+  "look": {
+    "main": "#dbe3ed",
+    "secondary": "#2b2c30",
+    "accent": "#2b2c30",
+    "patternColor": "#2b2c30",
+    "number": "",
+    "zoneColors": {
+      "poloZip": "#2b2c30",
+      "quarterZip": "#c9ccd1"
+    },
+    "parts": {
+      "collar": {
+        "colour": "#2b2c30"
+      }
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_crest": {
+        "hidden": true
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-45",
+      "Q90",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ40D70Y700P60"
+    ]
+  }
+}

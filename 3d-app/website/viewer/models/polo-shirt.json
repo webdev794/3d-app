@@ -1,0 +1,61 @@
+{
+  "about": "Polos (every tile showing the polo picture): Tripo model polo-shirt.glb, booklet card 75906 (light heather blue body, charcoal collar and cuffs, white buttons; the card's chest logo place -> our 3DEEZI wordmark; nothing of its text). WIDE (2026-11-16 coordinator): on every tile of its garment, the tile's own existing look kept (no card colours); `look` is only the check design.",
+  "glb": "../../../tripo/polo-shirt.glb",
+  "converter": "top",
+  "part": "polo",
+  "flag": "poloShirt",
+  "ownNeck": "polo",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "polo",
+    "creaseDeg": 25,
+    "top": 0.969
+  },
+  "look": {
+    "main": "#dbe3ed",
+    "secondary": "#2b2c30",
+    "accent": "#2b2c30",
+    "patternColor": "#2b2c30",
+    "number": "",
+    "zoneColors": {
+      "poloShirt": "#2b2c30"
+    },
+    "parts": {
+      "collar": {
+        "colour": "#2b2c30"
+      }
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_crest": {
+        "hidden": true
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-45",
+      "Q90",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ40D70Y700P60"
+    ]
+  },
+  "wide": true
+}

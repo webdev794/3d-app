@@ -1,0 +1,62 @@
+{
+  "about": "Rugby League > Jersey tile only (RUGBYJ 2026-11-18): Tripo model rugby-jersey-textured.glb (shape only; its painted colours and its own UV atlas are not used), booklet card 15814 and the client's kit picture (images/592): yellow body, navy raglan sleeves and cuffs, the model's own stand-up yellow collar with a navy band inside its top, our marks only. Colour edges: the borders of the same garment split by Tripo (rugby-jersey-parts.glb), smoothed over the model (viewer/tripo-glbparts.mjs). Tiles wired by hand (the name 'Jersey' is used by many tiles): config/catalog.php and lib/sports_catalog.dart, the RL Jersey tile's look 'rugbyJersey'. The Rugby League Kit's jersey is on it too (look rlKitModel, the user 2026-11-18: old models out); every other jersey and kit keeps its own shape.",
+  "glb": "../../../tripo/rugby-jersey-textured.glb",
+  "converter": "top",
+  "part": "jersey",
+  "flag": "rugbyJersey",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "jersey",
+    "creaseDeg": 25
+  },
+  "look": {
+    "main": "#e2bf3a",
+    "secondary": "#e2bf3a",
+    "accent": "#32324c",
+    "patternColor": "#32324c",
+    "parts": {
+      "leftSleeve": {
+        "colour": "#32324c"
+      },
+      "rightSleeve": {
+        "colour": "#32324c"
+      }
+    },
+    "zoneColors": {
+      "rugbyJersey": "#32324c"
+    },
+    "marks": {
+      "top_number": {
+        "color": "#32324c"
+      },
+      "top_frontNumber": {
+        "x": 0,
+        "y": 0.45
+      },
+      "top_wordmark": {
+        "x": -0.07,
+        "y": 0.575,
+        "scale": 0.34
+      },
+      "top_crest": {
+        "x": 0.075,
+        "y": 0.575,
+        "scale": 0.85
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90",
+      "zoomD70Y700P60"
+    ]
+  }
+}

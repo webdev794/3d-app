@@ -3,6 +3,7 @@ import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../app_controller.dart';
 import '../assist.dart';
+import 'glass_bubble.dart' show GlassRim;
 import 'ui.dart';
 
 /// 3DEEZI ASSIST, the help chat on every screen: the launcher (bottom right)
@@ -54,12 +55,24 @@ class _AssistOverlayState extends State<AssistOverlay> {
 
   @override
   Widget build(BuildContext context) => AnimatedBuilder(
-    animation: Listenable.merge([a, a.app]),
+    animation: Listenable.merge([a, a.app, a.app.studioClearance]),
     builder: (context, _) {
       // Also out of the way of the 3D view's own screens (the print layout
       // check).
       if (AssistController.hiddenOn.contains(a.app.screen) || a.app.viewerModal)
         return const SizedBox.shrink();
+      // A logo or words selected on the Studio's 3D kit: its menu has the
+      // room (the chat itself stays while open).
+      if (a.app.screen == AppScreen.studio && a.app.objectOnKit && !a.open)
+        return const SizedBox.shrink();
+      // The Home has its own "Ask 3DEEZI Assist" link (client picture
+      // 166.jpg): the round launcher shows there only while the chat is open.
+      // The Orders tab too (168.jpg: "Need help? 3DEEZI Assist").
+      if ((a.app.screen == AppScreen.home ||
+              a.app.screen == AppScreen.orderHub) &&
+          !a.open) {
+        return const SizedBox.shrink();
+      }
       // A round button above the full-width buttons most screens end with;
       // on the Studio and Artboard above their tool bars, over the stage.
       final tool =
@@ -67,7 +80,15 @@ class _AssistOverlayState extends State<AssistOverlay> {
           a.app.screen == AppScreen.artboard;
       // YOUR DESIGNS (AI results): beside the slim refine bar, clear of the
       // large design and the download button.
-      final bottom = tool
+      // The Studio says how tall its controls under the 3D are (the tool bar,
+      // or the tool panel while one is open, 173.jpg): just above them, never
+      // over the panel's controls.
+      final studio = a.app.screen == AppScreen.studio
+          ? a.app.studioClearance.value
+          : 0.0;
+      final bottom = studio > 0
+          ? studio + 8
+          : tool
           ? 172.0
           : a.app.screen == AppScreen.concepts
           ? 11.0
@@ -85,13 +106,13 @@ class _AssistOverlayState extends State<AssistOverlay> {
                   constraints: BoxConstraints(
                     maxHeight: box.maxHeight - bottom - size - 30,
                   ),
-                  child: PointerInterceptor(child: _panel()),
+                  child: _overViewer(_panel()),
                 ),
               ),
             Positioned(
               right: 12,
               bottom: bottom,
-              child: PointerInterceptor(child: _launcher(size: size)),
+              child: _launcher(size: size),
             ),
           ],
         ),
@@ -99,41 +120,73 @@ class _AssistOverlayState extends State<AssistOverlay> {
     },
   );
 
-  Widget _launcher({required double size}) => Tooltip(
-    message: '3DEEZI ASSIST',
-    child: Semantics(
-      button: true,
-      label: a.open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST',
-      child: GestureDetector(
-        key: const ValueKey('assist-launcher'),
-        onTap: a.toggle,
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [Color(0xf20a1a2c), Color(0xf2050d18)],
-            ),
-            shape: BoxShape.circle,
-            border: Border.all(
-              color: Palette.cyan.withValues(alpha: .8),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Palette.cyan.withValues(alpha: .33),
-                blurRadius: 20,
+  /// [child] over the 3D view's web frame, which would otherwise take its
+  /// taps: a PointerInterceptor under it. On the web the interceptor is a
+  /// platform view that takes the keyboard focus and has no name, so screen
+  /// readers stopped on it and announced nothing: it is left out of the
+  /// semantics.
+  Widget _overViewer(Widget child) => Stack(
+    fit: StackFit.passthrough,
+    children: [
+      Positioned.fill(
+        child: ExcludeSemantics(
+          child: PointerInterceptor(child: const SizedBox.expand()),
+        ),
+      ),
+      child,
+    ],
+  );
+
+  /// The round launcher: one button for screen readers, named "Ask 3DEEZI
+  /// ASSIST" ("Hide 3DEEZI ASSIST" while the chat is open), that Tab reaches
+  /// and Enter presses.
+  Widget _launcher({required double size}) => Semantics(
+    container: true,
+    button: true,
+    label: a.open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST',
+    child: Tooltip(
+      message: '3DEEZI ASSIST',
+      // The button's name says it already.
+      excludeFromSemantics: true,
+      child: _overViewer(
+        Material(
+          type: MaterialType.transparency,
+          shape: const CircleBorder(),
+          child: InkWell(
+            key: const ValueKey('assist-launcher'),
+            customBorder: const CircleBorder(),
+            onTap: a.toggle,
+            // A round glass bubble: a glass rim with a cyan glow and white
+            // reflections, the centre dark (client 487).
+            child: GlassRim(
+              radius: size / 2,
+              width: 2.5,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0xf20a1a2c), Color(0xf2050d18)],
+                  ),
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Palette.cyan.withValues(alpha: .2),
+                      blurRadius: 20,
+                    ),
+                    const BoxShadow(
+                      color: Color(0x99000000),
+                      blurRadius: 24,
+                      offset: Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Center(child: Sparkle(size: a.open ? 22 : 25)),
               ),
-              const BoxShadow(
-                color: Color(0x99000000),
-                blurRadius: 24,
-                offset: Offset(0, 10),
-              ),
-            ],
+            ),
           ),
-          child: Center(child: Sparkle(size: a.open ? 22 : 25)),
         ),
       ),
     ),
@@ -196,7 +249,9 @@ class _AssistOverlayState extends State<AssistOverlay> {
               ],
             ),
           ),
-          _inputRow(),
+          // The send button counts as part of the box: tapping it keeps
+          // the keyboard up for the next question (a tap elsewhere closes it).
+          TextFieldTapRegion(child: _inputRow()),
         ],
       ),
     ),
@@ -540,7 +595,11 @@ class _AssistOverlayState extends State<AssistOverlay> {
           builder: (context, _) {
             final enabled = !a.busy && _input.text.trim().isNotEmpty;
             return Semantics(
+              // A button of its own that says when it can't be pressed yet
+              // (nothing typed, or an answer coming).
+              container: true,
               button: true,
+              enabled: enabled,
               label: 'Send',
               child: GestureDetector(
                 onTap: enabled ? _send : null,

@@ -91,6 +91,14 @@ class OrderCheckoutController extends Controller
         $ids = array_values(array_unique(array_filter(array_merge(array_column($rows, 'project_id'), [$order->project_id]))));
         $designs = $ids === [] || ! $order->user_id ? collect() : Project::query()->where('user_id', $order->user_id)->whereIn('id', $ids)->get();
         $address = trim((string) $order->shipping_address);
+        $billing = $invoice ? InvoiceController::billingOf($invoice) : null;
+        // A pick-up order delivers nothing, so the pay page asks for a billing address: start from the customer's own.
+        if ($billing && $address === OrderDelivery::PICKUP_TEXT && ($billing['same'] ?? true)) {
+            $hint = self::customerAddress($order, $invoice);
+            if ($hint) {
+                $billing['hint'] = $hint;
+            }
+        }
 
         return [
             'viewer' => $viewer,
@@ -104,7 +112,43 @@ class OrderCheckoutController extends Controller
             'items' => $rows,
             'projects' => $designs->values(),
             'invoice' => $invoice ? InvoiceController::present($invoice, $viewer) : null,
-            'billing' => $invoice ? InvoiceController::billingOf($invoice) : null,
+            'billing' => $billing,
         ];
+    }
+
+    /**
+     * The customer's address from earlier orders (street, suburb, state, postcode, country), or null: the billing
+     * address they gave on another invoice, else the address of their latest delivered-to order.
+     */
+    private static function customerAddress(Order $order, Invoice $invoice): ?array
+    {
+        if (! $order->user_id) {
+            return null;
+        }
+        $earlier = Invoice::query()->where('user_id', $order->user_id)->whereKeyNot($invoice->id)->latest('id')->limit(20)->get(['id', 'snapshot']);
+        foreach ($earlier as $other) {
+            $fields = $other->snapshot['billing']['fields'] ?? null;
+            if (is_array($fields) && filled($fields['street'] ?? null)) {
+                return array_map(fn ($v) => (string) $v, array_intersect_key($fields, array_flip(OrderDelivery::ADDRESS_FIELDS)));
+            }
+        }
+        $text = Order::query()->where('user_id', $order->user_id)->whereNotNull('shipping_address')
+            ->where('shipping_address', '!=', OrderDelivery::PICKUP_TEXT)->where('shipping_address', '!=', '')->latest('id')->value('shipping_address');
+        $lines = array_values(array_filter(array_map('trim', explode("\n", (string) $text)), fn ($l) => $l !== ''));
+        if (count($lines) === 1 && preg_match('/^(.+?),\s*(.+?\s+[A-Za-z]{2,3}\s+\d{4})$/', $lines[0], $m)) {
+            $lines = [$m[1], $m[2]];   // an older one-line address: "1 Park Rd, Sydney NSW 2000"
+        }
+        if (count($lines) < 2) {
+            return null;
+        }
+        // OrderDelivery::text(): "street", "suburb STATE postcode", "country".
+        $fields = ['street' => $lines[0], 'suburb' => '', 'state' => '', 'postcode' => '', 'country' => $lines[2] ?? OrderDelivery::DEFAULT_COUNTRY];
+        if (preg_match('/^(.*?)\s+([A-Za-z]{2,3})\s+(\d{4})$/', $lines[1], $m)) {
+            [$fields['suburb'], $fields['state'], $fields['postcode']] = [$m[1], strtoupper($m[2]), $m[3]];
+        } else {
+            $fields['suburb'] = $lines[1];
+        }
+
+        return $fields;
     }
 }

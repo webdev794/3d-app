@@ -22,8 +22,9 @@ class SportGarmentTilesTest extends TestCase
         foreach (config('catalog.sports') as $sport) {
             $id = $sport['id'];
             $tiles = $sport['tiles'] ?? [];
-            $this->assertGreaterThanOrEqual(6, count($tiles), $id);
-            $this->assertLessThanOrEqual(11, count($tiles), $id);
+            // (Headwear has its four kinds: cap, bucket hat, beanie, 5-panel cap; client mockup images/296.jpg.)
+            $this->assertGreaterThanOrEqual($id === 'headwear' ? 4 : 6, count($tiles), $id);
+            $this->assertLessThanOrEqual(16, count($tiles), $id);
             $names = array_column($tiles, 'name');
             $this->assertSame(count($names), count(array_unique($names)), "$id: tile names are unique");
             foreach ($tiles as $tile) {
@@ -58,16 +59,18 @@ class SportGarmentTilesTest extends TestCase
         $sports = collect(config('catalog.sports'))->keyBy('id');
         $netball = $sports['netball']['tiles'];
         $this->assertSame(['Netball dress', 'Netball skirt', 'Singlet with bib', 'Training singlet', 'Training T-shirt', 'Netball bibs', 'Tracksuit', 'Hoodie'], array_column($netball, 'name'));
-        $this->assertSame(['singlet', null, 'singlet', 'singlet', 'tee', 'singlet', 'trackjacket', 'hoodie'], array_column($netball, 'garment'));
+        // The dress is its own 3D garment since task 9.126, the skirt since 2026-10-29 (COMING SOON 10).
+        $this->assertSame(['netball-dress', 'skirt', 'singlet', 'singlet', 'tee', 'singlet', 'trackjacket', 'hoodie'], array_column($netball, 'garment'));
         $this->assertSame('Fitted netball dress with skirt hem.', $netball[0]['description']);
-        $this->assertSame(['nearest', 'soon'], [$netball[0]['fit'], $netball[1]['fit']]);
+        $this->assertSame(['exact', 'exact'], [$netball[0]['fit'], $netball[1]['fit']]);
         $this->assertNotSame(false, $sports['netball']['more'] ?? true);
 
         $league = $sports['rugby-league'];
         $this->assertSame(['Rugby League Kit', 'Jersey', 'Playing Shorts', 'Socks', 'Polo', 'Training Tee', 'Training Shorts', 'Hooded Tracksuit', 'Cap', 'Bucket Hat', 'Waterproof Jacket'], array_column($league['tiles'], 'name'));
         $this->assertSame('fullkit', $league['tiles'][0]['garment']);
-        $this->assertSame(['trackStyle' => 'hood'], $league['tiles'][7]['design']);
-        $this->assertSame([null, null, null], [$league['tiles'][3]['garment'], $league['tiles'][8]['garment'], $league['tiles'][9]['garment']]);
+        $this->assertSame('hood', $league['tiles'][7]['design']['trackStyle']);
+        // The socks (garment 3), the cap (garment 4) and the bucket hat (garment 5) have their own 3D models.
+        $this->assertSame(['socks', 'cap', 'bucket-hat'], [$league['tiles'][3]['garment'], $league['tiles'][8]['garment'], $league['tiles'][9]['garment']]);
         $this->assertFalse($league['more']);
         // Rugby (union): the same list, under its own heading.
         $union = $sports['rugby-union'];
@@ -76,13 +79,101 @@ class SportGarmentTilesTest extends TestCase
         $this->assertSame(array_slice(array_column($league['tiles'], 'name'), 1), array_slice(array_column($union['tiles'], 'name'), 1));
     }
 
+    /** The client's own tile pictures (images/161.jpg, 157.jpg), cut out on a transparent background (no CSS edge fade). */
+    public function test_rugby_and_netball_show_the_clients_own_pictures(): void
+    {
+        $sports = collect(config('catalog.sports'))->keyBy('id');
+        foreach (['rugby-league' => 'rugby-', 'rugby-union' => 'rugby-', 'netball' => 'netball-', 'american-football' => 'nfl-'] as $id => $prefix) {
+            $images = array_column($sports[$id]['tiles'], 'image');
+            $this->assertSame(count($images), count(array_unique($images)), "$id: one picture per tile");
+            foreach ($images as $image) {
+                $this->assertStringStartsWith($prefix, $image, $id);
+                $file = public_path("media/showroom/garment-$image.webp");
+                $this->assertFileEquals($file, base_path("../assets/images/showroom/garment-$image.webp"), "$id: $image (app copy)");
+                $this->assertSame('VP8X', substr((string) file_get_contents($file, false, null, 12, 4), 0, 4), "$id: $image has an alpha channel");
+            }
+        }
+        $this->assertSame('rugby-kit', $sports['rugby-league']['tiles'][0]['image']);
+        $this->assertSame('rugby-socks', $sports['rugby-league']['tiles'][3]['image']);
+    }
+
+    /** American Football (client visual images/165.jpg): 16 tiles, names only, its own subtitle, hint and field background. */
+    public function test_american_football_is_the_clients_list_with_its_own_step_settings(): void
+    {
+        $sports = collect(config('catalog.sports'))->keyBy('id');
+        $nfl = $sports['american-football'];
+        $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', 'Training Shorts', 'Compression Top', 'Compression Shorts',
+            'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
+        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'compression', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', 'beanie'],
+            array_column($nfl['tiles'], 'garment'));
+        // Coming soon: pants and compression shorts, each naming the garment still to build (the beanie is built, CP1).
+        foreach ([2 => 'nfl-pants', 7 => 'compression-shorts'] as $i => $future) {
+            $this->assertSame(['soon', $future], [$nfl['tiles'][$i]['fit'], $nfl['tiles'][$i]['future']], $nfl['tiles'][$i]['name']);
+        }
+        $this->assertSame('hood', $nfl['tiles'][11]['design']['trackStyle']);
+        // The football jersey (task 9.113): Game Jersey on standard fabric, Practice Jersey on mesh.
+        $this->assertSame(['exact', 'Standard', 'exact', 'Mesh'], [$nfl['tiles'][1]['fit'], $nfl['tiles'][1]['design']['fabric'], $nfl['tiles'][3]['fit'], $nfl['tiles'][3]['design']['fabric']]);
+        // Each jersey starts as its tile picture (task 9.154): black, the big 86; the game jersey's white with a cyan
+        // outline, cyan shoulder caps and side panels (NF1); the practice jersey's solid cyan (FN3: #00c8ff, sampled on its picture).
+        $game = $nfl['tiles'][1]['design'];
+        $this->assertSame(['#27282a', 'None', '86', ['yoke' => 'Solid', 'sides' => 'Solid'], '#ffffff', 'outline'], [$game['main'], $game['pattern'], $game['number'], $game['zones'], $game['marks']['top_number']['color'], $game['marks']['top_number']['look']['style']]);
+        $practice = $nfl['tiles'][3]['design'];
+        $this->assertSame(['86', '#00c8ff', []], [$practice['number'], $practice['marks']['top_number']['color'], $practice['zones']]);
+        $this->assertSame('Choose your game uniform, practice wear or sideline apparel.', $nfl['subtitle']);
+        $this->assertSame('Select a garment to customise.', $nfl['select_hint']);
+        $this->assertFalse($nfl['descriptions']);
+        $this->assertFalse($nfl['more']);
+        $this->assertFileExists(public_path("media/showroom/{$nfl['backdrop']}.webp"));
+        $this->assertFileEquals(public_path("media/showroom/{$nfl['backdrop']}.webp"), base_path("../assets/images/showroom/{$nfl['backdrop']}.webp"));
+        // Every other sport keeps the shared defaults (descriptions, stadium, no hint) unless it sets its own.
+        foreach (['netball', 'rugby-league', 'rugby-union', 'football'] as $id) {
+            $this->assertNotSame(false, $sports[$id]['descriptions'] ?? true, $id);
+            $this->assertArrayNotHasKey('subtitle', $sports[$id], $id);
+            $this->assertArrayNotHasKey('select_hint', $sports[$id], $id);
+            $this->assertArrayNotHasKey('backdrop', $sports[$id], $id);
+        }
+        $this->getJson('/api/v1/catalog')->assertOk()
+            ->assertJsonPath('data.sports.8.id', 'american-football')
+            ->assertJsonPath('data.sports.8.tiles.1.name', 'Game Jersey')
+            ->assertJsonPath('data.sports.8.descriptions', false)
+            ->assertJsonPath('data.sports.8.select_hint', 'Select a garment to customise.');
+
+        // A Game Jersey project (on the jersey 3D garment) keeps its name into the order line.
+        Sanctum::actingAs(User::factory()->create());
+        $design = ['garment' => 'jersey', 'main' => '#0b1016', 'secondary' => '#00c2cc', 'accent' => '#36e3ee', 'pattern' => 'Solid', 'productName' => 'Game Jersey'];
+        $id = $this->postJson('/api/v1/projects', ['name' => 'Wildcats', 'sport' => 'american-football', 'garment' => 'jersey', 'mode' => 'dyo', 'design' => $design])
+            ->assertCreated()->assertJsonPath('data.design.productName', 'Game Jersey')->json('data.id');
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Wildcats',
+            'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
+            'items' => [['garment' => 'jersey', 'sport' => 'american-football', 'project_id' => $id, 'sizes' => ['L' => 4]]]];
+        $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'nfl-form-1'])->assertCreated()
+            ->assertJsonPath('data.items.0.label', 'Game Jersey')
+            ->assertJsonPath('data.garments.0.name', 'Game Jersey');
+    }
+
+    public function test_the_skirt_tiles_open_the_skirt_looking_like_their_picture(): void
+    {
+        // COMING SOON 10 (2026-10-29): the netball and tennis skirts and the hockey skort open the skirt, as their picture
+        // (garment-netball-skirt.webp): black, the cyan side panels (the trim colour), no pattern.
+        $sports = collect(config('catalog.sports'))->keyBy('id');
+        foreach ([['netball', 'Netball skirt'], ['hockey', 'Hockey skort'], ['tennis', 'Tennis skirt']] as [$sport, $name]) {
+            $tile = collect($sports[$sport]['tiles'])->firstWhere('name', $name);
+            $this->assertSame(['skirt', 'exact', 'netball-skirt'], [$tile['garment'], $tile['fit'], $tile['image']], $name);
+            // (The side panels' cyan as measured on the skirt picture, FM 2026-10-30.)
+            $this->assertSame(['#27282a', '#25c6f2', 'None'], [$tile['design']['main'], $tile['design']['secondary'], $tile['design']['pattern']], $name);
+            $this->assertContains('skirt', $sports[$sport]['garments'], $sport);
+        }
+        $this->assertContains('skirt', array_column(config('catalog.garments'), 'id'));
+    }
+
     public function test_the_public_catalogue_sends_the_tiles(): void
     {
         $this->getJson('/api/v1/catalog')->assertOk()
             ->assertJsonPath('data.sports.4.id', 'netball')
             ->assertJsonPath('data.sports.4.tiles.0.name', 'Netball dress')
-            ->assertJsonPath('data.sports.4.tiles.0.garment', 'singlet')
-            ->assertJsonPath('data.sports.4.tiles.1.fit', 'soon');
+            ->assertJsonPath('data.sports.4.tiles.0.garment', 'netball-dress')
+            ->assertJsonPath('data.sports.4.tiles.1.fit', 'exact')
+            ->assertJsonPath('data.sports.4.tiles.1.garment', 'skirt');
     }
 
     public function test_a_project_keeps_the_tile_name_and_its_orders_use_it(): void
@@ -96,7 +187,7 @@ class SportGarmentTilesTest extends TestCase
             ->assertJsonValidationErrors('design.productName');
 
         // The order form: the row is named after the design's garment.
-        $form = ['source' => 'form', 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
             'items' => [['garment' => 'singlet', 'sport' => 'netball', 'fit' => 'womens', 'project_id' => $id, 'sizes' => ['M' => 3]], ['garment' => 'shorts', 'sport' => 'netball', 'sizes' => ['M' => 3]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'tile-form-1'])->assertCreated()
@@ -122,7 +213,7 @@ class SportGarmentTilesTest extends TestCase
         $id = $this->postJson('/api/v1/projects', ['name' => 'Firebirds', 'sport' => 'netball', 'garment' => 'singlet', 'mode' => 'dyo', 'design' => $design])->assertCreated()->json('data.id');
 
         // The order form, sent: its invoice line, the pay page's invoice and the PDF say "Netball bibs".
-        $form = ['source' => 'form', 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
+        $form = ['source' => 'form', ...$this->artwork(), 'contact_name' => 'Fab', 'contact_email' => 'fab@example.test', 'phone' => '0400 000 000', 'team_name' => 'Firebirds',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup',
             'items' => [['garment' => 'singlet', 'sport' => 'netball', 'project_id' => $id, 'sizes' => ['M' => 5]]]];
         $this->postJson('/api/v1/orders', $form, ['Idempotency-Key' => 'tile-invoice-1'])->assertCreated();

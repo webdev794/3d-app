@@ -1,0 +1,30 @@
+{
+  "about": "Rugby League > Socks (rugby-socks-textured.glb, MODELQ6 2026-11-18; shape only: its painted colours and its own UVs are not used): coloured from the same pair split into parts by Tripo (rugby-socks-parts.glb) by viewer/tripo-glbparts.mjs: each sock's folded top band the design's Sock band colour (parts.sockBand, else the Secondary: the RL socks look's navy, the RL kit's cyan), one plain colour, its foot one smooth line round the leg; the leg and foot the print (navy, our yellow 3 on the shin: sockprint.js). Its inside the cloth's own colour in shade and no bright edge light on it (data insideCloth, matte: main.js). Stitch lines: one round the leg just under the top band's foot, one on the band under its top fold.",
+  "glbParts": {
+    "glb": "../../../tripo/rugby-socks-parts.glb",
+    "keys": {
+      "tripo_part_0": "part:sockBand",
+      "tripo_part_1": "part:sockBand",
+      "tripo_part_2": null,
+      "tripo_part_3": null
+    },
+    "collar": "part:sockBand",
+    "sleeves": [],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.02,
+    "stitches": {
+      "collarFoot": 0.006,
+      "collarTop": 0.015,
+      "sigma": 0.03
+    },
+    "data": {
+      "insideCloth": true,
+      "matte": true
+    },
+    "localSide": true
+  }
+}

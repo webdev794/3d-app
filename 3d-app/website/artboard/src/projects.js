@@ -13,7 +13,8 @@
 //   host -> artboard  host {docs: true, signedIn, kit: {name, garment, artboards: [ids]}, garments: [{id, name,
 //                     parts}], placements: [{id, label, part}]}: the account is there (sent when ready, and again
 //                     after signing in or out)
-//   host -> artboard  openDoc {id}: the Studio's "Edit in Artboard" (the design an artwork layer came from)
+//   host -> artboard  openDoc {id}: the Studio's "Edit in Artboard" (the design an artwork layer came from);
+//                     openDoc {id, from: 'assets', version}: a design picked on the Assets page (as File > Open)
 //   artboard -> host  {type: 'signin'}: the host shows its sign-in
 //   artboard -> host  {type: 'artwork', data, name, artboard, target: {kind: 'current' | 'garment' | 'project',
 //                     garment, project}, placement}: Send to 3D Studio. `artboard` is the design's id in the account:
@@ -107,7 +108,7 @@ export function createProjects(ctx) {
   try { const m = JSON.parse(localStorage.getItem(META) || 'null'); if (m && typeof m === 'object') doc = { id: Number(m.id) > 0 ? Number(m.id) : null, name: String(m.name ?? '').slice(0, 120), version: Number(m.version) || null, dirty: !!m.dirty }; } catch { /* none */ }
   let host = null, afterSignIn = null, changes = 0, reqId = 0, busy = false;
   const waiting = new Map();
-  const writeMeta = () => { try { localStorage.setItem(META, JSON.stringify(doc)); } catch { /* storage full */ } showName(); };
+  const writeMeta = () => { try { localStorage.setItem(META, JSON.stringify(doc)); } catch { /* storage full */ } showName(); ctx.docChanged?.(); };
   onChange = () => { changes++; if (!doc.dirty) { doc.dirty = true; writeMeta(); } };
   let fullSaid = false;
   onFull = () => { if (fullSaid) return; fullSaid = true; toast('This design is too big to keep on this device: save it to your account (File > Save to my account) so it is not lost', 8000); };
@@ -231,6 +232,7 @@ export function createProjects(ctx) {
     busy = true;
     try {
       const s = await save(opts);
+      const st = $('stdSaved'); if (st) st.textContent = `Saved ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
       toast(opts?.template ? `Template “${s.name}” saved in your account: File > New from template starts a design from it` : `Saved in your account: “${s.name}”${s.pages > 1 ? ` (${s.pages} pages)` : ''}`);
       return s;
     } catch (e) { if (!e.quiet) failed(e, () => saveAndSay(opts)); }
@@ -289,23 +291,31 @@ export function createProjects(ctx) {
       return false;
     }
     if (!(await okToReplace(`Open “${d.name}”${from === 'kit' ? ' (the design of the artwork on your kit)' : ''}?`))) return false;
-    try { await ctx.open(d.document); } catch { toast(`“${d.name}” could not be opened: the design may be damaged`); return false; }
+    try { await ctx.open(d.document, d.name); } catch { toast(`“${d.name}” could not be opened: the design may be damaged`); return false; }
     doc = { id: d.id, name: d.name, version: d.version, dirty: false }; writeMeta();
     toast(from === 'kit' ? `“${d.name}” is open: change it, then Send to 3D Studio to update it on the kit` : `Opened “${d.name}” from your account`, 5000);
     return true;
   }
-  /** The Studio's Edit in Artboard: the design an artwork layer came from. */
+  /**
+   * A design the host opens: the Studio's Edit in Artboard (the design an artwork layer came from) or, with from
+   * 'assets', one picked on the Assets page (website and app), opened as File > Open from my account does. `version`:
+   * the one the Assets page listed; the page opens it again when it has an older one.
+   */
   function openDoc(arg) {
     const id = Number(arg?.id ?? arg);
     if (!(id > 0)) return;
-    if (doc.id === id) { toast(`“${doc.name}” is open: change it, then Send to 3D Studio to update it on the kit`, 5000); return; }
-    if (!host?.signedIn) { needSignIn(() => openDoc(id)); return; }
-    openFromAccount(id, { from: 'kit' });
+    const assets = arg?.from === 'assets', listed = Number(arg?.version) || null;
+    if (doc.id === id && (!assets || (!doc.dirty && (!listed || listed === doc.version)))) {
+      toast(assets ? `“${doc.name}” is already open` : `“${doc.name}” is open: change it, then Send to 3D Studio to update it on the kit`, 5000);
+      return;
+    }
+    if (!host?.signedIn) { needSignIn(() => openDoc(arg)); return; }
+    openFromAccount(id, { from: assets ? 'list' : 'kit' });
   }
   /** A new design from a template (built-in or the user's own): not in the account until saved. */
   async function useTemplate(json, name) {
     if (!(await okToReplace(`Start a new design from the template “${name}”?`))) return false;
-    try { await ctx.open(json); } catch { toast(`The template “${name}” could not be opened`); return false; }
+    try { await ctx.open(json, name); } catch { toast(`The template “${name}” could not be opened`); return false; }
     doc = { ...NONE, name: String(name).slice(0, 120) }; writeMeta(); // the name it is saved under, unless changed
     toast(`New design from “${name}”: change the text and colours, then File > Save to my account`, 5000);
     return true;
@@ -485,7 +495,7 @@ export function createProjects(ctx) {
     if (k !== 's' && !(k === 'o' && !e.shiftKey)) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (document.querySelector('dialog[open]')) return;
-    if (k === 'o') actions.docOpen(); else if (e.shiftKey) actions.docSaveAs(); else docSave();
+    if (k === 'o') actions.docOpen(); else if (e.shiftKey) actions.docSaveAs(); else if (hosted() && host.signedIn) docSave(); else ctx.saveToComputer?.();
   }, true);
   $('docName')?.addEventListener('click', docSave);
 
@@ -504,5 +514,14 @@ export function createProjects(ctx) {
     /** For 3DEEZI ASSIST: which design is open. */
     describe: () => (doc.id ? `Design “${doc.name}” is open (saved in the account${doc.dirty ? ', with changes not saved there yet' : ''}). ` : ''),
     get doc() { return { ...doc }; },
+    /** Document tabs (task 9.141): the open tab's account details out, another tab's in (null: a new design). */
+    /** Document tabs (task 9.143): the design's new name; one in the account is saved again under it. */
+    rename: async (name) => {
+      doc = { ...doc, name: String(name).trim().slice(0, 120) }; writeMeta();
+      if (doc.id && hosted() && host.signedIn) await saveAndSay({ name: doc.name });
+    },
+    /** The in-page question box (the apps' web views answer no confirm() boxes). */
+    ask,
+    swapDoc: (next) => { const was = { ...doc }; doc = next ? { ...NONE, ...next } : { ...NONE }; writeMeta(); return was; },
   };
 }

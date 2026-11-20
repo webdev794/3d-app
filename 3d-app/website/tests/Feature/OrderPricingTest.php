@@ -41,18 +41,23 @@ class OrderPricingTest extends TestCase
         $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => ['team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => $pricing,
             'phone' => '0400 000 000', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'deliver',
             'address' => ['street' => '1 Park Rd', 'suburb' => 'Sydney', 'state' => 'NSW', 'postcode' => '2000', 'country' => 'Australia']]])->json('data.id');
-        $order = $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'pricing-key-1'])->assertCreated()->json('data');
+        $order = $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'pricing-key-1'])->assertCreated()->json('data');
         $this->assertSame(['destination' => 'NZ', 'extras' => ['express'], 'discount_code' => 'TEAM10'], Order::find($order['id'])->pricing);
         $this->assertSame($quote['total'], $order['invoice']['total']);
         $this->assertSame('awaiting_payment', $order['invoice']['status']);
 
         // Sent directly with the submission too (the app does), and a bad code is refused by nobody: it just doesn't apply.
-        $direct = $this->postJson('/api/v1/orders', ['source' => 'form', 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => ['destination' => 'AU'],
+        $direct = $this->postJson('/api/v1/orders', ['source' => 'form', ...$this->artwork(), 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'pricing' => ['destination' => 'AU'],
             'phone' => '0400 000 000', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup'], ['Idempotency-Key' => 'pricing-key-2'])
             ->assertCreated()->json('data');
+        // Picked up with a "Delivery to" region sent too: the region is ignored, a pick-up never pays shipping (2026-11-11).
         $au = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU']])->json('data');
-        $this->assertSame($au['total'], $direct['invoice']['total']);
-        $this->postJson('/api/v1/orders', ['source' => 'form', 'team_name' => 'X', 'contact_name' => 'F', 'items' => $items, 'pricing' => ['extras' => ['bad code!']],
+        $pickup = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU'], 'delivery' => 'pickup'])->json('data');
+        $this->assertSame('0.00', $pickup['shipping']['amount']);
+        $this->assertNotSame($au['total'], $pickup['total']);
+        $this->assertSame($pickup['total'], $direct['invoice']['total']);
+        $this->assertSame('PICKUP', Order::find($direct['id'])->pricing['destination'] ?? null);
+        $this->postJson('/api/v1/orders', ['source' => 'form', ...$this->artwork(), 'team_name' => 'X', 'contact_name' => 'F', 'items' => $items, 'pricing' => ['extras' => ['bad code!']],
             'phone' => '0400 000 000', 'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup'], ['Idempotency-Key' => 'pricing-key-3'])
             ->assertUnprocessable()->assertJsonValidationErrors('pricing.extras.0');
     }

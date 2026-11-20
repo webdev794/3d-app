@@ -148,14 +148,16 @@ class InvoiceService
         }
         if ($items === [] && (int) $order->quantity > 0) {
             $kit = $order->design_snapshot ?: ($order->project ? $order->project->only(['name', 'garment', 'sport']) : []);
-            $items[] = ['name' => PricingService::itemName(['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null, 'label' => $kit['design']['productName'] ?? null]), 'garment' => $kit['garment'] ?? 'jersey',
+            $items[] = ['name' => PricingService::itemName(['garment' => $kit['garment'] ?? 'jersey', 'sport' => filled($kit['design']['sportName'] ?? null) ? (string) $kit['design']['sportName'] : ($kit['sport'] ?? null), 'label' => $kit['design']['productName'] ?? null]), 'garment' => $kit['garment'] ?? 'jersey',
                 'sizes' => array_map('intval', (array) ($order->sizes ?? [])), 'quantity' => (int) $order->quantity, 'players' => is_array($order->players) ? count($order->players) : 0];
         }
         $name = method_exists($order, 'displayName') ? $order->displayName() : ($order->team_name ?: 'Order '.$order->number);
 
         return [
             'order' => ['id' => $order->id, 'number' => $order->number, 'name' => $name, 'source' => $order->source, 'quantity' => (int) $order->quantity,
-                'items' => $items, 'summary' => self::summaryText($items)],
+                'items' => $items, 'summary' => self::summaryText($items),
+                // Who makes it (preferred suppliers, task 9.118): 3DEEZI, Mantis or an outside supplier.
+                'made_by' => \App\Models\Supplier::madeByOf($order)],
             'customer' => [
                 'name' => $order->team_name ?: ($order->contact_name ?: $user?->name),
                 'contact' => $order->contact_name ?: $user?->name,
@@ -273,6 +275,14 @@ class InvoiceService
         if ($invoice->team_request_id ?? null) {
             try {
                 app(\App\Services\Team\TeamService::class)->invoicePaid($invoice);
+            } catch (Throwable $e) {
+                report($e);
+            }
+        }
+        // A preferred supplier's listing invoice: paid in full, the listing runs a month or a year further.
+        if (($invoice->snapshot['order']['source'] ?? null) === 'supplier') {
+            try {
+                app(\App\Services\SupplierListing::class)->invoicePaid($invoice);
             } catch (Throwable $e) {
                 report($e);
             }

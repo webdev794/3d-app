@@ -122,6 +122,8 @@ const CATEGORY_OUTLINES: Record<string, string> = {
   leavers: 'M24 8L44 17L24 26L4 17ZM12 21V31Q24 37.5 36 31V21M44 17V29M42 34L44 29L46 34',
   "club-polo": 'M17 7L9 10.5L4 19L10 23.5L13 21.5V43H35V21.5L38 23.5L44 19L39 10.5L31 7L24 12ZM17 7L20.5 14.5L24 12L27.5 14.5L31 7M24 12L24 20M27.5 20H32V23.5Q32 26 29.75 27Q27.5 26 27.5 23.5Z',
   bowls: 'M4 26A15 15 0 1 0 34 26A15 15 0 1 0 4 26ZM13 26A6 6 0 1 0 25 26A6 6 0 1 0 13 26ZM16.8 26A2.2 2.2 0 1 0 21.2 26A2.2 2.2 0 1 0 16.8 26ZM35 39.5A4.5 4.5 0 1 0 44 39.5A4.5 4.5 0 1 0 35 39.5Z',
+  // HEADWEAR (CP1, client mockup 296.jpg): a cap from the side, its brim to the left, the button on top.
+  cap: 'M14 33Q14 12 29 12Q43 12 43 33ZM14 33Q7 33 4 37Q15 39.5 26 34M29 12L29 8.5M26.5 8.5L31.5 8.5M22 14.5Q19.5 23 20.5 33M37 21.5A1.2 1.2 0 1 0 39.4 21.5A1.2 1.2 0 1 0 37 21.5Z',
 };
 
 /** Which outline each catalogue category uses; a new category falls back to the tee. */
@@ -131,7 +133,7 @@ const CATEGORY_SYMBOL: Record<string, string> = {
   gymwear: 'singlet', 'hi-vis': 'polo', workwear: 'shirt',
   'american-football': 'gridiron', golf: 'golf', tennis: 'tennis', athletics: 'athletics', swimming: 'swimming', darts: 'darts',
   touch: 'touch', cricket: 'cricket', softball: 'softball', volleyball: 'volleyball', lacrosse: 'lacrosse', cycling: 'cycling', bmx: 'bmx',
-  'lawn-bowls': 'bowls', esports: 'esports', 'fight-wear': 'glove', fishing: 'fish', teamwear: 'club-polo', 'school-leavers': 'leavers',
+  'lawn-bowls': 'bowls', headwear: 'cap', esports: 'esports', 'fight-wear': 'glove', fishing: 'fish', teamwear: 'club-polo', 'school-leavers': 'leavers',
 };
 
 export function CategoryIcon({ category, className }: { category: string; className?: string }) {

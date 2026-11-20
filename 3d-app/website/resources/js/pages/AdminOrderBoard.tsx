@@ -1,16 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, ExternalLink, Eye, EyeOff, LoaderCircle, Lock, Paperclip, RefreshCw, Search, Send, Truck, Upload, X } from 'lucide-react';
-import { ApiError } from '../api';
+import { ApiError, api } from '../api';
+import { MadeByFilter } from './AdminSuppliers';
 import GarmentIcon from '../components/GarmentIcon';
+import { garmentsLine, garmentsTitle, orderTitle, ownOrderName, unitWord } from '../components/orderBoardModel';
 import OrderFormReading from '../components/OrderFormReading';
 import { STAGES, StageBlocked, orderApi, uploadAdminFile, type Board, type BoardOrder, type FileKind, type OrderDetail, type OrderStatus, type StageProblem } from '../orderApi';
 import '../../css/admin-board.css';
 import { FIT_NAMES } from '../orderSizes';
+import { formatMoney } from '../money';
 
 const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '');
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '');
 interface Pending { order: BoardOrder; status: OrderStatus; problems: StageProblem[] }
+/** Who makes it (preferred suppliers): 3DEEZI unless the order names another maker. */
+const madeBy = (order: BoardOrder) => (order as BoardOrder & { made_by?: string | null }).made_by || '3DEEZI';
 
 /**
  * Admin > Order board: every order in its stage. Drag a card to another stage (or use its Move menu); moving into
@@ -22,12 +27,17 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
   const [view, setView] = useState<'current' | 'completed'>('current');
   const [search, setSearch] = useState('');
   const [query, setQuery] = useState('');
+  /** Made by (preferred suppliers): '' all, '3deezi' or a supplier's id. */
+  const [maker, setMaker] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<number | null>(null);
   const [over, setOver] = useState<OrderStatus | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [openId, setOpenId] = useState<number | null>(null);
-  const load = useCallback(() => { orderApi.adminBoard(view, query).then(b => { setBoard(b); setError(''); }).catch(e => setError((e as Error).message)); }, [view, query]);
+  const load = useCallback(() => {
+    (maker ? api<Board>(`/admin/orders/board?${new URLSearchParams({ view, ...(query ? { search: query } : {}), supplier: maker })}`) : orderApi.adminBoard(view, query))
+      .then(b => { setBoard(b); setError(''); }).catch(e => setError((e as Error).message));
+  }, [view, query, maker]);
   useEffect(load, [load]);
 
   async function move(order: BoardOrder, status: OrderStatus, confirm?: { approval: boolean; unpaid: boolean; reason: string }) {
@@ -49,6 +59,7 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
     <div className="admin-toolbar">
       <h2>Order board {board && <small>{board.counts.current} current · {board.counts.completed} completed</small>}</h2>
       <form className="admin-search" onSubmit={e => { e.preventDefault(); setQuery(search.trim()); }}><Search size={15} /><input value={search} onChange={e => setSearch(e.target.value)} placeholder="Reference, name, garment or customer" aria-label="Search orders" /></form>
+      <MadeByFilter value={maker} onChange={setMaker} />
       <div className="aob-views" role="group" aria-label="Orders to show">{(['current', 'completed'] as const).map(v => <button key={v} type="button" className={view === v ? 'on' : ''} aria-pressed={view === v} onClick={() => setView(v)}>{v === 'current' ? 'Current' : 'Completed'}</button>)}</div>
       <button type="button" className="button button-outline" onClick={load}><RefreshCw size={15} /> Refresh</button>
     </div>
@@ -63,12 +74,13 @@ export default function AdminOrderBoard({ onNotice }: { onNotice: (text: string)
           {stage.orders.map(order => <article key={order.id} className={`aob-card${busy === order.id ? ' is-busy' : ''}`} draggable data-order={order.number}
             onDragStart={e => { e.dataTransfer.setData('text/order', String(order.id)); e.dataTransfer.effectAllowed = 'move'; }}>
             <button type="button" className="aob-open" onClick={() => setOpenId(order.id)} aria-label={`Open ${order.number}`}>
-              <span className="aob-ref">{order.number}</span>
-              <strong>{order.name}</strong>
+              {ownOrderName(order.number, order.name) && <span className="aob-ref">{order.number}</span>}
+              <strong>{ownOrderName(order.number, order.name) || order.number}</strong>
               <span className="aob-garments">{order.garments.slice(0, 3).map((g, i) => g.thumbnail ? <img key={i} src={g.thumbnail} alt="" /> : <GarmentIcon key={i} garment={g.garment} />)}{order.garments.length === 0 && (order.cover ? <img src={order.cover} alt="" /> : <Paperclip size={22} />)}</span>
-              <span className="aob-meta">{order.quantity ? `${order.quantity} garments` : 'Sizes in the order form'} · {order.customer?.name}</span>
+              <span className="aob-meta" title={garmentsTitle(order.garments) || undefined}>{order.quantity ? garmentsLine(order.garments, order.quantity) || `${order.quantity} ${unitWord(order.garments)}${order.quantity === 1 ? '' : 's'}` : [garmentsLine(order.garments, 0), 'Sizes in the order form'].filter(Boolean).join(' · ')} · {order.customer?.name}</span>
               <span className={`aob-pill tone-${order.sub_status.tone}`}>{order.sub_status.label}</span>
               {order.payment ? <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}</span> : <span className="aob-pill tone-grey">No invoice</span>}
+              {madeBy(order) !== '3DEEZI' && <span className="aob-pill tone-violet" data-testid="board-made-by">Made by {madeBy(order)}</span>}
               {order.latest_update && <span className="aob-latest">{order.latest_update.text}{order.latest_update.message && order.latest_update.text !== order.latest_update.message ? `: ${order.latest_update.message}` : ''}</span>}
               <span className="aob-dates">In {day(order.submitted_at)}{order.due_date ? ` · due ${day(order.due_date)}` : ''}{order.needed_by ? ` · required ${day(order.needed_by)}` : ''}{order.assignee ? ` · ${order.assignee}` : ''}</span>
             </button>
@@ -149,10 +161,10 @@ function OrderPanel({ id, onClose, onNotice }: { id: number; onClose: () => void
     <button className="icon-button modal-close" onClick={onClose} aria-label="Close"><X /></button>
     {!order ? <div className="empty-state">{error ? <p className="error-message">{error}</p> : <LoaderCircle className="spin" />}</div> : <>
       <span className="eyebrow">{order.stage_label} · {order.sub_status.label}</span>
-      <h2 id="aob-panel-title">{order.number} · {order.name}</h2>
+      <h2 id="aob-panel-title">{orderTitle(order.number, order.name)}</h2>
       <p className="muted">{order.customer?.name ?? order.user?.name} ({order.customer?.email ?? order.user?.email}) · {order.contact_name}{order.phone ? ` · ${order.phone}` : ''}{order.contact_email ? ` · ${order.contact_email}` : ''} · placed {when(order.submitted_at)}</p>
       <div className="project-actions"><Link className="button button-outline" to={`/admin/orders/${order.id}`}><Eye size={15} /> Full order page</Link>
-        {order.payment?.pdf && <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}{order.payment.amount_due ? ` · ${order.payment.currency} ${order.payment.amount_due} due` : ''}</span>}
+        {order.payment?.pdf && <span className={`aob-pill tone-${order.payment.tone}`}>{order.payment.label}{order.payment.amount_due ? ` · ${formatMoney(order.payment.amount_due, order.payment.currency)} due` : ''}</span>}
         {!order.payment && <span className="aob-pill tone-grey">No invoice yet</span>}</div>
       {error && <p className="error-message" role="alert">{error}</p>}
 

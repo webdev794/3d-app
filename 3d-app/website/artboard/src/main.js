@@ -96,6 +96,104 @@ const canvas = new Canvas($('board'), {
   hoverCursor: 'default',
   moveCursor: 'default',
 });
+// Speed (9.102): while a selection of many objects is being moved, sized or turned, Fabric worked out every
+// selected object's handles again on every mouse move and once more at the drop. Only the selection's own box
+// shows handles then, and its objects' corners are kept relative to it (getCoords adds the selection's place),
+// so this is skipped; Fabric works each object out again when the selection ends (exitGroup → setCoords) and
+// on any other change (a nudge, Align …).
+let liveTransform = false;
+{
+  const nested = ActiveSelection.prototype._shouldSetNestedCoords;
+  ActiveSelection.prototype._shouldSetNestedCoords = function () { return !liveTransform && nested.call(this); };
+}
+for (const ev of ['mouse:up', 'selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, () => { liveTransform = false; });
+// Speed (9.102): dragging, sizing or turning objects on a page with many objects drew every object again on every
+// mouse move. While the pointer is down, the objects that do not move are drawn once into pictures (those under the
+// moving ones together with the page, and each run of objects above them) and each frame only puts those pictures
+// back and draws what moves (the selection and connectors). Ends with the drag (or when anything is added or
+// removed, or the view changes). Not used when an object above the moving ones mixes its colours with what is under
+// it (blend modes), since the picture could not show that.
+const dragLayers = { on: false, moving: null, key: '', runs: null, enabled: true, made: [], makeCanvas: () => document.createElement('canvas') };
+let objectsVersion = 0;
+for (const ev of ['object:added', 'object:removed']) canvas.on(ev, () => { objectsVersion++; });
+/** The pictures' memory is given back at once (phones and Safari limit the memory all canvases may use). */
+function freeDragPictures() { for (const c of dragLayers.made) { c.width = 0; c.height = 0; } dragLayers.made = []; }
+function endDragLayers() {
+  const L = dragLayers;
+  L.on = false; L.moving = null; L.runs = null; L.key = '';
+  freeDragPictures();
+}
+for (const ev of ['object:moving', 'object:scaling', 'object:rotating', 'object:skewing']) canvas.on(ev, (e) => {
+  if (dragLayers.on || !dragLayers.enabled || !e.target || !canvas._currentTransform) return;
+  const t = e.target;
+  dragLayers.on = true; dragLayers.key = ''; dragLayers.runs = null;
+  dragLayers.moving = new Set([t, ...(t.type === 'activeselection' ? t.getObjects() : [])]);
+});
+for (const ev of ['mouse:up:before', 'object:modified', 'selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, endDragLayers);
+{
+  const renderObjects = canvas._renderObjects;
+  const blendsBelow = (o) => (o.globalCompositeOperation && o.globalCompositeOperation !== 'source-over') || (o.type === 'group' && o.getObjects().some(blendsBelow));
+  const blit = (ctx, el) => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(el, 0, 0); ctx.restore(); };
+  /** A new picture canvas at the page area's size. Always a new one: a canvas that already has its drawing context
+   *  keeps it even when there is no memory for its pixels, while a new one answers null (Safari's canvas limit). */
+  const picture = (w, h) => {
+    const c = dragLayers.makeCanvas();
+    dragLayers.made.push(c);
+    c.width = w; c.height = h;
+    const x = c.width === w && c.height === h ? c.getContext('2d') : null;
+    if (!x) throw new Error('no canvas memory');
+    return [c, x];
+  };
+  canvas._renderObjects = function (ctx, objects) {
+    const L = dragLayers;
+    if (!L.on || !this._currentTransform || ctx !== this.contextContainer || objects.length < 40) {
+      if (L.on && !this._currentTransform) endDragLayers();
+      return renderObjects.call(this, ctx, objects);
+    }
+    const el = this.lowerCanvasEl, m = ctx.getTransform();
+    const key = `${el.width}x${el.height}|${m.a},${m.b},${m.c},${m.d},${m.e},${m.f}|${objects.length}|${objectsVersion}`;
+    if (L.key === key && L.runs) {
+      for (const r of L.runs) { if (r.el) blit(ctx, r.el); else renderObjects.call(this, ctx, r.list); }
+      return;
+    }
+    // First frame of the drag (or something changed): split the objects into runs that move and runs that don't.
+    const runs = [];
+    for (const o of objects) {
+      const moves = L.moving.has(o) || !!o.connSpec || !!o.isHelper || (o.group && L.moving.has(o.group));
+      const last = runs.at(-1);
+      if (last && last.moves === moves) last.list.push(o); else runs.push({ moves, list: [o], el: null });
+    }
+    const firstMoving = runs.findIndex((r) => r.moves);
+    // At most 3 pictures (under, and two runs above): more scattered selections are drawn as usual.
+    if (!(firstMoving > 0 && runs.length <= 5 && !runs.slice(firstMoving).some((r) => !r.moves && r.list.some(blendsBelow)))) { endDragLayers(); renderObjects.call(this, ctx, objects); return; }
+    let drawn = 0; // objects drawn on the page area so far (a failure part-way draws the rest as usual)
+    freeDragPictures(); // the last ones (made again: the view or the objects changed)
+    try {
+      for (let i = 0; i < runs.length; i++) {
+        const r = runs[i];
+        if (r.moves) { renderObjects.call(this, ctx, r.list); drawn += r.list.length; continue; }
+        const [off, c2] = picture(el.width, el.height);
+        if (i === 0) {
+          // The page and everything under the moving objects: drawn as usual, then kept (with the background).
+          renderObjects.call(this, ctx, r.list); drawn += r.list.length;
+          c2.drawImage(el, 0, 0);
+        } else {
+          c2.setTransform(m); c2.imageSmoothingEnabled = ctx.imageSmoothingEnabled;
+          renderObjects.call(this, c2, r.list);
+          blit(ctx, off); drawn += r.list.length;
+        }
+        r.el = off;
+      }
+    } catch (err) {
+      console.warn('Artboard: drawing while dragging falls back to the usual way', err);
+      endDragLayers(); dragLayers.enabled = false;
+      renderObjects.call(this, ctx, objects.slice(drawn));
+      return;
+    }
+    L.runs = runs; L.key = key;
+  };
+}
+for (const ev of ['object:moving', 'object:scaling', 'object:rotating', 'object:skewing']) canvas.on(ev, (e) => { liveTransform = e.target?.type === 'activeselection'; });
 const handleStyle = { borderColor: '#1E7BFF', cornerColor: '#ffffff', cornerStrokeColor: '#1E7BFF', cornerStyle: 'rect', cornerSize: 9, transparentCorners: false, borderScaleFactor: 1.2, padding: 2 };
 // CorelDRAW handles (handles.js): one click shows the 6 sizing handles, a click on the selected object again the
 // rotate and slant handles with a centre of rotation; only with the Pick tool, not while Space is held (panning) and
@@ -121,6 +219,8 @@ const state = {
   live: { timer: 1, near: 15, smooth: 50 },
   paint: { brush: 'oil', size: 10, flow: 80 },
   conn: { radius: 5, arrows: 'none' },
+  // Nothing selected: nudge and duplicate distances in mm (task 9.141, CorelDRAW's defaults).
+  docSet: { nudge: 0.1, dupX: 5, dupY: 5 },
   media: { mode: 'preset', width: 6, smooth: 50, preset: 'taper', brush: 'dry', spray: 'stars', spacing: 12, sizeVar: 30, rotate: 'random', angle: 45 },
   fx: {
     blendSteps: 8, contourDir: 'outside', contourSteps: 1, contourOffset: 3, contourColour: '#000000', contourOutline: '#000000', contourJoin: 'round', shadowX: 2, shadowY: 2, shadowBlur: 4, shadowColour: '#000000', shadowOpacity: 50, transp: 'uniform', transpValue: 50, transpAngle: 0, transpMerge: 'normal',
@@ -129,8 +229,8 @@ const state = {
     innerX: 2, innerY: 2, innerBlur: 3, innerOpacity: 60, innerColour: '#000000', innerMerge: 'multiply',
   },
 };
-try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
-const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, ui: state.ui, quick: state.quick })); } catch { /* private mode */ } };
+try { const p = JSON.parse(localStorage.getItem(`${STORE}.prefs`) || (OLD_STORE && localStorage.getItem(`${OLD_STORE}.prefs`)) || '{}'); Object.assign(state, { ...p, shape: { ...state.shape, ...p.shape }, fx: { ...state.fx, ...p.fx }, media: { ...state.media, ...p.media }, smart: { ...state.smart, ...p.smart }, live: { ...state.live, ...p.live }, paint: { ...state.paint, ...p.paint }, conn: { ...state.conn, ...p.conn }, docSet: { ...state.docSet, ...p.docSet }, snapTo: { ...state.snapTo, ...p.snapTo } }); } catch { /* fresh */ }
+const savePrefs = () => { try { localStorage.setItem(`${STORE}.prefs`, JSON.stringify({ recent: state.recent, saved: state.saved, palettes: state.palettes, palette: state.palette, gradients: state.gradients, snap: state.snap, snapTo: state.snapTo, grid: state.grid, units: state.units, shape: state.shape, fx: state.fx, media: state.media, smart: state.smart, live: state.live, paint: state.paint, conn: state.conn, docSet: state.docSet, ui: state.ui, quick: state.quick, dockLive: state.dockLive })); } catch { /* private mode */ } };
 
 const toast = (text, ms = 2800) => { const t = $('toast'); t.textContent = text; t.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('show'), ms); };
 const hint = (text) => { const h = $('hint'); h.textContent = text || ''; h.classList.toggle('show', !!text); };
@@ -189,15 +289,28 @@ function repairObject(o) {
 // Viewport: fit, zoom, pan, rulers, grid
 // ===================================================================
 let sizedAt = ''; // the canvas size last set (see resizeIfChanged)
-function resize() {
+/** Phones' colour panel under the artwork (see "Phones: the colour panel" below). */
+const dock = { open: false, hsv: { h: 186, s: 0.92, v: 0.94 }, drag: null, view: null, fitted: null, picking: false, recent: '' };
+function resize(draw = true) {
   sizedAt = `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}`;
   canvas.setDimensions({ width: wrap.clientWidth, height: wrap.clientHeight });
   drawRulers();
-  // Resizing clears the canvas: draw it again straight away.
-  canvas.renderAll();
+  // Resizing clears the canvas: draw it again straight away (once: not again in the next frame as well).
+  if (draw) { canvas.renderAll(); canvas.cancelRequestedRender(); }
+}
+// Speed (9.102): selecting or picking a tool can make the property bar a row taller or shorter, so the page area
+// changes size. Its frame was drawn, then the canvas was sized again and drawn a second time (ResizeObserver, just
+// before the paint). The frame's drawing now checks the size first: the canvas is sized and drawn once.
+{
+  const renderAndReset = canvas.renderAndReset;
+  canvas.renderAndReset = function () {
+    if (sizedAt && `${wrap.clientWidth}x${wrap.clientHeight}@${devicePixelRatio}` !== sizedAt) resize(false);
+    return renderAndReset.call(this);
+  };
 }
 function fit() {
-  const pad = 40, w = wrap.clientWidth - pad * 2, h = wrap.clientHeight - pad * 2;
+  // Phones' colour panel: a narrow margin, so the page is as big as the room above the panel allows.
+  const pad = dock.open ? 14 : 40, w = wrap.clientWidth - pad * 2, h = wrap.clientHeight - pad * 2;
   if (w < 20 || h < 20) return; // no room yet (the page area is being laid out)
   const z = Math.min(w / page.width, h / page.height);
   canvas.setViewportTransform([z, 0, 0, z, (wrap.clientWidth - page.width * z) / 2, (wrap.clientHeight - page.height * z) / 2]);
@@ -241,36 +354,178 @@ const touches = new Map();
 wrap.addEventListener('pointerdown', (e) => {
   if (e.pointerType === 'touch') touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (e.button === 1 || spaceDown || touches.size === 2 || (state.tool === 'pan' && e.button === 0)) {
-    panning = { x: e.clientX, y: e.clientY, dist: touches.size === 2 ? pinchDist() : 0, zoom: canvas.getZoom() };
+    // Two fingers pan from the point between them (the view jumped by half their distance when the second landed).
+    const at = touches.size === 2 ? pinchMid() : { x: e.clientX, y: e.clientY };
+    panning = { x: at.x, y: at.y, dist: touches.size === 2 ? pinchDist() : 0, zoom: canvas.getZoom() };
     canvas.selection = false;
     if (touches.size === 2) { canvas.discardActiveObject(); cancelDrag(); }
     e.preventDefault();
   }
 }, true);
 const pinchDist = () => { const [a, b] = [...touches.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+const pinchMid = () => { const [a, b] = [...touches.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }; };
 addEventListener('pointermove', (e) => {
   if (touches.has(e.pointerId)) touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (!panning) return;
   // The mouse button was let go where the page didn't hear it (outside the window): stop panning.
   if (e.pointerType === 'mouse' && e.buttons === 0 && !spaceDown && state.tool !== 'pan') { panning = null; canvas.selection = PICK_LIKE.has(state.tool); return; }
-  const vpt = canvas.viewportTransform;
   if (touches.size === 2) {
-    const [a, b] = [...touches.values()], mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const mid = pinchMid();
     const r = wrap.getBoundingClientRect();
     if (panning.dist > 0) zoomAt(panning.zoom * pinchDist() / panning.dist, new Point(mid.x - r.left, mid.y - r.top));
     else panning.dist = pinchDist(); // a second finger joined a pan: pinch from here
+    // Read after the zoom: Fabric gives the canvas a new transform there, and writing the one read before back
+    // undid the zoom (a pinch only panned).
+    const vpt = canvas.viewportTransform;
     vpt[4] += mid.x - panning.x; vpt[5] += mid.y - panning.y;
     panning.x = mid.x; panning.y = mid.y;
+    canvas.setViewportTransform(vpt);
   } else {
+    const vpt = canvas.viewportTransform;
     vpt[4] += e.clientX - panning.x; vpt[5] += e.clientY - panning.y;
     panning.x = e.clientX; panning.y = e.clientY;
+    canvas.setViewportTransform(vpt);
   }
-  canvas.setViewportTransform(vpt);
   drawRulers();
 });
 const endPan = (e) => { touches.delete(e.pointerId); if (panning && touches.size < 2) { panning = null; canvas.selection = PICK_LIKE.has(state.tool); } };
 addEventListener('pointerup', endPan);
 addEventListener('pointercancel', endPan);
+
+// Tap gestures, in the app only (client 2026-11-10): a two-finger tap is Undo, a three-finger tap is Redo, as in
+// drawing apps. A tap is short (TAP_MS) and the fingers barely move (TAP_SLOP); it does nothing else: the stroke,
+// node or shape the first finger began is dropped, and the view, the selection and the tool stay as they were.
+// A second finger landing soon after the first (GESTURE_MS: a tap, a pinch or a two-finger pan) drops the first
+// finger's stroke straight away, so zooming no longer leaves a stray line. The website keeps its behaviour.
+const inApp = () => !!window.Artboard || /^3deezi-artboard-\d+$/.test(HOST ?? '');
+const TAP_MS = 350, TAP_SLOP = 10, GESTURE_MS = 250;
+let gesture = null, strokeBlocked = null, tapQueue = Promise.resolve();
+// While a gesture holds the page, the Freehand brush ignores the first finger (it would draw the pinch's path) and
+// draws nothing (Fabric still draws it with the view while it thinks a stroke is on).
+for (const k of ['onMouseDown', 'onMouseMove', 'onMouseUp', '_render']) {
+  const f = PencilBrush.prototype[k];
+  PencilBrush.prototype[k] = function (...a) { return strokeBlocked ? (k === 'onMouseUp' ? false : undefined) : f.apply(this, a); };
+}
+/** A curve drawn click by click (Bézier / Pen, 3-point shapes, angular dimension), copied as it is now. */
+const draftCopy = (d) => d && { ...d, ...(d.nodes && { nodes: d.nodes.map((n) => ({ ...n })) }), ...(d.pts && { pts: d.pts.slice() }) };
+/** A draft as it was before the gesture: a helper line the gesture added goes, the old one comes back. */
+function putDraft(cur, saved) {
+  if (cur?.helper && cur.helper !== saved?.helper) dropHelper(cur.helper);
+  if (saved?.helper && !canvas.getObjects().includes(saved.helper)) { muted++; canvas.add(saved.helper); muted--; }
+  return draftCopy(saved);
+}
+/** The drafts back as they were; `all`: also one the first finger finished (a tap only: its shape is taken back). */
+function backDrafts(g, all) {
+  const d = g.drafts;
+  if (path || all) { path = putDraft(path, d.path); if (path) { path.pressing = false; updatePenPreview(); } }
+  if (curve3 || all) curve3 = putDraft(curve3, d.curve3);
+  if (tp || all) tp = putDraft(tp, d.tp);
+  if (multi || all) multi = putDraft(multi, d.multi);
+}
+/** What the first finger began is dropped: nothing is drawn or added when the fingers lift. */
+function dropStroke(g) {
+  strokeBlocked = g;
+  if (canvas._isCurrentlyDrawing && canvas.freeDrawingBrush) { canvas.freeDrawingBrush._points = []; canvas.freeDrawingBrush.oldEnd = undefined; canvas.clearContext(canvas.contextTop); }
+  const live = sketchStroke?.tool === 'livesketch';
+  media = sketchStroke = lasso = erase = smudge = null; topStroke = null;
+  // LiveSketch's pause timer was stopped by the finger: the strokes waiting for it still become a curve.
+  if (live && livePending.length) { clearTimeout(liveTimer); liveTimer = setTimeout(finishLive, Math.max(0, state.live.timer) * 1000); }
+  if (knife) { dropHelper(knife.helper); knife = null; }
+  cancelDrag(); cancelContourDrag(); cancelConn();
+  backDrafts(g, false);
+  drawTop();
+  canvas.requestRenderAll();
+}
+wrap.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch' || !inApp()) return;
+  const g = gesture;
+  // The first finger of a touch (a lost lift never leaves an old gesture behind).
+  if (!g || e.isPrimary) {
+    strokeBlocked = null;
+    gesture = {
+      t0: e.timeStamp, start: new Map([[e.pointerId, { x: e.clientX, y: e.clientY }]]), down: new Set([e.pointerId]), most: 1, still: true, lifted: false,
+      // The page before the first finger, to take back what it did.
+      top: history.at(-1), future: future.slice(), vpt: canvas.viewportTransform.slice(), tool: state.tool,
+      sel: canvas.getActiveObjects().slice(), editing: !!canvas.getActiveObject()?.isEditing,
+      drafts: { path: draftCopy(path), curve3: draftCopy(curve3), tp: draftCopy(tp), multi: draftCopy(multi) },
+      eye: { mode: eye.mode, colour: eye.colour, fill: state.fill, stroke: state.stroke }, attrSample,
+    };
+    gesture.nums = gesture.sel.map((o) => o.num).filter((n) => n != null);
+    return;
+  }
+  g.start.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  g.down.add(e.pointerId);
+  g.most = Math.max(g.most, g.down.size);
+  const soon = e.timeStamp - g.t0 <= GESTURE_MS;
+  if (g.lifted || !soon) g.still = false;
+  if (soon && !g.lifted && g.down.size === 2) dropStroke(g);
+}, true);
+addEventListener('pointermove', (e) => {
+  const g = gesture, s = g?.start.get(e.pointerId);
+  if (s && g.down.has(e.pointerId) && Math.hypot(e.clientX - s.x, e.clientY - s.y) > TAP_SLOP) g.still = false;
+}, true);
+for (const type of ['pointerup', 'pointercancel']) {
+  addEventListener(type, (e) => {
+    const g = gesture;
+    if (!g?.down.has(e.pointerId)) return;
+    g.down.delete(e.pointerId);
+    g.lifted = true;
+    if (type === 'pointercancel') g.still = false;
+    if (g.down.size) return;
+    gesture = null;
+    const tap = g.still && (g.most === 2 || g.most === 3) && e.timeStamp - g.t0 <= TAP_MS;
+    if (tap) dropStroke(g);
+    // After the page has had this lift (Fabric's touchend comes next): the brush listens again; a tap undoes or redoes.
+    setTimeout(() => {
+      if (strokeBlocked === g) strokeBlocked = null;
+      if (tap) tapQueue = tapQueue.then(() => tapAction(g)).catch((err) => console.error(err));
+    });
+  }, true);
+}
+/** A two-finger tap undoes, a three-finger tap redoes, after taking back anything the first finger did. */
+async function tapAction(g) {
+  // Typing in a text ends here and becomes an undo step of its own (so a tap while typing takes the typing back).
+  const a = canvas.getActiveObject();
+  if (a?.isEditing) a.exitEditing();
+  flushRecord();
+  // A shape dropped by a click, a colour filled, an object nudged … before the second finger came: taken back
+  // (not while typing: the finger leaving the text only ends the typing, which is the change to undo).
+  let changed = false;
+  if (!g.editing && g.top !== undefined && history.at(-1) !== g.top && history.includes(g.top)) {
+    while (history.at(-1) !== g.top) history.pop();
+    future = g.future; // that step had emptied Redo
+    changed = true;
+  }
+  if (state.tool !== g.tool) { if (path) { dropHelper(path.helper); path = null; } setTool(g.tool); }
+  backDrafts(g, true);
+  if (g.vpt.some((v, i) => v !== canvas.viewportTransform[i])) { canvas.setViewportTransform(g.vpt); afterZoom(); }
+  if (g.tool === 'eyedropper') {
+    if (state.fill !== g.eye.fill || state.stroke !== g.eye.stroke) { const c = state.target === 'fill' ? g.eye.fill : g.eye.stroke; state.fill = g.eye.fill; state.stroke = g.eye.stroke; if (typeof c === 'string') setColour(c, { recent: false, apply: false }); }
+    if (eye.mode !== g.eye.mode || eye.colour !== g.eye.colour) { eye.colour = g.eye.colour; $('eyeChip').style.background = eye.colour ?? current(); setEyeMode(g.eye.mode); }
+  }
+  attrSample = g.attrSample;
+  // The selection as it was (Undo keeps it, as the Undo button does).
+  if (PICK_LIKE.has(state.tool)) {
+    const on = g.sel.filter((o) => canvas.getObjects().includes(o));
+    const want = on.length === g.sel.length ? on : userObjects().filter((o) => g.nums.includes(o.num));
+    const now = canvas.getActiveObjects();
+    if (now.length !== want.length || now.some((o) => !want.includes(o))) {
+      canvas.discardActiveObject();
+      if (want.length) canvas.setActiveObject(want.length > 1 ? new ActiveSelection(want, { canvas }) : want[0]);
+    }
+  }
+  drawTop();
+  canvas.requestRenderAll();
+  const redoing = g.most === 3;
+  if (pcEdit || (redoing ? future.length : history.length > 1)) {
+    await (redoing ? redo() : undo());
+    toast(redoing ? 'Redo' : 'Undo', 1200);
+    return;
+  }
+  if (changed) { await restore(g.top); autosave(STORE, g.top); }
+  syncHistory();
+  toast(redoing ? 'Nothing to redo' : 'Nothing to undo', 1600);
+}
 
 function drawRulers() {
   // Both sizes read before either ruler is drawn, and a ruler's bitmap is made again only when its size changed
@@ -444,6 +699,7 @@ let pages = [{ name: 'Page 1', objects: null }], pageIndex = 0, otherNums = new 
 const snapshot = () => JSON.stringify({ page: pageSize, guides: guides.get(), objects: userObjects().map((o) => o.toObject(EXTRA)), ...(pages.length > 1 ? { pages: pages.map((p, i) => ({ name: p.name, objects: i === pageIndex ? null : p.objects })), current: pageIndex } : pages[0].name !== 'Page 1' ? { pageName: pages[0].name } : {}) });
 function record() {
   if (restoring || muted) return;
+  if (recordFrame || recordTimer) { cancelAnimationFrame(recordFrame); clearTimeout(recordTimer); recordFrame = recordTimer = 0; }
   syncConnectors(); // connectors follow objects moved by any command
   const snap = snapshot();
   if (history.at(-1) === snap) return;
@@ -453,8 +709,25 @@ function record() {
   syncHistory();
   autosave(STORE, snap); // kept on this device a moment later (projects.js)
 }
+// Speed (9.102): a moved, sized, nudged or restyled object (object:modified) is drawn first and its undo step (the
+// whole design as text, slow on big designs) is taken straight after that frame. Anything that reads or adds undo
+// steps, and the next press, key or edit, takes a waiting step first, so every step stays exactly as before.
+let recordFrame = 0, recordTimer = 0;
+function recordSoon() {
+  if (restoring || muted || recordFrame || recordTimer) return;
+  recordFrame = requestAnimationFrame(() => { recordFrame = 0; clearTimeout(recordTimer); recordTimer = setTimeout(flushRecord); });
+  recordTimer = setTimeout(flushRecord, 150); // no frame comes (a page in the background)
+}
+function flushRecord() {
+  if (!recordFrame && !recordTimer) return;
+  cancelAnimationFrame(recordFrame); clearTimeout(recordTimer); recordFrame = recordTimer = 0;
+  record(); // (while a change is muted or undone, that change records it instead)
+}
+for (const ev of ['pointerdown', 'mousedown', 'touchstart', 'keydown', 'input', 'change', 'pagehide']) addEventListener(ev, flushRecord, true);
+document.addEventListener('visibilitychange', flushRecord, true);
 /** Several canvas changes as one undo step. */
 function batch(fn) {
+  flushRecord();
   muted++;
   try { return fn(); } finally { muted--; if (!muted) { refreshLayers(); record(); } }
 }
@@ -477,11 +750,13 @@ async function restore(snap) {
   if (repaired) setTimeout(() => toast(`${repaired} broken setting${repaired > 1 ? 's were' : ' was'} repaired on this page (a fill or position with bad numbers)`, 6000));
   canvas.discardActiveObject();
   checkFonts();
+  // The Pick tool's flags first: a step taken while a drawing tool was on keeps every object unselectable, so Redo
+  // lost the selection.
+  applyToolFlags();
   const again = keep.length ? userObjects().filter((o) => keep.includes(o.num) && o.selectable !== false && o.visible) : [];
   if (again.length) canvas.setActiveObject(again.length > 1 ? new ActiveSelection(again, { canvas }) : again[0]);
   canvas.requestRenderAll();
   restoring = false;
-  applyToolFlags();
   refreshLayers();
   syncProps();
 }
@@ -491,12 +766,14 @@ function pruneEmptyParts(o) {
   for (const k of o.getObjects()) { if (k.type === 'path' && k.path.length <= 1) o.remove(k); else pruneEmptyParts(k); }
 }
 function syncHistory() {
+  if (typeof renderDocTabs === 'function') try { renderDocTabs(); } catch { /* before the tabs exist */ }
   $('undo').disabled = history.length < 2;
   $('redo').disabled = !future.length;
+  if ($('stdUndo')) { $('stdUndo').disabled = $('undo').disabled; $('stdRedo').disabled = $('redo').disabled; }
 }
-async function undo() { if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
-async function redo() { if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
-for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); record(); });
+async function undo() { flushRecord(); if (pcEdit) { await cancelPowerClipEdit(); return; } if (history.length < 2) return; future.push(history.pop()); await restore(history.at(-1)); syncHistory(); autosave(STORE, history.at(-1)); }
+async function redo() { flushRecord(); if (pcEdit) { finishPowerClipEdit(); return; } if (!future.length) return; const s = future.pop(); history.push(s); await restore(s); syncHistory(); autosave(STORE, s); }
+for (const ev of ['object:added', 'object:removed', 'object:modified']) canvas.on(ev, (e) => { if (ev === 'object:added' && e?.target) ownCopies(e.target); if (muted) return; refreshLayers(); if (ev === 'object:modified') { syncConnectors(); recordSoon(); } else record(); });
 
 const guides = createGuides({
   canvas, wrap, rulerH: $('rulerH'), rulerV: $('rulerV'), page,
@@ -589,7 +866,117 @@ const nodes = createNodeEditor({
   refill,
   extract: (o, d) => { const p = makePath(d, o); p.name = `${o.name} part`; batch(() => canvas.insertAt(canvas.getObjects().indexOf(o) + 1, p)); },
   changed: () => { syncContext(); syncProps(); },
+  connect: (p, exclude, own) => connectAt(p, exclude, own),
+  join: (o) => batch(() => { joinEnds(o); delete o.shapeSpec; delete o.connSpec; }),
 });
+// Connect to a node (task 9.140b, client 2026-10-28, images/206.jpg): drawing a line or curve, or dragging an end
+// node, near the end node of an open curve (or the start of the same one) snaps onto it; the pointer becomes an arrow
+// with a node mark and "node" shows beside it. Releasing there joins the two curves into one, or closes the shape.
+const CONNECT_TOOLS = new Set(['line', 'bezier', 'pen', 'polyline', 'bspline', 'draw', 'curve3']);
+const CONNECT_PX = 10;
+const connectCursor = () => svgCursor('<path d="M4 3v14l4-4 3 6 2-1-3-6h5z"/><rect x="16" y="16" width="5" height="5"/>', 4, 3, 'crosshair');
+let connectHover = null;
+/** The end nodes of the open curves on the page (not of `exclude`). */
+function curveEnds(exclude) {
+  const out = [];
+  for (const o of userObjects()) {
+    if (o === exclude || o.type !== 'path' || !o.visible || o.locked || o.connSpec || o.shapeSpec) continue;
+    let m; try { m = V.objectModel(o); } catch { continue; }
+    m.forEach((sp, s) => { if (!sp.closed && sp.nodes.length > 1) { out.push({ x: sp.nodes[0].x, y: sp.nodes[0].y, o, s, first: true }); out.push({ x: sp.nodes.at(-1).x, y: sp.nodes.at(-1).y, o, s, first: false }); } });
+  }
+  return out;
+}
+/** The end node (of another curve, or one of `own` points) near page point p, shown as the connect pointer; null clears it. */
+function connectAt(p, exclude = null, own = []) {
+  let best = null;
+  if (p) for (const c of [...own.map((q) => ({ x: q.x, y: q.y, own: true })), ...curveEnds(exclude)]) { const d = screenDist(p, c); if (d <= CONNECT_PX && (!best || d < best.d)) best = { ...c, d }; }
+  const was = connectHover;
+  connectHover = best;
+  if (best || was) { if (canvas.upperCanvasEl) canvas.upperCanvasEl.style.cursor = best ? connectCursor() : (state.tool === 'select' || state.tool === 'node' ? CURSORS.arrow : canvas.defaultCursor); canvas.requestRenderAll(); }
+  return best;
+}
+function drawConnectHint(ctx) {
+  if (!connectHover || (connectHover.own && path && (path.closeHover || path.closing))) return; // the pen's own close mark shows instead
+  const r = canvas.getRetinaScaling(), v = canvas.viewportTransform, x = connectHover.x * v[0] + v[4], y = connectHover.y * v[3] + v[5];
+  ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+  ctx.lineWidth = 2; ctx.strokeStyle = '#1E7BFF'; ctx.fillStyle = '#ffffff';
+  ctx.beginPath(); ctx.rect(x - 5, y - 5, 10, 10); ctx.fill(); ctx.stroke();
+  ctx.font = '600 12px system-ui, sans-serif'; ctx.lineWidth = 3; ctx.strokeStyle = '#ffffff'; ctx.strokeText('node', x + 14, y + 26); ctx.fillStyle = '#1E7BFF'; ctx.fillText('node', x + 14, y + 26);
+  ctx.restore();
+}
+const flipSub = (sp) => { sp.nodes.reverse(); for (const nd of sp.nodes) [nd.hi, nd.ho] = [nd.ho, nd.hi]; };
+/** Joins an open curve whose end sits on another curve's end node (within tolPx) into one curve, or closes it when
+ * its two ends meet. Removes the other curve. True when something was joined. */
+function joinEnds(o, tolPx = 1.5) {
+  if (o?.type !== 'path') return false;
+  let m; try { m = V.objectModel(o); } catch { return false; }
+  if (m.length !== 1 || m[0].closed || m[0].nodes.length < 2) return false;
+  const sp = m[0], A = sp.nodes[0], Z = sp.nodes.at(-1);
+  const finish = () => { delete o.nodeTypes; V.setWorldPath(o, V.modelToD(m)); refill(o); o.setCoords(); return true; };
+  if (sp.nodes.length > 2 && screenDist(A, Z) <= tolPx) { A.hi = Z.hi ? { x: Z.hi.x - Z.x + A.x, y: Z.hi.y - Z.y + A.y } : A.hi; sp.nodes.pop(); sp.closed = true; return finish(); }
+  const ends = curveEnds(o);
+  for (const [end, isStart] of [[Z, false], [A, true]]) {
+    let hit = null;
+    for (const c of ends) { const d = screenDist(end, c); if (d <= tolPx && (!hit || d < hit.d)) hit = { ...c, d }; }
+    if (!hit) continue;
+    const other = V.objectModel(hit.o), B = other[hit.s];
+    if (isStart) flipSub(sp);
+    if (!hit.first) flipSub(B);
+    const a = sp.nodes.at(-1), b = B.nodes[0], dx = b.x - a.x, dy = b.y - a.y;
+    a.x = b.x; a.y = b.y; if (a.hi) a.hi = { x: a.hi.x + dx, y: a.hi.y + dy }; a.ho = b.ho; a.type = 'cusp';
+    sp.nodes.push(...B.nodes.slice(1));
+    // The joined curve's two ends met as well: closed.
+    if (sp.nodes.length > 2 && screenDist(sp.nodes[0], sp.nodes.at(-1)) <= tolPx) { const z = sp.nodes.pop(); sp.nodes[0].hi = z.hi; sp.closed = true; }
+    m.push(...other.filter((_, i) => i !== hit.s));
+    if (canvas.getObjects().includes(hit.o)) canvas.remove(hit.o);
+    return finish();
+  }
+  return false;
+}
+
+// Pick tool on a drawn curve (task 9.140, client 2026-10-28): no box, its nodes and control points (dashed lines)
+// show instead, as in CorelDRAW. Dragging a node or control point reshapes it, a double-click on the line adds a
+// node, dragging the rest of the curve moves it. Shapes, text, pictures and a multi-selection keep the box.
+function isPickCurve(o) { return !!o && o.type === 'path' && !o.group && !o.locked && !o.isPage && !o.isHelper && !o.shapeSpec && !o.connSpec && !o.varSpec && !o.paintSpec && !o.liveSpec && !o.mediaSpec && !o.fxPart && !o.powerClip; }
+const NO_HANDLES = { tl: false, tr: false, bl: false, br: false, ml: false, mr: false, mt: false, mb: false, mtr: false };
+const SIZING_HANDLES = { tl: true, tr: true, bl: true, br: true, ml: true, mr: true, mt: false, mb: false, mtr: false };
+let pickCurve = null, curveDrag = null, pickSig = '';
+function curveSig(o) { return [o.path, o.left, o.top, o.scaleX, o.scaleY, o.angle, o.skewX, o.skewY, o.flipX, o.flipY, o.width, o.height].join('|'); }
+function pickCurveSync() {
+  const o = state.tool === 'select' && !pickFrame ? canvas.getActiveObject() : null;
+  const want = isPickCurve(o) && canvas.getObjects().includes(o) ? o : null;
+  if (want === pickCurve) return;
+  if (pickCurve) {
+    const old = pickCurve; pickCurve = null; nodes.pickMode = false;
+    old.hasBorders = true; delete old.nodePick; old.setControlsVisibility(SIZING_HANDLES);
+    if (state.tool !== 'node') nodes.end();
+  }
+  if (want && nodes.start(want)) {
+    pickCurve = want; nodes.pickMode = true; pickSig = curveSig(want);
+    want.hasBorders = false; want.nodePick = true; want.setControlsVisibility(NO_HANDLES);
+    canvas.requestRenderAll();
+  }
+}
+for (const ev of ['selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, () => pickCurveSync());
+// A press on a node or control point: the curve stays selected and does not move; the node editor takes the drag.
+canvas.on('mouse:down:before', (opt) => {
+  if (!pickCurve || state.tool !== 'select' || opt.e.button || opt.e.shiftKey || opt.e.ctrlKey || opt.e.metaKey) return;
+  const p = canvas.getScenePoint(opt.e);
+  if (!nodes.hitPoint(p)) return;
+  canvas._target = pickCurve;
+  curveDrag = { o: pickCurve, lx: pickCurve.lockMovementX, ly: pickCurve.lockMovementY };
+  pickCurve.lockMovementX = pickCurve.lockMovementY = true;
+  nodes.down(p, opt.e);
+});
+canvas.on('mouse:move', (opt) => { if (curveDrag) nodes.move(pointer(opt, 'node'), opt.e); });
+canvas.on('mouse:up', (opt) => {
+  if (!curveDrag) return;
+  const d = curveDrag; curveDrag = null;
+  nodes.up(canvas.getScenePoint(opt.e));
+  d.o.lockMovementX = d.lx; d.o.lockMovementY = d.ly;
+  pickSig = curveSig(d.o);
+});
+
 /** Topmost visible, unlocked object under a page point. */
 function objectAt(p) {
   const pt = new Point(p.x, p.y);
@@ -670,7 +1057,7 @@ const TOOL_HINTS = {
   fill: 'Click an object to fill it with the current colour or gradient', 'shape:basic': 'Pick a shape on the property bar, then drag on the page',
   table: 'Drag to draw a table (rows and columns on the property bar) · type the cell text in Properties',
   distort: 'Select shapes or text, choose Zipper, Twister or Push and pull, then Apply distortion',
-  envelope: 'Select shapes or text, choose an envelope (arch, bridge, bulge …), then Apply envelope',
+  envelope: 'Drag the blue nodes round the selection to bend it, or choose an envelope (arch, bridge, bulge …) and click Apply envelope',
   extrude: 'Select shapes or text, set the depth (X, Y) and side colour, then Apply extrude',
   blockshadow: 'Select shapes or text, set the depth (X, Y) and colour, then Apply block shadow',
   meshfill: 'Click inside a shape or text to add a soft spot of the current colour · click again for more spots',
@@ -704,19 +1091,25 @@ function renderToolbox() {
   $('quickPick').classList.toggle('on', state.tool === 'select'); $('quickPan').classList.toggle('on', state.tool === 'pan');
   renderQuick();
   const nav = $('tools'), groups = new Map(TOOL_GROUPS);
+  // Speed (9.102): the toolbox is built once; picking a tool only lights its button and changes the buttons whose
+  // flyout tool changed (it was built again, icons and all, on every tool change).
+  if (toolButtons.size && [...toolButtons.values()].every((b) => b.parentElement === nav)) { for (const [gid, b] of toolButtons) toolButton(gid, groups.get(gid), b); return; }
   nav.innerHTML = '';
+  toolButtons.clear();
   for (const [section, gids] of TOOL_SECTIONS) {
     const h = document.createElement('div');
     h.className = 'tsec'; h.textContent = section;
     nav.append(h);
-    for (const gid of gids) nav.append(toolButton(gid, groups.get(gid)));
+    for (const gid of gids) { const b = toolButton(gid, groups.get(gid)); toolButtons.set(gid, b); nav.append(b); }
   }
 }
+const toolButtons = new Map();
 // Full-page preview (CorelDRAW's Full-Screen Preview, F9): everything else hidden, the page fitted to the whole
 // screen; a click or any key brings the menus and settings back as they were.
 let previewEnding = 0;
 function startPreview() {
   if (previewState) return;
+  closeDock(); // phones' colour panel
   closeMenus(); $('quickPop').hidden = true;
   canvas.discardActiveObject();
   previewState = { vpt: canvas.viewportTransform.slice() };
@@ -760,14 +1153,23 @@ function quickDef(key) {
   if (kind === 'tool') return TOOLS[id] && id !== 'image' ? { label: TOOLS[id].label, icon: TOOLS[id].icon, run: () => setTool(id), tool: id } : null;
   return QUICK_CMD[id] ? { ...QUICK_CMD[id], run: () => ACTIONS[id]?.() } : null;
 }
+let quickShown = null;
 function renderQuick() {
   const box = $('quickPins');
+  // Speed (9.102): the same buttons as last time are only lit or unlit.
+  const key = JSON.stringify(state.quick ?? []);
+  if (quickShown === key && box.childElementCount === box.querySelectorAll(':scope>button[data-quick]').length) {
+    for (const b of box.children) { const d = quickDef(b.dataset.quick); b.classList.toggle('on', !!(d?.tool && state.tool === d.tool)); }
+    return;
+  }
+  quickShown = key;
   box.innerHTML = '';
   for (const key of state.quick ?? []) {
     const d = quickDef(key);
     if (!d) continue;
     const b = document.createElement('button');
     b.className = `ibtn${d.tool && state.tool === d.tool ? ' on' : ''}`;
+    b.dataset.quick = key;
     b.title = `${d.label} (your button: remove it with +)`;
     b.innerHTML = icon(d.icon);
     b.onclick = () => { closeMenus(); d.run(); };
@@ -801,11 +1203,15 @@ $('propsHide').onclick = () => toggleUi('props', false);
 $('propsShow').onclick = () => toggleUi('props', true);
 $('quickPick').onclick = () => { closeMenus(); setTool('select'); };
 $('quickPan').onclick = () => { closeMenus(); setTool('pan'); };
-function toolButton(gid, tools) {
+function toolButton(gid, tools, b = null) {
   const cur = groupCurrent[gid] ?? tools[0][0], t = TOOLS[cur];
-  const b = document.createElement('button');
-  b.className = `tool${tools.some(([id]) => id === state.tool) ? ' on' : ''}`;
+  const fresh = !b;
+  b ??= document.createElement('button');
+  if (fresh) b.className = 'tool';
+  b.classList.toggle('on', tools.some(([id]) => id === state.tool));
+  if (!fresh && b.dataset.cur === cur) return b; // same flyout tool shown: nothing else changes
   b.dataset.group = gid;
+  b.dataset.cur = cur;
   b.title = `${t.label}${t.key ? ` (${t.key})` : ''}${tools.length > 1 ? ' · click again for more tools' : ''}`;
   b.innerHTML = `${icon(t.icon)}<span class="tl">${SHORT_LABEL[cur] ?? t.label}</span>${tools.length > 1 ? '<i class="corner"></i>' : ''}`;
   b.onclick = (e) => {
@@ -824,8 +1230,9 @@ function openToolFly(gid, b) {
   fly.dataset.group = gid;
   fly.innerHTML = tools.map(([id, label, ic, key], i) => `${i && FLY_BREAK.has(id) ? '<hr>' : ''}<button data-tool="${id}" class="${state.tool === id ? 'on' : ''}">${icon(ic)}${label}${key ? `<small>${key}</small>` : ''}</button>`).join('');
   fly.querySelectorAll('[data-tool]').forEach((x) => (x.onclick = () => { closeMenus(); setTool(x.dataset.tool); }));
-  // Beside the button (above the toolbox on phones), kept inside the window; a flyout taller than the room scrolls.
-  const phone = innerWidth <= 900;
+  // Beside the button (above the toolbox on phones; beside it again while the colour panel makes the toolbox a rail),
+  // kept inside the window; a flyout taller than the room scrolls.
+  const phone = innerWidth <= 900 && !dock.open;
   Object.assign(fly.style, phone
     ? { left: `${Math.max(6, Math.min(r.left, innerWidth - 250))}px`, top: 'auto', bottom: `${innerHeight - r.top + 6}px`, maxHeight: `${Math.max(120, r.top - 12)}px` }
     : { left: `${r.right + 6}px`, top: '8px', bottom: 'auto', maxHeight: `${innerHeight - 16}px` });
@@ -835,13 +1242,15 @@ function openToolFly(gid, b) {
 
 // Tool cursors: an eyedropper while picking a colour, a paint bucket while filling.
 const svgCursor = (body, x, y, fallback) => `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke-linecap="round" stroke-linejoin="round"><g stroke="#fff" stroke-width="4">${body}</g><g stroke="#000" stroke-width="1.6">${body}</g></svg>`)}") ${x} ${y}, ${fallback}`;
-const CURSORS = { pick: svgCursor(ICONS.eyedropper, 2, 22, 'crosshair'), bucket: svgCursor(ICONS.fill, 20, 22, 'copy') };
+// The Pick tool's pointer is its own toolbox arrow (user 2026-10-28, images/203.jpg).
+const CURSORS = { pick: svgCursor(ICONS.eyedropper, 2, 22, 'crosshair'), bucket: svgCursor(ICONS.fill, 20, 22, 'copy'), arrow: svgCursor(ICONS.select, 4, 3, 'default') };
+canvas.defaultCursor = canvas.hoverCursor = canvas.moveCursor = CURSORS.arrow;
 function toolCursor(tool) {
   if (tool === 'zoom') return 'zoom-in';
   if (tool === 'pan') return 'grab';
   if (tool === 'eyedropper') return eye.mode === 'apply' ? CURSORS.bucket : CURSORS.pick;
   if (tool === 'fill') return CURSORS.bucket;
-  return PICK_LIKE.has(tool) ? 'default' : 'crosshair';
+  return PICK_LIKE.has(tool) ? CURSORS.arrow : 'crosshair';
 }
 
 let toolTargets = [];
@@ -876,10 +1285,11 @@ function setTool(tool) {
   applyToolFlags();
   syncProps(); // what counts as selected depends on the tool (Shape, Variable Outline)
   if (tool === 'node' && editFirst) nodes.start(editFirst);
+  try { pickCurveSync(); } catch { /* setTool before the Pick-curve code has loaded */ }
   if (tool === 'eyedropper') eye.mode = 'pick';
   canvas.defaultCursor = toolCursor(tool);
   // Over objects the cursor still shows the tool (Pick-like tools: the arrow).
-  canvas.hoverCursor = PICK_LIKE.has(tool) ? 'default' : canvas.defaultCursor;
+  canvas.hoverCursor = PICK_LIKE.has(tool) ? CURSORS.arrow : canvas.defaultCursor;
   setBrushRing(SCULPT.has(tool) || tool === 'smudge' ? { radius: state.shape.radius * MM } : tool === 'eraser' ? { radius: (state.shape.eraser * MM) / 2 } : null);
   if (tool.startsWith('shape:')) state.shape.set = tool.split(':')[1];
   renderToolbox();
@@ -942,6 +1352,11 @@ const specFor = (tool) => { const s = state.shape; return tool === 'polygon' ? {
 const SNAP_TOOLS = new Set([...PATH_TOOLS, ...BOX_TOOLS, 'curve3', 'rect3', 'ellipse3', 'text', 'freetx', 'dimA', 'callout2']);
 function pointer(opt, tool) {
   const p = canvas.getScenePoint(opt.e);
+  if (CONNECT_TOOLS.has(tool)) {
+    const own = path && path.nodes.length > 1 ? [path.nodes[0]] : [];
+    const hit = connectAt(p, null, own);
+    if (hit) return new Point(hit.x, hit.y);
+  } else if (connectHover && tool !== 'node' && tool !== 'select') connectAt(null);
   if (!state.snap) return p;
   if (tool === 'node') return nodes.target ? guides.snapPoint(p, [nodes.target]) : p;
   if (!SNAP_TOOLS.has(tool) && !tool.startsWith('shape:')) return p;
@@ -1067,7 +1482,7 @@ canvas.on('mouse:up', (opt) => {
   if (SCULPT.has(tool)) { sculptUp(tool); return; }
   if (erase) { const e = erase; erase = null; topStroke = null; drawTop(); applyEraser(e.points); return; }
   if (knife) { const k = knife; knife = null; dropHelper(k.helper); applyKnife(k.a, k.b); return; }
-  if (path) { path.pressing = false; return; }
+  if (path) { path.pressing = false; if (path.closing) finishPath(true); return; }
   if (curve3) { curve3Up(p); return; }
   if (ft) { ftUp(); return; }
   if (connDrag) { connUp(p); return; }
@@ -1103,7 +1518,8 @@ canvas.on('mouse:up', (opt) => {
   if (!['rect', 'ellipse', 'line'].includes(d.tool)) o.shapeSpec = specFor(d.tool);
   o.selectable = true;
   o.setCoords();
-  canvas.add(o);
+  connectAt(null);
+  if (d.tool === 'line') batch(() => { joinEnds(o); canvas.add(o); }); else canvas.add(o);
   setTool('select');
   canvas.setActiveObject(o);
   canvas.requestRenderAll();
@@ -1116,16 +1532,30 @@ canvas.on('mouse:dblclick', (opt) => {
   if (state.tool === 'select' && opt.target?.powerClip) { editPowerClip(opt.target); return; }
   // A callout: double-click to change its text.
   if (state.tool === 'select' && opt.target?.toolName === 'Callout') { editCallout(opt.target); return; }
+  if (state.tool === 'select' && pickCurve) { nodes.dblclick(canvas.getScenePoint(opt.e)); pickSig = curveSig(pickCurve); return; }
   if (pcEdit && !opt.target) { finishPowerClipEdit(); return; }
   if (path) finishPath();
 });
-canvas.on('path:created', (e) => { style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`; record(); refreshLayers(); });
+// One Freehand stroke is one undo step: Fabric adds the stroke before path:created, and that was a step of its own
+// (the stroke without its name), so it took two Undo presses (or two-finger taps) to take a stroke away.
+let brushAdding = false;
+canvas.on('before:path:created', () => { if (!brushAdding) { brushAdding = true; muted++; } });
+canvas.on('path:created', (e) => {
+  if (brushAdding) { brushAdding = false; muted--; }
+  style(e.path, { toolName: 'Freehand', strokeUniform: true }); e.path.name = `Freehand ${++counter}`;
+  // Ends drawn near an end node (or near its own start) connect there, as in CorelDRAW.
+  connectAt(null);
+  muted++; try { joinEnds(e.path, CONNECT_PX); } finally { muted--; }
+  record(); refreshLayers();
+});
 // Overlays go on the main canvas only: Fabric fires after:render for its top layer too, which it does not clear
 // afterwards, so anything drawn there would stay on screen (a stale tool box after switching tools).
 canvas.on('after:render', ({ ctx }) => {
   if (exporting || previewState) return;
   if (ctx === canvas.contextTop) { if (topDrawn) drawTop(); return; }
-  guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx);
+  // The picked curve moved, was sized or undone: read its nodes again.
+  if (pickCurve && !curveDrag) { const sg = curveSig(pickCurve); if (sg !== pickSig) { pickSig = sg; nodes.refresh(); } }
+  guides.draw(ctx); nodes.draw(ctx); drawToolOverlay(ctx); drawConnectHint(ctx); drawEnvNodes(ctx);
   if (topDrawn) drawTop();
 });
 
@@ -1258,8 +1688,10 @@ function drawToolOverlay(ctx) {
     for (const [i, n] of path.nodes.entries()) {
       const q = S(n);
       if (n.ho && path.kind !== 'bspline') { const a = S(n.hi ?? n), b = S(n.ho); ctx.strokeStyle = '#7B4DFF'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); ctx.fillStyle = '#7B4DFF'; for (const z of [a, b]) { ctx.beginPath(); ctx.arc(z.x, z.y, 3, 0, 7); ctx.fill(); } }
-      ctx.fillStyle = i === 0 ? '#12E1F0' : '#ffffff'; ctx.strokeStyle = '#1E7BFF';
-      ctx.fillRect(q.x - 4, q.y - 4, 8, 8); ctx.strokeRect(q.x - 4, q.y - 4, 8, 8);
+      const big = i === 0 && (path.closeHover || path.closing), h = big ? 7 : 4;
+      ctx.fillStyle = i === 0 ? '#12E1F0' : '#ffffff'; ctx.strokeStyle = '#1E7BFF'; ctx.lineWidth = big ? 2 : 1;
+      ctx.fillRect(q.x - h, q.y - h, 2 * h, 2 * h); ctx.strokeRect(q.x - h, q.y - h, 2 * h, 2 * h);
+      if (big) { ctx.font = '600 12px system-ui, sans-serif'; ctx.fillStyle = '#1E7BFF'; ctx.fillText('close', q.x + 12, q.y + 22); }
     }
   }
   for (const o of userObjects()) {
@@ -1281,15 +1713,26 @@ const newNode = (p) => ({ x: p.x, y: p.y, hi: null, ho: null, type: 'cusp' });
 function penDown(p) {
   if (!path) path = { kind: state.tool, nodes: [], pressing: false, cursor: p, helper: helperPath('') };
   const ns = path.nodes;
-  if (['bezier', 'pen', 'polyline'].includes(path.kind) && ns.length > 2 && screenDist(p, ns[0]) < 10) { finishPath(true); return; }
+  // Clicking the first node closes the shape (Illustrator); dragging there makes it smooth. It finishes on release.
+  if (nearStart(p)) { path.closing = true; path.pressing = path.kind !== 'polyline'; if (!path.pressing) finishPath(true); return; }
   // The second click of a double-click lands on the last node: ignore it.
   if (ns.length && screenDist(p, ns.at(-1)) < 3) return;
   ns.push(newNode(p));
   path.pressing = path.kind === 'bezier' || path.kind === 'pen';
   updatePenPreview();
 }
+/** Within reach of the first node of the curve being drawn (it can close there). */
+const nearStart = (p) => path && ['bezier', 'pen', 'polyline'].includes(path.kind) && path.nodes.length > (path.kind === 'polyline' ? 2 : 1) && screenDist(p, path.nodes[0]) < 12;
+const closeCursor = () => svgCursor('<path d="M4 3v14l4-4 3 6 2-1-3-6h5z"/><circle cx="18" cy="18" r="3.5" fill="none" stroke="#000" stroke-width="2"/>', 4, 3, 'crosshair');
 function penMove(p, e) {
   path.cursor = p;
+  if (path.closing) {
+    const f = path.nodes[0];
+    if ((e.buttons & 1) && screenDist(p, f) > 3) { path.closeHi = { x: 2 * f.x - p.x, y: 2 * f.y - p.y }; f.ho = { x: p.x, y: p.y }; f.type = 'symmetric'; }
+    updatePenPreview(); return;
+  }
+  const hov = !path.pressing && nearStart(p);
+  if (hov || hov !== !!path.closeHover) { path.closeHover = hov; if (canvas.upperCanvasEl) canvas.upperCanvasEl.style.cursor = hov ? closeCursor() : canvas.defaultCursor; }
   const last = path.nodes.at(-1);
   if (path.pressing && (e.buttons & 1) && last && screenDist(p, last) > 3) {
     last.ho = { x: p.x, y: p.y };
@@ -1301,7 +1744,7 @@ function penMove(p, e) {
 function penModel(withCursor) {
   const ns = path.nodes.map((n) => ({ ...n }));
   if (withCursor && !path.pressing && path.cursor) ns.push(newNode(path.cursor));
-  if (ns.length) { ns[0].hi = null; }
+  if (ns.length) { ns[0].hi = path.closeHi ? { ...path.closeHi } : null; }
   return ns;
 }
 function updatePenPreview() {
@@ -1309,6 +1752,7 @@ function updatePenPreview() {
   const ns = penModel(true);
   let d;
   if (path.kind === 'bspline') d = ns.length > 1 ? `${bsplinePath(ns)} M ${ns.map((n) => `${n.x} ${n.y}`).join(' L ')}` : '';
+  else if (path.closing || path.closeHover) d = V.modelToD([{ closed: true, nodes: penModel(false) }]);
   else d = V.modelToD([{ closed: false, nodes: ns }]);
   setLive(path.helper, d);
   path.helper.set({ strokeWidth: 1.5 / canvas.getZoom() });
@@ -1331,7 +1775,8 @@ function finishPath(close = false) {
     if (close) paint(o); else paintLine(o);
   }
   style(o);
-  canvas.add(o);
+  connectAt(null);
+  batch(() => { joinEnds(o); canvas.add(o); });
   setTool('select');
   canvas.setActiveObject(o);
 }
@@ -2871,6 +3316,43 @@ function combine() {
   batch(() => { replaceObject(objs[0], p); for (const o of objs.slice(1)) canvas.remove(o); });
   select([p]); toast('Combined (Ctrl+K breaks it apart again)');
 }
+/** Ctrl+J (Illustrator's Join): with the Shape tool, the selected end nodes are joined (or the curve closed); with
+ * two open curves selected, their nearest ends are joined into one curve; one open curve is closed. One Undo step. */
+function joinPaths() {
+  if (state.tool === 'node' && nodes.target) { nodes.op('autoJoin'); return; }
+  const objs = active().filter((o) => o.type === 'path' && !o.connSpec && !o.shapeSpec);
+  const models = objs.map((o) => { try { return V.objectModel(o); } catch { return null; } });
+  const open = objs.map((o, i) => ({ o, m: models[i] })).filter((x) => x.m?.some((sp) => !sp.closed && sp.nodes.length > 1));
+  if (!open.length) { toast(objs.length ? 'These curves are already closed' : 'Select an open curve (or two) to join'); return; }
+  const done = (o, m) => { delete o.nodeTypes; V.setWorldPath(o, V.modelToD(m)); refill(o); o.setCoords(); };
+  if (open.length === 2) {
+    const [A, B] = open, ends = (m) => m.flatMap((sp, s) => (sp.closed || sp.nodes.length < 2 ? [] : [{ s, first: true, n: sp.nodes[0] }, { s, first: false, n: sp.nodes.at(-1) }]));
+    let best = null;
+    for (const a of ends(A.m)) for (const b of ends(B.m)) { const d = Math.hypot(a.n.x - b.n.x, a.n.y - b.n.y); if (!best || d < best.d) best = { a, b, d }; }
+    const sa = A.m[best.a.s], sb = B.m[best.b.s];
+    if (best.a.first) flipSub(sa);
+    if (!best.b.first) flipSub(sb);
+    let add = sb.nodes;
+    if (screenDist(sa.nodes.at(-1), sb.nodes[0]) < 2) { const z = sa.nodes.at(-1); z.ho = sb.nodes[0].ho; z.type = 'cusp'; add = add.slice(1); }
+    sa.nodes.push(...add);
+    A.m.push(...B.m.filter((_, i) => i !== best.b.s));
+    batch(() => { done(A.o, A.m); canvas.remove(B.o); });
+    select([A.o]); canvas.requestRenderAll(); toast('Joined into one curve (Ctrl+J again closes it)');
+    return;
+  }
+  batch(() => {
+    for (const { o, m } of open) {
+      for (const sp of m) {
+        if (sp.closed || sp.nodes.length < 2) continue;
+        const a = sp.nodes[0], z = sp.nodes.at(-1);
+        if (sp.nodes.length > 2 && screenDist(a, z) < 2) { a.hi = z.hi; sp.nodes.pop(); }
+        sp.closed = true;
+      }
+      done(o, m);
+    }
+  });
+  canvas.requestRenderAll(); toast('Curve closed');
+}
 function breakApart() {
   // A contour (Ctrl+K, as in CorelDRAW): the object and each step become shapes of their own.
   if (active().length && active().every(isContourGroup)) { applyContour('break'); return; }
@@ -2916,22 +3398,61 @@ function outlineToObject() {
  * are sent.
  */
 async function smartFill(p) {
-  if (geomBusy) { toast('Still working out the last area: one moment'); return; }
-  const shapes = userObjects().filter((o) => o.visible && o.toolName !== 'Smart fill' && V.canConvert(o) && closedish(o));
-  const rect = (o) => o.getBoundingRect(), has = (b, q) => q.x >= b.left && q.x <= b.left + b.width && q.y >= b.top && q.y <= b.top + b.height;
-  const around = shapes.filter((o) => has(rect(o), p));
-  if (!around.length) { toast('Click inside an area enclosed by shapes'); return; }
-  // Only shapes overlapping the area the enclosing shapes share can cut into it.
-  const box = around.map(rect).reduce((a, b) => ({ left: Math.max(a.left, b.left), top: Math.max(a.top, b.top), right: Math.min(a.right, b.left + b.width), bottom: Math.min(a.bottom, b.top + b.height) }), { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity });
-  const near = shapes.filter((o) => { const b = rect(o); return has(b, p) || !(b.left > box.right || b.left + b.width < box.left || b.top > box.bottom || b.top + b.height < box.top); });
-  const ds = near.map((o) => { try { return worldD(o); } catch { return ''; } }).filter(Boolean);
-  let d = '';
-  geomBusy++;
-  try { d = (await geomRun({ op: 'smartfill', shapes: ds, p: { x: p.x, y: p.y } })).d; }
-  catch (e) { toast(e.message === 'timeout' ? 'That area took too long to work out (the artwork round it is very detailed), so nothing was added. Try a simpler area, or simplify the shapes first (Object > Simplify)' : 'That area could not be worked out: please try again', 6500); return; }
-  finally { geomBusy--; }
-  if (!d) { toast('Click inside an area enclosed by shapes'); return; }
-  const o = makePath(d, null, { toolName: 'Smart fill' });
+  // Every line counts (closed shapes, open curves, lines), as in CorelDRAW: their outlines are drawn on a grid round
+  // the click, 4 screen px wide so small gaps close, the area round the click is flooded and its edge traced and
+  // smoothed into a curve. Lines inside the area become holes. The flood reaching the edge = not enclosed.
+  const shapes = userObjects().filter((o) => o.visible && V.canConvert(o) && o.type !== 'image' && !isText(o));
+  const ds = shapes.map((o) => { try { return worldD(o); } catch { return ''; } }).filter(Boolean);
+  const hint = () => toast('Click inside an area enclosed by lines or shapes');
+  if (!ds.length) { hint(); return; }
+  let L = Infinity, T = Infinity, R = -Infinity, B = -Infinity;
+  for (const o of shapes) { const b = o.getBoundingRect(); L = Math.min(L, b.left); T = Math.min(T, b.top); R = Math.max(R, b.left + b.width); B = Math.max(B, b.top + b.height); }
+  if (!(p.x > L && p.x < R && p.y > T && p.y < B)) { hint(); return; }
+  const z = canvas.getZoom(), lw = 4 / z, pad = lw * 2;
+  L -= pad; T -= pad; R += pad; B += pad;
+  const k = Math.min(1.5 * z, 2400 / Math.max(R - L, B - T)), W = Math.ceil((R - L) * k) + 2, H = Math.ceil((B - T) * k) + 2;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const g = cv.getContext('2d', { willReadFrequently: true });
+  g.setTransform(k, 0, 0, k, -L * k, -T * k); g.lineWidth = Math.max(lw, 1.5 / k); g.lineJoin = g.lineCap = 'round'; g.strokeStyle = '#000';
+  for (const d of ds) { try { g.stroke(new Path2D(d)); } catch { /* bad path data: skip */ } }
+  const px = g.getImageData(0, 0, W, H).data, wall = new Uint8Array(W * H);
+  for (let i = 0; i < W * H; i++) wall[i] = px[i * 4 + 3] > 60 ? 1 : 0;
+  const sx = Math.floor((p.x - L) * k), sy = Math.floor((p.y - T) * k), s0 = sy * W + sx;
+  if (wall[s0]) { hint(); return; }
+  const m = new Uint8Array(W * H), st = [s0]; m[s0] = 1;
+  while (st.length) {
+    const i = st.pop(), x = i % W;
+    if (x === 0 || x === W - 1 || i < W || i >= W * (H - 1)) { hint(); return; }
+    for (const j of [i - 1, i + 1, i - W, i + W]) if (!m[j] && !wall[j]) { m[j] = 1; st.push(j); }
+  }
+  // Grow the area to the middle of the lines round it.
+  let edge = []; for (let i = 0; i < W * H; i++) if (m[i]) edge.push(i);
+  for (let r = Math.round(g.lineWidth * k / 2); r > 0; r--) { const nx = []; for (const i of edge) for (const j of [i - 1, i + 1, i - W, i + W]) if (!m[j] && wall[j]) { m[j] = 1; nx.push(j); } edge = nx; }
+  // Pixel edges with the area on the right, chained into loops.
+  const on = (x, y) => x >= 0 && y >= 0 && x < W && y < H && m[y * W + x], next = new Map(), key = (x, y) => y * (W + 1) + x;
+  const add = (ax, ay, bx, by) => { const kk = key(ax, ay); (next.get(kk) ?? next.set(kk, []).get(kk)).push([bx, by]); };
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!m[y * W + x]) continue;
+    if (!on(x, y - 1)) add(x, y, x + 1, y); if (!on(x + 1, y)) add(x + 1, y, x + 1, y + 1);
+    if (!on(x, y + 1)) add(x + 1, y + 1, x, y + 1); if (!on(x - 1, y)) add(x, y + 1, x, y);
+  }
+  const loops = [];
+  for (const [k0, list] of next) {
+    while (list.length) {
+      let x = k0 % (W + 1), y = Math.floor(k0 / (W + 1)); const pts = [];
+      for (let guard = 0; guard < 4 * W * H; guard++) {
+        const l = next.get(key(x, y)); if (!l?.length) break;
+        const [nx, ny] = l.pop(); pts.push({ x: L + x / k, y: T + y / k }); x = nx; y = ny;
+        if (key(x, y) === k0 && !next.get(k0).length) break;
+      }
+      if (pts.length > 8) loops.push(pts);
+    }
+  }
+  const area = (q) => Math.abs(q.reduce((a, c, i) => { const n = q[(i + 1) % q.length]; return a + c.x * n.y - n.x * c.y; }, 0) / 2);
+  const keep = loops.filter((q) => area(q) * k * k > 12);
+  if (!keep.length) { hint(); return; }
+  const d = V.fitPartsD(keep.map((q) => ({ closed: true, pts: SK.thin(q, 1.5 / k) })), 0.9 / z);
+  const o = makePath(d, null, { toolName: 'Smart fill', fillRule: 'evenodd' });
   o.set({ fill: state.gradient ? null : state.fill, stroke: state.strokeWidth ? state.stroke : null, strokeWidth: state.strokeWidth * MM, strokeUniform: true });
   if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); o.set('fill', gradientFor(o)); }
   canvas.add(o);
@@ -3212,6 +3733,7 @@ function contourBar(change) {
 canvas.on('object:modified', ({ target: g }) => {
   if (restoring || !isContourGroup(g) || !canvas.getObjects().includes(g)) return;
   if (Math.abs(g.scaleX - 1) < 1e-6 && Math.abs(g.scaleY - 1) < 1e-6 && !g.skewX && !g.skewY) return;
+  flushRecord();
   const own = !muted && history.at(-1) === snapshot(); // the change was just recorded as its own undo step
   muted++;
   try { applyContour('apply', { objs: [g], change: {}, quiet: true }); } finally { muted--; }
@@ -3429,6 +3951,75 @@ function applyDistort() {
   const fx = state.fx, mode = fx.distort, amount = mode === 'zipper' ? fx.zipSize * MM : mode === 'twister' ? fx.twist : fx.push;
   reshapeSelection((d, box) => V.distortD(d, mode, amount, { teeth: fx.zipTeeth, box }), DISTORT_LABEL[mode] ?? 'Distortion');
 }
+// Envelope nodes (task 9.145, as CorelDRAW): with the Envelope tool, 8 nodes sit round the selection (corners and
+// side middles). Dragging one shows the new envelope; releasing bends the objects into it (text becomes curves).
+const ENV_KEYS = ['tl', 't', 'tr', 'r', 'br', 'b', 'bl', 'l'];
+const ENV_UV = { tl: [0, 0], t: [0.5, 0], tr: [1, 0], r: [1, 0.5], br: [1, 1], b: [0.5, 1], bl: [0, 1], l: [0, 0.5] };
+let envDrag = null;
+function envBox() {
+  if (state.tool !== 'envelope') return null;
+  const objs = canvas.getActiveObjects().filter(shapeable);
+  if (!objs.length) return null;
+  const r = canvas.getActiveObject().getBoundingRect(); // page units
+  return { x: r.left, y: r.top, w: r.width, h: r.height };
+}
+const envNodeAt = (box, k, off = {}) => ({ x: box.x + ENV_UV[k][0] * box.w + (off[k]?.x ?? 0), y: box.y + ENV_UV[k][1] * box.h + (off[k]?.y ?? 0) });
+/** How far a point at (u, v) moves for the node moves `off` (corners bilinear, side middles bow their side). */
+function envMap(off) {
+  const o = (k) => off[k] ?? { x: 0, y: 0 }, s = Math.sin;
+  return (u, v) => {
+    const add = (acc, q, w) => { acc.x += q.x * w; acc.y += q.y * w; return acc; }, m = { x: 0, y: 0 };
+    add(m, o('tl'), (1 - u) * (1 - v)); add(m, o('tr'), u * (1 - v)); add(m, o('bl'), (1 - u) * v); add(m, o('br'), u * v);
+    const mid = (k, a, b) => ({ x: o(k).x - (o(a).x + o(b).x) / 2, y: o(k).y - (o(a).y + o(b).y) / 2 });
+    add(m, mid('t', 'tl', 'tr'), (1 - v) * s(Math.PI * u)); add(m, mid('b', 'bl', 'br'), v * s(Math.PI * u));
+    add(m, mid('l', 'tl', 'bl'), (1 - u) * s(Math.PI * v)); add(m, mid('r', 'tr', 'br'), u * s(Math.PI * v));
+    return m;
+  };
+}
+function drawEnvNodes(ctx) {
+  const box = envDrag?.box ?? envBox();
+  if (!box) return;
+  const off = envDrag?.off ?? {}, map = envMap(off), r = canvas.getRetinaScaling(), v = canvas.viewportTransform;
+  const S = (p) => ({ x: p.x * v[0] + v[4], y: p.y * v[3] + v[5] });
+  ctx.save(); ctx.setTransform(r, 0, 0, r, 0, 0);
+  // The envelope's edge: dashed, through the nodes.
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = '#1E7BFF'; ctx.lineWidth = 1.2; ctx.beginPath();
+  const N = 24, edge = [];
+  for (let i = 0; i <= N; i++) edge.push([i / N, 0]);
+  for (let i = 1; i <= N; i++) edge.push([1, i / N]);
+  for (let i = 1; i <= N; i++) edge.push([1 - i / N, 1]);
+  for (let i = 1; i <= N; i++) edge.push([0, 1 - i / N]);
+  edge.forEach(([u, w], i) => { const m = map(u, w), q = S({ x: box.x + u * box.w + m.x, y: box.y + w * box.h + m.y }); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); });
+  ctx.stroke(); ctx.setLineDash([]);
+  for (const k of ENV_KEYS) { const q = S(envNodeAt(box, k, off)); ctx.beginPath(); ctx.rect(q.x - 4.5, q.y - 4.5, 9, 9); ctx.fillStyle = envDrag?.key === k ? '#12E1F0' : '#ffffff'; ctx.fill(); ctx.strokeStyle = '#1E7BFF'; ctx.lineWidth = 1.5; ctx.stroke(); }
+  ctx.restore();
+}
+canvas.on('mouse:down:before', (opt) => {
+  if (state.tool !== 'envelope' || opt.e.button) return;
+  const box = envBox();
+  if (!box) return;
+  const p = canvas.getScenePoint(opt.e), k = ENV_KEYS.find((key) => screenDist(p, envNodeAt(box, key)) <= 9);
+  if (!k) return;
+  const o = canvas.getActiveObject();
+  canvas._target = o;
+  envDrag = { box, key: k, from: p, off: {}, o, lx: o.lockMovementX, ly: o.lockMovementY };
+  o.lockMovementX = o.lockMovementY = true;
+});
+canvas.on('mouse:move', (opt) => {
+  if (!envDrag) return;
+  const p = canvas.getScenePoint(opt.e);
+  envDrag.off = { [envDrag.key]: { x: p.x - envDrag.from.x, y: p.y - envDrag.from.y } };
+  canvas.requestRenderAll();
+});
+canvas.on('mouse:up', () => {
+  if (!envDrag) return;
+  const d = envDrag; envDrag = null;
+  d.o.lockMovementX = d.lx; d.o.lockMovementY = d.ly;
+  const m = d.off[d.key];
+  if (!m || Math.hypot(m.x, m.y) * canvas.getZoom() < 3) { canvas.requestRenderAll(); return; }
+  const map = envMap(d.off), box = { left: d.box.x, top: d.box.y, width: d.box.w, height: d.box.h };
+  reshapeSelection((path) => V.warpD(path, map, { box }), 'Envelope');
+});
 function applyEnvelope() {
   const fx = state.fx;
   reshapeSelection((d, box) => V.envelopeD(d, fx.envelope, fx.envAmount * MM, { box }), 'Envelope');
@@ -3614,6 +4205,19 @@ function colourAt(e, target) {
   const rgb = hexToRgb(px);
   return own.find((c) => hexToRgb(c).reduce((s, x, i) => s + Math.abs(x - rgb[i]), 0) < 30) ?? px;
 }
+// Eyedropper preview (task 9.142, as CorelDRAW): a small circle beside the pointer filled with the colour under it.
+const eyeLoupe = Object.assign(document.createElement('div'), { className: 'eye-loupe', hidden: true });
+document.body.append(eyeLoupe);
+canvas.on('mouse:move', (opt) => {
+  if (state.tool !== 'eyedropper' || eye.mode !== 'pick' || spaceDown) { eyeLoupe.hidden = true; return; }
+  const p = canvas.getScenePoint(opt.e), t = opt.target && !opt.target.isPage && !opt.target.isHelper ? opt.target : null;
+  const c = t || inPage(p) ? colourAt(opt.e, t) : null;
+  if (!c) { eyeLoupe.hidden = true; return; }
+  eyeLoupe.style.background = c;
+  eyeLoupe.style.left = `${opt.e.clientX + 16}px`; eyeLoupe.style.top = `${opt.e.clientY + 16}px`;
+  eyeLoupe.hidden = false;
+});
+canvas.on('mouse:out', () => { eyeLoupe.hidden = true; });
 function eyedropClick(opt, target, p) {
   if (eye.mode === 'pick' || opt.e.shiftKey || !eye.colour) {
     if (!target && !inPage(p)) { toast('Click a colour on the page'); return; }
@@ -4026,7 +4630,7 @@ const tintTargets = (o) => {
 function paintObject(o, hex, outline) {
   if (!outline) { const pics = tintTargets(o); if (pics.length) { for (const x of pics) tintImage(x, hex); return; } }
   applyProps(o, (x) => {
-    if (outline || x.type === 'line' || x.type === 'polyline' || (x.type === 'path' && !x.fill && x.stroke)) return { stroke: hex, strokeWidth: x.strokeWidth || MM / 2, strokeUniform: true };
+    if (outline || x.type === 'line' || x.type === 'polyline') return { stroke: hex, strokeWidth: x.strokeWidth || MM / 2, strokeUniform: true };
     delete x.gradSpec; delete x.patSpec;
     return { fill: hex };
   });
@@ -4112,9 +4716,27 @@ function syncProps(live = false) {
   if (!live) refreshLayers();
   syncTextBar();
   syncContext();
+  if (!live) dockSync(); // phones' colour panel shows the selection's colour
 }
 for (const ev of ['selection:created', 'selection:updated', 'selection:cleared', 'object:modified', 'object:scaling', 'object:moving', 'object:rotating']) canvas.on(ev, () => { if (state.tool === 'node' && ev === 'object:modified') nodes.refresh(); syncProps(ev === 'object:scaling' || ev === 'object:moving' || ev === 'object:rotating'); });
 
+// Effects on the text bar (task 9.145): each opens its tool with the text still selected.
+$('tfxBtn').onclick = (e) => {
+  e.stopPropagation();
+  const f = $('tfxFly'), r = e.currentTarget.getBoundingClientRect();
+  if (!f.hidden) { f.hidden = true; return; }
+  f.hidden = false;
+  f.style.top = `${r.bottom + 4}px`; f.style.left = `${Math.max(8, Math.min(innerWidth - f.offsetWidth - 8, r.left))}px`;
+};
+document.addEventListener('pointerdown', (e) => { if (!e.target.closest('#tfxFly, #tfxBtn')) $('tfxFly').hidden = true; });
+document.querySelectorAll('[data-tfx]').forEach((b) => (b.onclick = () => {
+  $('tfxFly').hidden = true;
+  const fx = b.dataset.tfx;
+  if (fx !== 'outline') { setTool(fx); return; }
+  const w = $('strokeWidth');
+  if (w.value === '0') { w.value = '1'; w.dispatchEvent(new Event('change')); }
+  w.focus(); toast('Outline: set its thickness here and its colour with the Outline colour box (or right-click a palette colour)');
+}));
 $('strokeWidth').onchange = (e) => {
   state.strokeWidth = Number(e.target.value);
   applyToSelection((o) => { const w = state.strokeWidth * MM; return { strokeWidth: w, stroke: w ? (o.stroke || state.stroke) : null, strokeDashArray: w ? strokeDash(w) : null, strokeUniform: true }; });
@@ -4265,15 +4887,17 @@ $('lock').onclick = () => { const o = one(); if (!o) return; setLocked(o, !o.loc
 $('group').onclick = () => groupToggle();
 function removeSelection() {
   if (state.tool === 'node' && nodes.target) { nodes.op('delete'); return; }
+  if (pickCurve && nodes.selectedCount && state.tool === 'select') { nodes.op('delete'); return; }
   const objs = canvas.getActiveObjects(); if (!objs.length) return;
   canvas.discardActiveObject(); batch(() => { for (const o of objs) canvas.remove(o); }); canvas.requestRenderAll();
 }
-async function duplicate(offset = 10 * MM, source = active()) {
+async function duplicate(offset = null, source = active()) {
   if (!source.length) return;
   canvas.discardActiveObject();
   const clones = [];
   muted++;
-  for (const o of source) { const c = await o.clone(EXTRA); c.set({ left: c.left + offset, top: c.top + offset }); c.name = `${o.name} copy`; style(c); canvas.add(c); clones.push(c); }
+  const ox = offset ?? (state.docSet.dupX ?? 5) * MM, oy = offset ?? (state.docSet.dupY ?? 5) * MM;
+  for (const o of source) { const c = await o.clone(EXTRA); c.set({ left: c.left + ox, top: c.top + oy }); c.name = `${o.name} copy`; style(c); canvas.add(c); clones.push(c); }
   // Connectors copied together with their objects join the copies.
   const copyOf = new Map(source.map((o, i) => [o.uid, clones[i].uid]).filter(([a, b]) => a && b && a !== b));
   for (const c of clones) if (c.connSpec) c.connSpec.ends = c.connSpec.ends.map((e) => (e?.uid && copyOf.has(e.uid) ? { ...e, uid: copyOf.get(e.uid) } : e));
@@ -4366,7 +4990,7 @@ function syncContext() {
   show('ctx-blend', t === 'blend'); show('ctx-contour', t === 'contour' || (pick && ctSel)); show('ctx-shadow', t === 'shadow'); show('ctx-inner', t === 'inner'); show('ctx-transp', t === 'transparency');
   show('ctx-distort', t === 'distort'); show('ctx-envelope', t === 'envelope'); show('ctx-extrude', t === 'extrude'); show('ctx-block', t === 'blockshadow');
   show('ctx-mesh', t === 'meshfill' || (pick && !!o?.fxMesh));
-  show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper');
+  show('ctx-powerclip', !!pcEdit || (pick && !!o?.powerClip)); show('pcEditBtn', !pcEdit); show('pcFinishBtn', !!pcEdit); show('pcExtractBtn', !pcEdit); show('ctx-table', t === 'table'); show('ctx-eyedrop', t === 'eyedropper'); show('ctx-doc', pick && n === 0 && !pcEdit); if (pick && n === 0) syncDocBar();
   if (t === 'distort') { const m = state.fx.distort; show('fxDZipWrap', m === 'zipper'); show('fxDTwistWrap', m === 'twister'); show('fxDPushWrap', m === 'push'); }
   if (t === 'eyedropper') { $('eyeTo').value = state.target; $('eyeChip').style.background = eye.colour ?? current(); $('eyePick').classList.toggle('on', eye.mode === 'pick'); $('eyeApply').classList.toggle('on', eye.mode === 'apply'); }
   $('meshChip').style.background = state.fill;
@@ -4635,7 +5259,7 @@ function setColour(hex, { recent = true, apply = true } = {}) {
   if (state.gradient && state.target === 'fill') gradStopColour(hex);
   if (apply) {
     if (state.target === 'fill') applyToSelection((o) => {
-      if (o.type === 'line' || o.type === 'polyline' || (o.type === 'path' && !o.fill && o.stroke)) return { stroke: hex };
+      if (o.type === 'line' || o.type === 'polyline') return { stroke: hex };
       if (state.gradient) { o.gradSpec = cloneGrad(state.gradient); delete o.patSpec; return { fill: gradientFor(o) }; }
       if (state.pattern) { o.patSpec = { ...state.pattern, ink: hex }; delete o.gradSpec; return { fill: patternFor(o.patSpec) }; }
       delete o.gradSpec; delete o.patSpec;
@@ -4651,6 +5275,7 @@ function setTarget(t) {
   state.target = t;
   for (const b of document.querySelectorAll('[data-target]')) b.classList.toggle('on', b.dataset.target === t);
   const hex = current(); hsv = hexToHsv(hex); $('hexIn').value = hex; $('hexChip').style.background = hex; showValues(hex); drawPicker(); drawHarmony();
+  dockSync();
 }
 // RGB and CMYK values for the current colour (CMYK is a plain conversion, no print profile).
 const toCmyk = ([r, g, b]) => { const k = 1 - Math.max(r, g, b) / 255; return k >= 1 ? [0, 0, 0, 100] : [r, g, b].map((v) => Math.round(((1 - v / 255 - k) / (1 - k)) * 100)).concat(Math.round(k * 100)); };
@@ -4897,7 +5522,7 @@ function showPageInfo() {
   for (const [id, label] of [['posX', 'X'], ['posY', 'Y'], ['sizeW', 'Width'], ['sizeH', 'Height']]) $(id).title = `${label} (${unit().name})`;
 }
 $('units').value = state.units in UNITS ? state.units : 'mm';
-$('units').onchange = (e) => { state.units = e.target.value; savePrefs(); showPageInfo(); drawRulers(); syncProps(); toast(`Units: ${e.target.selectedOptions[0].textContent} (rulers, position, size and page)`); };
+$('units').onchange = (e) => { state.units = e.target.value; savePrefs(); showPageInfo(); drawRulers(); syncProps(); syncDocBar(); toast(`Units: ${e.target.selectedOptions[0].textContent} (rulers, position, size and page)`); };
 
 // Table card: text colour and font for every cell.
 $('tbFont').innerHTML = FONTS.map((x) => `<option>${x.family}</option>`).join('');
@@ -5153,6 +5778,7 @@ function syncGradFromSelection() {
     showFillRows();
     showPicker(current());
   }
+  dockSync(); // phones' colour panel: after the fill mode follows the selection
 }
 for (const ev of ['selection:created', 'selection:updated', 'selection:cleared']) canvas.on(ev, syncGradFromSelection);
 const patternSpec = () => ({ kind: $('patKind').value, size: Math.max(2, Math.min(100, Number($('patSize').value) || 10)), bg: $('patBg').value });
@@ -5163,7 +5789,7 @@ function modeFill(o) {
   if (state.pattern) { o.patSpec = { ...state.pattern, ink: state.fill }; return { fill: patternFor(o.patSpec) }; }
   return { fill: state.fill };
 }
-const fillable = (o) => !(o.type === 'line' || o.type === 'polyline' || (o.type === 'path' && !o.fill && o.stroke));
+const fillable = (o) => !(o.type === 'line' || o.type === 'polyline');
 $('fillMode').onchange = (e) => {
   const mode = e.target.value;
   gradHeld = null; // chosen here: it stays when the selection changes
@@ -5318,6 +5944,7 @@ function setPage([w, h], record_ = true) {
   $('customSize').hidden = !!known;
   page.set({ width: w * MM, height: h * MM });
   showPageInfo();
+  syncDocBar();
   fit();
   if (record_) record();
 }
@@ -5333,6 +5960,199 @@ for (const id of ['pageW', 'pageH']) $(id).onchange = () => {
   const w = Math.round(fromUnits($('pageW').value) / MM * 10) / 10, h = Math.round(fromUnits($('pageH').value) / MM * 10) / 10;
   if (w >= 20 && h >= 20 && w <= 2000 && h <= 2000) setPage([w, h]); else toast(`Use a size between ${+inUnits(20 * MM)} and ${+inUnits(2000 * MM)} ${unit().name}`);
 };
+
+// Property bar with nothing selected (task 9.141, as CorelDRAW): page size, orientation, units, nudge and
+// duplicate distances. The page size and units are the same settings as on the status bar.
+function mmIn(mm) { return +(mm / unit().mm).toFixed(unit().dp + 1); }
+function mmFrom(v) { return Number(v) * unit().mm; }
+function syncDocBar() {
+  if (!$('docW')) return;
+  const [w, h] = pageSize, set = (id, v) => { const el = $(id); if (document.activeElement !== el) el.value = v; };
+  set('docW', +inUnits(w * MM)); set('docH', +inUnits(h * MM));
+  set('docNudge', mmIn(state.docSet.nudge)); set('docDupX', mmIn(state.docSet.dupX)); set('docDupY', mmIn(state.docSet.dupY));
+  $('docUnits').value = state.units in UNITS ? state.units : 'mm';
+  for (const el of document.querySelectorAll('.doc-unit')) el.textContent = unit().name;
+  $('docPortrait').classList.toggle('on', h >= w); $('docLandscape').classList.toggle('on', w > h);
+  set('stdW', +inUnits(w * MM)); set('stdH', +inUnits(h * MM));
+  $('stdPortrait').classList.toggle('on', h >= w); $('stdLandscape').classList.toggle('on', w > h);
+}
+// The standard bar's page boxes and buttons are the same settings as the property bar's.
+for (const id of ['stdW', 'stdH']) $(id).onchange = () => { $('docW').value = $('stdW').value; $('docH').value = $('stdH').value; $('docW').onchange(); };
+$('stdPortrait').onclick = () => $('docPortrait').onclick();
+$('stdLandscape').onclick = () => $('docLandscape').onclick();
+$('stdUndo').onclick = () => undo(); $('stdRedo').onclick = () => redo();
+/** Save to the computer: the whole design (every page) as a .3deezi file; Open reads it back. */
+function saveToComputer() {
+  finishPowerClipEdit();
+  const name = ($('docName')?.textContent || 'artboard').replace(/[^\w\- ]+/g, '').trim() || 'artboard';
+  download(`data:application/json;charset=utf-8,${encodeURIComponent(snapshot())}`, `${name}.3deezi`);
+  toast(`Saved to your computer: ${name}.3deezi (Open it again with the folder button)`);
+}
+$('stdSave').onclick = saveToComputer;
+$('stdCloud').onclick = () => projects.actions.docSave();
+$('stdOpen').onclick = () => { $('stdFile').value = ''; $('stdFile').click(); };
+$('stdFile').onchange = async () => {
+  const f = $('stdFile').files?.[0]; if (!f) return;
+  try { const text = await f.text(); JSON.parse(text); if ((userObjects().length || pages.length > 1) && !(await projects.ask(`Open “${f.name}”? The design on the page is replaced (Undo can bring it back).`, 'Open', 'Cancel'))) return; await window.artboard.load(text, f.name.replace(/\.(3deezi|json)$/i, '')); toast(`Opened “${f.name}”`); }
+  catch { toast('That file could not be opened: choose a .3deezi file saved from the Artboard'); }
+};
+for (const id of ['docW', 'docH']) $(id).onchange = () => {
+  const w = Math.round(fromUnits($('docW').value) / MM * 10) / 10, h = Math.round(fromUnits($('docH').value) / MM * 10) / 10;
+  if (w >= 20 && h >= 20 && w <= 2000 && h <= 2000) setPage([w, h]); else { toast(`Use a size between ${+inUnits(20 * MM)} and ${+inUnits(2000 * MM)} ${unit().name}`); syncDocBar(); }
+};
+$('docPortrait').onclick = () => { const [w, h] = pageSize; if (w > h) setPage([h, w]); };
+$('docLandscape').onclick = () => { const [w, h] = pageSize; if (h > w) setPage([h, w]); };
+$('docUnits').onchange = (e) => setUnits(e.target.value);
+for (const [id, key] of [['docNudge', 'nudge'], ['docDupX', 'dupX'], ['docDupY', 'dupY']]) $(id).onchange = (e) => {
+  const v = mmFrom(e.target.value);
+  if (Number.isFinite(v) && (key !== 'nudge' || v > 0) && Math.abs(v) <= 1000) { state.docSet[key] = Math.round(v * 1000) / 1000; savePrefs(); }
+  syncDocBar();
+};
+
+// Document tabs (task 9.141, as CorelDRAW): several designs open at once, each with its own pages and Undo. The open
+// tab is the canvas (kept on this device as before); the others are kept on this device under their own key.
+// "*" marks changes not saved in the account; closing such a tab asks first.
+const TABS_KEY = `${STORE}.tabs`;
+let docTabs = [{ id: 1, meta: null }], docTab = 0, docBusy = false;
+const tabName = (t, i) => (i === docTab ? projects.doc.name : t.meta?.name) || `Untitled-${t.id}`;
+// "*" only after a real change: a design in the account with changes it doesn't have, or a new one that was edited.
+const tabDirty = (t, i) => (i === docTab ? projects.doc.dirty && (!!projects.doc.id || history.length > 1 || !!t.changed) : !!t.meta?.dirty && (!!t.meta?.id || !!t.changed));
+function saveTabList() { try { localStorage.setItem(TABS_KEY, JSON.stringify({ tabs: docTabs.map((t) => ({ id: t.id, meta: t.meta, changed: !!t.changed })), open: docTabs[docTab].id })); } catch { /* storage full */ } }
+function docTabsStart() {
+  try {
+    const d = JSON.parse(localStorage.getItem(TABS_KEY) || 'null');
+    if (d && Array.isArray(d.tabs) && d.tabs.length) {
+      docTabs = d.tabs.filter((t) => Number(t?.id) > 0).map((t) => ({ id: Number(t.id), meta: t.meta ?? null, changed: !!t.changed }));
+      if (!docTabs.length) docTabs = [{ id: 1, meta: null }];
+      docTab = Math.max(0, docTabs.findIndex((t) => t.id === d.open));
+    }
+  } catch { /* none */ }
+  renderDocTabs();
+}
+function renderDocTabs() {
+  const box = $('docTabList');
+  if (!box) return;
+  box.innerHTML = docTabs.map((t, i) => `<div class="doc-tab${i === docTab ? ' on' : ''}" role="tab" aria-selected="${i === docTab}" data-doc="${i}" title="${escHtml(tabName(t, i))}${tabDirty(t, i) ? ' · changes not saved' : ''}"><span>${escHtml(tabName(t, i))}${tabDirty(t, i) ? '*' : ''}</span><button class="x" type="button" data-close="${i}" title="Close this design" aria-label="Close">×</button></div>`).join('');
+  requestAnimationFrame(() => { box.querySelector('.doc-tab.on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); syncDocArrows(); });
+}
+async function gotoDocTab(i, fresh = false) {
+  if (docBusy || (i === docTab && !fresh)) return;
+  docBusy = true;
+  try {
+    finishPowerClipEdit(); flushRecord(); finishPath();
+    const cur = docTabs[docTab];
+    cur.history = history; cur.future = future; cur.changed = !!cur.changed || history.length > 1;
+    saveNow(`${STORE}.tab.${cur.id}`, snapshot());
+    cur.meta = projects.swapDoc(fresh ? null : docTabs[i].meta);
+    let next;
+    if (fresh) { next = { id: Math.max(...docTabs.map((t) => t.id)) + 1, meta: null }; docTabs.push(next); docTab = docTabs.length - 1; }
+    else { next = docTabs[i]; docTab = i; }
+    canvas.discardActiveObject();
+    const snap = (!fresh && (next.history?.at(-1) ?? await loadLocal(`${STORE}.tab.${next.id}`))) || JSON.stringify({ page: pageSize, guides: [], objects: [] });
+    await restore(snap);
+    history = next.history ?? [snap]; future = next.future ?? [];
+    delete next.history; delete next.future;
+    syncHistory(); saveNow(STORE, snap); saveTabList(); renderDocTabs(); fit(); syncProps();
+    if (fresh) toast('A new design in its own tab: the others stay open in their tabs');
+    else if (pages.length > 1) { docBusy = false; await splitPagesToTabs(); }
+  } finally { docBusy = false; }
+}
+async function closeDocTab(i) {
+  const t = docTabs[i];
+  if (tabDirty(t, i) && !(await projects.ask(`Close “${tabName(t, i)}”? Its changes are not saved in your account and will be lost.`, 'Close', 'Cancel'))) return;
+  if (docTabs.length === 1) { projects.swapDoc(null); await ACTIONS.new(true); docTabs[0].changed = false; docTabs[0].meta = null; saveTabList(); renderDocTabs(); return; }
+  if (i === docTab) await gotoDocTab(i > 0 ? i - 1 : 1);
+  const k = docTabs.indexOf(t);
+  docTabs.splice(k, 1);
+  if (k < docTab) docTab--;
+  try { localStorage.removeItem(`${STORE}.tab.${t.id}`); } catch { /* none */ }
+  saveTabList(); renderDocTabs();
+}
+$('docTabList').addEventListener('click', (e) => {
+  const x = e.target.closest('[data-close]');
+  if (x) { e.stopPropagation(); closeDocTab(Number(x.dataset.close)); return; }
+  const tab = e.target.closest('[data-doc]');
+  if (tab) gotoDocTab(Number(tab.dataset.doc));
+});
+$('docTabAdd').onclick = () => gotoDocTab(docTab, true);
+// ‹ › buttons with a soft fade at the cut-off end(s) when the text bar or the page settings don't fit (they scroll).
+for (const id of ['textBar', 'ctx-doc']) {
+  const bar = $(id), mk = (side) => Object.assign(document.createElement('button'), { type: 'button', className: `bar-more ${side}`, textContent: side === 'l' ? '‹' : '›', title: side === 'l' ? 'More to the left' : 'More to the right', hidden: true });
+  const L = mk('l'), R = mk('r');
+  bar.prepend(L); bar.append(R);
+  L.onclick = () => bar.scrollBy({ left: -220, behavior: 'smooth' });
+  R.onclick = () => bar.scrollBy({ left: 220, behavior: 'smooth' });
+  const sync = () => { const over = bar.scrollWidth > bar.clientWidth + 1; L.hidden = !over || bar.scrollLeft <= 1; R.hidden = !over || bar.scrollLeft + bar.clientWidth >= bar.scrollWidth - 1; };
+  bar.addEventListener('scroll', sync); addEventListener('resize', sync);
+  new ResizeObserver(sync).observe(bar);
+  new MutationObserver(sync).observe(bar, { attributes: true, attributeFilter: ['hidden'] });
+}
+// The text bar and the page settings share the first row of the property bar: the mouse wheel scrolls them sideways.
+for (const id of ['textBar', 'ctx-doc']) $(id).addEventListener('wheel', (e) => { const b = $(id); if (b.scrollWidth <= b.clientWidth || e.target.closest('select, input')) return; b.scrollLeft += e.deltaY || e.deltaX; e.preventDefault(); }, { passive: false });
+// Task 9.143: each design is one page; the tabs on top replace the page tabs. A design with several pages (saved
+// before) opens with each extra page in its own tab, right after it, so nothing is lost.
+async function splitPagesToTabs(name = '') {
+  if (pages.length < 2) return;
+  // The extra tabs are named after the design being opened (its account or template name when known).
+  const base = name || tabName(docTabs[docTab], docTab), gd = guides.get(), pg = pageSize;
+  let id = Math.max(...docTabs.map((t) => t.id));
+  const extra = [];
+  pages.forEach((p, i) => {
+    if (i === pageIndex) return;
+    id++;
+    saveNow(`${STORE}.tab.${id}`, JSON.stringify({ page: pg, guides: gd, objects: p.objects ?? [] }));
+    extra.push({ id, changed: true, meta: { id: null, name: `${base} – ${p.name}`.slice(0, 120), version: null, dirty: true } });
+  });
+  const count = pages.length;
+  pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs();
+  docTabs.splice(docTab + 1, 0, ...extra);
+  history = [snapshot()]; future = []; syncHistory(); saveNow(STORE, history[0]);
+  saveTabList(); renderDocTabs();
+  toast(`This design had ${count} pages: each page is now open in its own tab along the top`, 6000);
+}
+async function duplicateDocTab() {
+  flushRecord();
+  const snap = snapshot(), name = `${tabName(docTabs[docTab], docTab)} copy`;
+  await gotoDocTab(docTab, true);
+  await restore(snap);
+  history = [snapshot()]; future = []; syncHistory(); saveNow(STORE, history[0]);
+  projects.swapDoc({ name, dirty: true });
+}
+/** Double-click a tab: its name becomes a box; Enter keeps the new name, Esc leaves it. */
+async function renameDocTab(i) {
+  if (i !== docTab) await gotoDocTab(i);
+  const tab = $('docTabList').querySelector(`[data-doc="${docTab}"]`), span = tab?.querySelector('span');
+  if (!span) return;
+  const input = Object.assign(document.createElement('input'), { value: tabName(docTabs[docTab], docTab), maxLength: 120 });
+  input.setAttribute('aria-label', 'Design name');
+  span.replaceWith(input); input.focus(); input.select();
+  let done = false;
+  const finish = async (keep) => {
+    if (done) return; done = true;
+    const name = input.value.trim();
+    if (keep && name && name !== tabName(docTabs[docTab], docTab)) await projects.rename(name);
+    renderDocTabs();
+  };
+  input.onkeydown = (e) => { e.stopPropagation(); if (e.key === 'Enter') finish(true); else if (e.key === 'Escape') finish(false); };
+  input.onblur = () => finish(true);
+  input.onclick = input.ondblclick = (e) => e.stopPropagation();
+}
+$('docTabList').addEventListener('dblclick', (e) => {
+  if (e.target.closest('[data-close], input')) return;
+  const tab = e.target.closest('[data-doc]');
+  if (tab) renameDocTab(Number(tab.dataset.doc));
+});
+// Arrows at both ends of the tab row when the tabs don't fit.
+function syncDocArrows() {
+  const b = $('docTabList'), over = b.scrollWidth > b.clientWidth + 1;
+  $('docTabLeft').hidden = !over || b.scrollLeft <= 0;
+  $('docTabRight').hidden = !over || b.scrollLeft + b.clientWidth >= b.scrollWidth - 1;
+}
+$('docTabLeft').onclick = () => $('docTabList').scrollBy({ left: -200, behavior: 'smooth' });
+$('docTabRight').onclick = () => $('docTabList').scrollBy({ left: 200, behavior: 'smooth' });
+$('docTabList').addEventListener('scroll', syncDocArrows);
+addEventListener('resize', syncDocArrows);
+
 
 // ===================================================================
 // Pages (CorelDRAW): a design can have several pages, all the same size. The page on screen lives on the canvas;
@@ -5460,9 +6280,9 @@ document.addEventListener('pointerdown', (e) => { const m = $('pageMenu'); if (!
 const SNAP_LABELS = { grid: 'Grid (5 mm)', guides: 'Guidelines', objects: 'Objects', nodes: 'Nodes', page: 'Page' };
 const ACTIONS = {
   fonts: () => { if ($('textBar').hidden) setTool('text'); setTimeout(() => $('tFont').click()); },
-  new: async () => { finishPowerClipEdit(); if ((userObjects().length || pages.length > 1) && !confirm('Start a new document? Every page is cleared (Undo can restore it).')) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
-  pageAdd: () => insertPage(), pageDup: () => duplicatePage(), pageDelete: () => deletePage(), pagePrev: () => gotoPage(pageIndex - 1), pageNext: () => gotoPage(pageIndex + 1),
-  pageRename: () => { const tab = $('pageTabs').querySelector(`[data-page="${pageIndex}"]`); if (tab) startRename(tab, pageIndex); },
+  new: async (sure) => { sure = sure === true; finishPowerClipEdit(); if (!sure && (userObjects().length || pages.length > 1) && !(await projects.ask('Start a new document? Everything on the page is cleared (Undo can restore it).', 'Clear', 'Cancel'))) return; pages = [{ name: 'Page 1', objects: null }]; pageIndex = 0; updateOtherNums(); renderPageTabs(); batch(() => { for (const o of userObjects()) canvas.remove(o); }); canvas.requestRenderAll(); projects.cleared(); },
+  pageAdd: () => gotoDocTab(docTab, true), pageDup: () => duplicateDocTab(), pageDelete: () => closeDocTab(docTab), pagePrev: () => gotoDocTab(docTab - 1), pageNext: () => gotoDocTab(docTab + 1),
+  pageRename: () => renameDocTab(docTab),
   open: () => $('fileImage').click(),
   exportPng: () => exportPng(false), exportPage: () => exportPng(true), exportSvg, exportPdf,
   send: sendToStudio,
@@ -5478,7 +6298,7 @@ const ACTIONS = {
   flipH: () => $('flipH').click(), flipV: () => $('flipV').click(),
   alignL: () => align('L'), alignR: () => align('R'), alignT: () => align('T'), alignB: () => align('B'), alignC: () => align('C'), alignM: () => align('M'), layout: () => align('P'),
   distH: () => distribute('x'), distV: () => distribute('y'),
-  curves: () => convertToCurves(), combine, breakApart, outline: outlineToObject,
+  curves: () => convertToCurves(), combine, breakApart, joinPaths, outline: outlineToObject,
   weld: () => shaping('weld'), trim: () => shaping('trim'), intersect: () => shaping('intersect'), simplify: () => shaping('simplify'), fmb: () => shaping('fmb'), bmf: () => shaping('bmf'),
   powerclip: startPowerClip, extract: () => extractPowerClip(), pcEdit: () => editPowerClip(), pcFinish: () => finishPowerClipEdit(),
   pcCentre: () => arrangePowerClip('centre'), pcFit: () => arrangePowerClip('fit'), pcFill: () => arrangePowerClip('fill'), pcFrame: togglePowerClipFrame,
@@ -5556,7 +6376,9 @@ Object.assign(ACTIONS, {
 });
 syncMenus();
 document.querySelectorAll('[data-action]').forEach((b) => b.addEventListener('click', () => { closeMenus(); ACTIONS[b.dataset.action]?.(); }));
-function closeMenus() { document.querySelectorAll('.menu.open, .fly.open').forEach((m) => m.classList.remove('open')); endFontPreview(); }
+// (A live list of what is open: closing menus runs on every click, and searching the whole page each time was slow.)
+const openEls = document.getElementsByClassName('open');
+function closeMenus() { for (const m of [...openEls]) if (m.classList.contains('menu') || m.classList.contains('fly')) m.classList.remove('open'); endFontPreview(); }
 document.querySelectorAll('.menu>button').forEach((b) => b.addEventListener('click', (e) => { const m = b.parentElement, open = m.classList.contains('open'); closeMenus(); if (!open) m.classList.add('open'); e.stopPropagation(); }));
 addEventListener('click', (e) => { if (!e.target.closest('.menu,.fly,.tool')) closeMenus(); });
 $('undo').onclick = undo; $('redo').onclick = redo;
@@ -5573,6 +6395,16 @@ const startKit = (mode) => {
 $('goAi').onclick = () => startKit('ai');
 $('goDyo').onclick = () => startKit('dyo');
 $('goHome').onclick = () => startKit('home');
+// The 3DEEZI logo goes to the home page, as on every website page (same path as HOME: the artwork stays here).
+// In the app the logo stays a picture, as on the app's other screens.
+if (HOST === 'web' || !embedded()) {
+  const brand = document.querySelector('.top .brand');
+  Object.assign(brand, { tabIndex: 0, title: '3DEEZI home (your artwork stays here)' });
+  brand.setAttribute('role', 'link'); brand.setAttribute('aria-label', '3DEEZI home');
+  brand.style.cursor = 'pointer';
+  brand.onclick = () => startKit('home');
+  brand.onkeydown = (e) => { if (e.key === 'Enter') startKit('home'); };
+}
 // The pills show as much as the top bar has room for (not by screen width alone, so the icons stay whenever they
 // fit): icon and word at full size, then step by step smaller, words only, HOME as its house only, smallest, and last
 // no HOME (classes f1…f8, see artboard.css). Checked again whenever the bar or its buttons change size.
@@ -5626,10 +6458,11 @@ document.fonts.ready.then(fitGoTabs);
 // Projects (projects.js): the design kept on this device and in the account (File > Save to my account, Open from my
 // account), templates, and Send to 3D Studio with the design linked to the artwork on the kit.
 /** Opens a whole design in place of the one on the page (from the account or a template): its own Undo starts. */
-async function openDocument(json) {
-  await window.artboard.load(json);
+async function openDocument(json, name) {
+  await window.artboard.load(json, name);
   history = [snapshot()]; future = []; syncHistory();
   saveNow(STORE, history[0]);
+  await splitPagesToTabs();
 }
 /** A picture of the page on screen (white page), for the account's lists; the selection stays selected. */
 function pagePreview() {
@@ -5640,10 +6473,11 @@ function pagePreview() {
 }
 let starter = null; // the YOUR TEAM text a new page starts with (see Start): untouched, the page counts as blank
 const projects = createProjects({
-  $, toast, post, icon, escHtml, store: STORE, snapshot, open: openDocument, preview: pagePreview,
-  blank: () => (!userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
+  $, toast, post, icon, escHtml, store: STORE, snapshot, saveToComputer, open: openDocument, preview: pagePreview,
+  blank: () => (flushRecord(), !userObjects().length || (history.length < 2 && userObjects().length === 1 && userObjects()[0] === starter)) && pages.every((p, i) => i === pageIndex || !p.objects?.length),
   firstText: () => String(userObjects().find(isText)?.text ?? '').trim().slice(0, 60),
   finish: () => finishPowerClipEdit(), sendAgain: () => sendToStudio(),
+  docChanged: () => renderDocTabs(),
 });
 Object.assign(ACTIONS, projects.actions);
 // Right-click menu: order (to front / back), duplicate, curves, lock, delete for the object under the pointer.
@@ -5818,15 +6652,269 @@ $('gridToggle').onchange = (e) => { state.grid = e.target.checked; savePrefs(); 
 $('zoomPct').onchange = (e) => (e.target.value === 'fit' ? fit() : zoomAt(baseZoom() * Number(e.target.value) / 100));
 $('zoomRange').oninput = (e) => zoomAt(baseZoom() * 2 ** (Number(e.target.value) / 100));
 $('zoomMinus').onclick = ACTIONS.zoomOut; $('zoomPlus').onclick = ACTIONS.zoomIn; $('fitBtn').onclick = fit;
-function openTab(name) {
+/** Opens a tab of the right panel. On phones the Colour tab is the colour panel under the artwork (full: the whole
+ *  Colour tab in the sheet, for gradients, patterns, palettes and colour values: the panel's More button). */
+function openTab(name, full = false) {
+  if (name === 'colour' && !full && openDock()) return;
+  closeDock();
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('on', p.id === `pane-${name}`));
   if (name === 'colour') requestAnimationFrame(drawPicker);
   $('side').classList.add('open');
 }
 document.querySelectorAll('.tabs button').forEach((b) => (b.onclick = () => openTab(b.dataset.tab)));
-$('panelBtn').onclick = () => $('side').classList.toggle('open');
+$('panelBtn').onclick = () => {
+  const side = $('side');
+  if (side.classList.contains('open')) { side.classList.remove('open'); return; }
+  closeDock();
+  // Phones: the Colour tab is the colour panel, so the sheet opens on Properties (its tabs lead to the others).
+  if (phoneDock.matches && $('pane-colour').classList.contains('on')) openTab('props'); else side.classList.add('open');
+};
 $('closeSide').onclick = () => $('side').classList.remove('open');
+
+// ===================================================================
+// Phones: the colour panel under the artwork (client picture 173.jpg, 9.119)
+// Up to 600 px wide, Colour (the Fill and Outline chips, the Colour tab) opens a compact panel BELOW the page: a
+// small wheel (ring = colour, square = lightness), the colour, an eyedropper, HEX and opacity, recent colours and
+// Done. The page area shrinks to the room above (the toolbox becomes a rail at its side) and the page is fitted
+// into it, so the whole design stays in view. Colours show on the design while you drag (Live preview; off: when you
+// let go); each drag, typed colour, recent colour or opacity change is one undo step. Done or x closes it and the
+// view goes back to how it was. "Fit", "Live preview" and "Assist" sit just above it; on the website and in the app
+// the host's own Assist button makes way while it is open (message colourDock) and Assist opens the chat
+// (assistOpen).
+// ===================================================================
+const phoneDock = matchMedia('(max-width:600px)');
+state.dockLive = state.dockLive !== false;
+for (const svg of document.querySelectorAll('[data-cd-icon]')) svg.innerHTML = ICONS[svg.dataset.cdIcon] ?? '';
+$('cdAssist').hidden = !embedded();
+const clamp01 = (v) => Math.min(1, Math.max(0, v));
+/** The wheel's parts for a wheel this many CSS pixels wide: hue ring (outer / inner radius) and the square inside it. */
+function dockGeo(size) {
+  const c = size / 2, ro = c - 1, ri = ro - Math.max(10, size * 0.12), side = (ri - Math.max(5, size * 0.045)) * Math.SQRT2;
+  return { c, ro, ri, side, sx: c - side / 2, sy: c - side / 2 };
+}
+/** The colour the panel shows: the selected object's own fill or outline (a gradient: its picked colour), else the current one. */
+function dockColour() {
+  const o = one(), p = o?.type === 'group' ? paintParts(o)[0] ?? o : o;
+  if (state.target === 'fill') {
+    const spec = selGradient() ?? (p ? null : state.gradient);
+    if (spec) { const st = gradStops(spec); return hexOf(st[Math.min(gradActive, st.length - 1)]?.color) ?? state.fill; }
+    if (p?.patSpec?.ink) return hexOf(p.patSpec.ink) ?? state.fill;
+    return hexOf(p && typeof p.fill === 'string' ? p.fill : null) ?? state.fill;
+  }
+  const vs = o?.varSpec ?? p?.parent?.varSpec;
+  return hexOf(vs ? vs.colour : o?.textOutlines?.length ? o.textOutlines[0].c : p?.strokeWidth ? p.stroke : null) ?? state.stroke;
+}
+let dockRing = null; // the hue ring, drawn once for each size
+function drawDockWheel() {
+  const box = $('cdWheel'), cv = $('cdWheelCanvas'), size = box.clientWidth;
+  if (!dock.open || !size) return;
+  const dpr = Math.min(3, devicePixelRatio || 1), px = Math.round(size * dpr), geo = dockGeo(size);
+  if (cv.width !== px || cv.height !== px) { cv.width = cv.height = px; dockRing = null; }
+  if (!dockRing) {
+    dockRing = document.createElement('canvas');
+    dockRing.width = dockRing.height = px;
+    const r = dockRing.getContext('2d'), c = px / 2, ro = geo.ro * dpr, ri = geo.ri * dpr;
+    if (r.createConicGradient) {
+      // Red at the top, round clockwise.
+      const gr = r.createConicGradient(-Math.PI / 2, c, c);
+      for (let i = 0; i <= 6; i++) gr.addColorStop(i / 6, `hsl(${i * 60},100%,50%)`);
+      r.fillStyle = gr; r.beginPath(); r.arc(c, c, ro, 0, Math.PI * 2); r.moveTo(c + ri, c); r.arc(c, c, ri, 0, Math.PI * 2, true); r.fill('evenodd');
+    } else for (let d = 0; d < 360; d++) {
+      const a0 = ((d - 90.5) * Math.PI) / 180, a1 = ((d - 89) * Math.PI) / 180;
+      r.beginPath(); r.arc(c, c, ro, a0, a1); r.arc(c, c, ri, a1, a0, true); r.closePath(); r.fillStyle = `hsl(${d},100%,50%)`; r.fill();
+    }
+  }
+  const g = cv.getContext('2d'), x = geo.sx * dpr, y = geo.sy * dpr, s = geo.side * dpr;
+  g.clearRect(0, 0, px, px);
+  g.drawImage(dockRing, 0, 0);
+  g.fillStyle = `hsl(${dock.hsv.h},100%,50%)`; g.fillRect(x, y, s, s);
+  const w = g.createLinearGradient(x, 0, x + s, 0); w.addColorStop(0, '#fff'); w.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = w; g.fillRect(x, y, s, s);
+  const k = g.createLinearGradient(0, y, 0, y + s); k.addColorStop(0, 'rgba(0,0,0,0)'); k.addColorStop(1, '#000'); g.fillStyle = k; g.fillRect(x, y, s, s);
+  const a = ((dock.hsv.h - 90) * Math.PI) / 180, rm = (geo.ro + geo.ri) / 2;
+  Object.assign($('cdRingDot').style, { left: `${geo.c + Math.cos(a) * rm}px`, top: `${geo.c + Math.sin(a) * rm}px`, background: `hsl(${dock.hsv.h},100%,50%)` });
+  Object.assign($('cdSqDot').style, { left: `${geo.sx + dock.hsv.s * geo.side}px`, top: `${geo.sy + (1 - dock.hsv.v) * geo.side}px`, background: hsvToHex(dock.hsv) });
+}
+/** The panel for this colour; the wheel keeps its ring where it was for greys (they have no colour of their own). */
+function dockShow(hex) {
+  const h = hexToHsv(hex);
+  if (!h.s || !h.v) h.h = dock.hsv.h;
+  if (!h.v) h.s = dock.hsv.s;
+  dock.hsv = h;
+  dockPaint(hex);
+}
+function dockPaint(hex = hsvToHex(dock.hsv)) {
+  $('cdSwatch').style.background = hex;
+  $('cdWheel').setAttribute('aria-valuetext', hex);
+  if (document.activeElement !== $('cdHex')) $('cdHex').value = hex;
+  $('cdOp').style.setProperty('--c', hex);
+  for (const b of $('cdRecent').children) b.classList.toggle('on', b.dataset.c === hex);
+  drawDockWheel();
+}
+function dockRecent() {
+  const list = state.recent.length ? state.recent : ['#12E1F0', '#1E7BFF', '#7B4DFF', '#5D6B7B', '#000000', '#FFFFFF'];
+  if (dock.recent === list.join()) return;
+  dock.recent = list.join();
+  $('cdRecent').replaceChildren(...list.map((c) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.style.background = c; b.dataset.c = c; b.title = c; b.setAttribute('aria-label', `Use ${c}`);
+    b.onclick = () => { dockShow(c); dockCommit(c); };
+    return b;
+  }));
+}
+/** Shows the selection's colour, opacity and recent colours (not while the wheel is being dragged). */
+function dockSync() {
+  if (!dock.open || dock.drag) return;
+  for (const b of document.querySelectorAll('[data-cdt]')) b.classList.toggle('on', b.dataset.cdt === state.target);
+  const o = one(), op = Math.round((o ? o.opacity : state.opacity) * 100);
+  $('cdOp').value = String(op); $('cdOpVal').textContent = `${op}%`;
+  dockRecent();
+  dockShow(dockColour());
+}
+/** A colour while dragging: on the design straight away (Live preview), without an undo step yet. */
+function dockLive(hex) {
+  dockPaint(hex);
+  if (!state.dockLive) return;
+  muted++;
+  try { setColour(hex, { recent: false }); } finally { muted--; }
+}
+/** The colour chosen (the finger lifted, a recent colour, a typed HEX, the eyedropper): one undo step, a recent colour. */
+function dockCommit(hex) {
+  setColour(hex);
+  dockRecent();
+  dockPaint(hex);
+}
+function openDock() {
+  if (!phoneDock.matches) return false;
+  $('side').classList.remove('open');
+  if (!dock.open) {
+    dock.view = canvas.viewportTransform.slice();
+    dock.open = true;
+    $('cdock').hidden = false;
+    document.body.classList.add('cdock-open');
+    $('cdLive').setAttribute('aria-pressed', String(state.dockLive));
+    if (embedded()) post({ type: 'colourDock', open: true });
+    // The page area is smaller now: the whole page in view above the panel.
+    resizeIfChanged(); fit();
+    dock.fitted = canvas.viewportTransform.slice();
+  }
+  dockSync();
+  return true;
+}
+function closeDock() {
+  if (!dock.open) return;
+  dockPicking(false);
+  dock.open = false;
+  dock.drag = null;
+  $('cdock').hidden = true;
+  document.body.classList.remove('cdock-open');
+  if (embedded()) post({ type: 'colourDock', open: false });
+  resizeIfChanged();
+  // The view as it was before, unless it was zoomed or moved meanwhile (then the whole page).
+  const same = dock.fitted && canvas.viewportTransform.every((v, i) => Math.abs(v - dock.fitted[i]) < 1e-6);
+  if (same && dock.view?.every(Number.isFinite)) { canvas.setViewportTransform(dock.view); afterZoom(); } else fit();
+}
+phoneDock.addEventListener?.('change', () => { if (!phoneDock.matches) closeDock(); else if (dock.open) { resizeIfChanged(); fit(); dockSync(); } });
+// The window changed size (a phone's browser bars, the keyboard): the page stays fitted unless it was zoomed or moved.
+addEventListener('resize', () => {
+  if (!dock.open) return;
+  requestAnimationFrame(() => {
+    if (!dock.open) return;
+    const same = dock.fitted && canvas.viewportTransform.every((v, i) => Math.abs(v - dock.fitted[i]) < 1e-6);
+    resizeIfChanged();
+    if (same) { fit(); dock.fitted = canvas.viewportTransform.slice(); }
+    drawDockWheel();
+  });
+});
+$('cdWheel').addEventListener('pointerdown', (e) => {
+  if (e.button > 0) return;
+  const box = $('cdWheel'), r = box.getBoundingClientRect(), geo = dockGeo(r.width);
+  const d = Math.hypot(e.clientX - r.left - geo.c, e.clientY - r.top - geo.c);
+  if (d > geo.ro + 8) return;
+  e.preventDefault();
+  dock.drag = d >= geo.ri - 6 ? 'hue' : 'sv';
+  // The ring picks a colour: from white, grey or black it starts at the full colour.
+  if (dock.drag === 'hue') { if (dock.hsv.s < 0.08) dock.hsv.s = 1; if (dock.hsv.v < 0.15) dock.hsv.v = 1; }
+  try { box.setPointerCapture(e.pointerId); } catch { /* a finished touch */ }
+  const at = (ev) => {
+    const x = ev.clientX - r.left, y = ev.clientY - r.top;
+    if (dock.drag === 'hue') dock.hsv.h = (((Math.atan2(y - geo.c, x - geo.c) * 180) / Math.PI + 90) % 360 + 360) % 360;
+    else { dock.hsv.s = clamp01((x - geo.sx) / geo.side); dock.hsv.v = 1 - clamp01((y - geo.sy) / geo.side); }
+    dockLive(hsvToHex(dock.hsv));
+  };
+  at(e);
+  const move = (ev) => { if (dock.drag) at(ev); };
+  const up = () => {
+    box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
+    if (!dock.drag) return;
+    dock.drag = null;
+    dockCommit(hsvToHex(dock.hsv));
+  };
+  box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+});
+// Keyboard: arrows turn the ring (left / right) and change the lightness (up / down).
+$('cdWheel').addEventListener('keydown', (e) => {
+  const step = e.shiftKey ? 10 : 2, h = dock.hsv;
+  if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') h.h = (h.h + (e.key === 'ArrowRight' ? step : -step) + 360) % 360;
+  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') h.v = clamp01(h.v + (e.key === 'ArrowUp' ? step : -step) / 100);
+  else return;
+  e.preventDefault(); e.stopPropagation();
+  dockCommit(hsvToHex(h));
+});
+for (const b of document.querySelectorAll('[data-cdt]')) b.onclick = () => setTarget(b.dataset.cdt);
+$('cdHex').addEventListener('change', (e) => {
+  const hex = hexOf(`#${e.target.value.trim().replace(/^#/, '')}`);
+  if (!hex) { e.target.value = hsvToHex(dock.hsv); toast('Type a colour as 6 hex digits, e.g. #A51F3C'); return; }
+  e.target.value = hex;
+  dockShow(hex); dockCommit(hex);
+});
+$('cdHex').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+$('cdOp').addEventListener('input', (e) => {
+  const v = Number(e.target.value);
+  $('cdOpVal').textContent = `${v}%`;
+  if (!state.dockLive) return;
+  muted++;
+  try { applyToSelection({ opacity: v / 100 }); } finally { muted--; }
+});
+$('cdOp').addEventListener('change', (e) => {
+  state.opacity = clamp01(Number(e.target.value) / 100);
+  applyToSelection({ opacity: state.opacity });
+  syncProps();
+});
+$('cdLive').onclick = () => {
+  state.dockLive = !state.dockLive; savePrefs();
+  $('cdLive').setAttribute('aria-pressed', String(state.dockLive));
+  toast(state.dockLive ? 'Live preview on: colours show on the design while you drag' : 'Live preview off: the design changes when you let go');
+};
+$('cdFit').onclick = fit;
+$('cdZoom').onchange = (e) => { const v = e.target.value; e.target.value = ''; if (v === 'fit') fit(); else if (v) zoomAt(baseZoom() * Number(v) / 100); };
+$('cdDone').onclick = closeDock;
+$('cdClose').onclick = closeDock;
+$('cdMore').onclick = () => openTab('colour', true);
+$('cdAssist').onclick = () => { closeDock(); post({ type: 'assistOpen' }); };
+const DOCK_PICK_HINT = 'Tap a colour on the page';
+/** The panel's eyedropper: the next tap on the page picks the colour under it (it doesn't select anything). */
+function dockPicking(on) {
+  dock.picking = on;
+  $('cdEye').classList.toggle('on', on);
+  document.querySelector('.cd-pickcover')?.remove();
+  if (!on) { if ($('hint').textContent === DOCK_PICK_HINT) hint(''); return; }
+  const cover = document.createElement('div');
+  cover.className = 'cd-pickcover';
+  wrap.append(cover);
+  hint(DOCK_PICK_HINT);
+  cover.addEventListener('pointerdown', (e) => {
+    e.preventDefault(); e.stopPropagation();
+    let target = null;
+    try { target = canvas.findTarget(e) ?? null; } catch { /* the screen colour then */ }
+    const c = colourAt(e, target?.isPage ? null : target);
+    dockPicking(false);
+    if (!c) { toast('No colour there: tap the design'); return; }
+    dockShow(c); dockCommit(c);
+    toast(`Picked ${c}`);
+  });
+}
+$('cdEye').onclick = () => dockPicking(!dock.picking);
 
 // ===================================================================
 // Text bar (CorelDRAW-style): font, size, bold, italic, underline, alignment.
@@ -6306,6 +7394,7 @@ addEventListener('keydown', (e) => {
   else if (mod && k === 'q') { e.preventDefault(); if (e.shiftKey) outlineToObject(); else convertToCurves(); }
   else if (mod && k === 'l') { e.preventDefault(); combine(); }
   else if (mod && k === 'k') { e.preventDefault(); breakApart(); }
+  else if (mod && k === 'j') { e.preventDefault(); joinPaths(); }
   else if (mod && k === 'i') { e.preventDefault(); $('fileImage').click(); }
   else if (mod && k === 'e') { e.preventDefault(); exportPdf(); }
   else if (k === 'pageup' || k === 'pagedown') {
@@ -6317,20 +7406,20 @@ addEventListener('keydown', (e) => {
       const how = e.shiftKey ? (k === 'pageup' ? 'front' : 'back') : (k === 'pageup' ? 'forward' : 'backward');
       order(how);
       toast({ front: 'To the front of the page (Shift+PgUp)', back: 'To the back of the page (Shift+PgDn)', forward: 'Forward one (Ctrl+PgUp)', backward: 'Back one (Ctrl+PgDn)' }[how], 1800);
-    } else gotoPage(pageIndex + (k === 'pageup' ? -1 : 1));
+    } else gotoDocTab(docTab + (k === 'pageup' ? -1 : 1));
   }
   else if (k === 'delete' || k === 'backspace') { if (gradKeys && state.gradient) gradRemove(); else if (state.tool === 'anchor' && connView?.sel) deleteAnchor(connView.sel); else if (state.tool === 'varline' && varEdit) { if (varEdit.sel != null) deleteVarPoint(); else toast('Click a width point (it turns pink) to delete it; switch to Pick to delete the whole object'); } else removeSelection(); }
   else if (k === 'escape') {
     if (document.querySelector('.menu.open, .fly.open')) { closeMenus(); return; } // an open menu or list closes first
     if (pcEdit) { finishPowerClipEdit(); return; }
-    if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = 'default'; return; }
+    if (pickFrame) { pickFrame = null; hint(''); canvas.defaultCursor = CURSORS.arrow; return; }
     if (path) { finishPath(); return; }
     cancelCurve3(); attrSample = null;
     if (state.tool !== 'select') setTool('select'); else { canvas.discardActiveObject(); canvas.requestRenderAll(); }
   }
   else if (k === 'enter') finishPath();
   else if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(k)) {
-    const s = (e.shiftKey ? 10 : 1) * MM, dx = k === 'arrowleft' ? -s : k === 'arrowright' ? s : 0, dy = k === 'arrowup' ? -s : k === 'arrowdown' ? s : 0;
+    const s = (e.shiftKey ? 10 : 1) * (state.docSet.nudge || 0.1) * MM, dx = k === 'arrowleft' ? -s : k === 'arrowright' ? s : 0, dy = k === 'arrowup' ? -s : k === 'arrowdown' ? s : 0;
     if (state.tool === 'node' && nodes.nudge(dx, dy)) { e.preventDefault(); return; }
     if (active().length) { e.preventDefault(); applyToSelection((o) => ({ left: o.left + dx, top: o.top + dy })); }
   }
@@ -6341,7 +7430,7 @@ addEventListener('keyup', (e) => {
   if (e.key !== ' ' || !spaceDown) return;
   spaceDown = false;
   canvas.defaultCursor = toolCursor(state.tool);
-  canvas.hoverCursor = PICK_LIKE.has(state.tool) ? 'default' : canvas.defaultCursor;
+  canvas.hoverCursor = PICK_LIKE.has(state.tool) ? CURSORS.arrow : canvas.defaultCursor;
   canvas.setCursor(canvas.defaultCursor);
 });
 // The window and the page area both say when it changes size: the canvas is sized (and so cleared and drawn again)
@@ -6500,15 +7589,16 @@ const ASSIST = {
     return `${TOOLS[v].label} tool selected${n ? ` (button ${n} ${where})` : ''}${notice ? `. ${notice}` : ''}`;
   },
   /** Pages: add, duplicate, delete, next, previous, a page number, or rename:<name>. */
+  /** Designs are one page each, in tabs along the top (9.143): add, duplicate, delete, next, previous, a tab number, or rename:<name>. */
   page: (v) => {
     const s = String(v || '').trim(), n = Number(s);
-    if (s === 'add') { insertPage(); return `Page added after page ${pageIndex + 1}: it is open now (the tabs at the bottom left switch pages)`; }
-    if (s === 'duplicate') { duplicatePage(); return `Page ${pageIndex + 1} duplicated: the copy is open now`; }
-    if (s === 'delete') { if (pages.length < 2) throw new Error('The design has only one page: it cannot be deleted (File > New document clears it).'); deletePage(); return `Deleted ${pages[pageIndex].name} (Undo brings it back)`; }
-    if (s === 'next' || s === 'previous') { const i = pageIndex + (s === 'next' ? 1 : -1); if (!pages[i]) throw new Error(`There is no ${s} page (this is page ${pageIndex + 1} of ${pages.length}).`); gotoPage(i); return `Opened ${pages[i].name} (page ${i + 1} of ${pages.length})`; }
-    if (s.startsWith('rename:')) { renamePage(pageIndex, s.slice(7)); return `This page is now called ${pages[pageIndex].name}`; }
-    if (Number.isInteger(n) && n >= 1) { if (!pages[n - 1]) throw new Error(`There are ${pages.length} pages: there is no page ${n}.`); gotoPage(n - 1); return `Opened ${pages[n - 1].name} (page ${n} of ${pages.length})`; }
-    throw new Error('Page can be add, duplicate, delete, next, previous, a page number, or rename:<name>.');
+    if (s === 'add') { gotoDocTab(docTab, true); return 'A new design opened in its own tab (the tabs along the top of the page)'; }
+    if (s === 'duplicate') { duplicateDocTab(); return 'The design was copied into a new tab'; }
+    if (s === 'delete') { closeDocTab(docTab); return 'This design tab is closing'; }
+    if (s === 'next' || s === 'previous') { const i = docTab + (s === 'next' ? 1 : -1); if (!docTabs[i]) throw new Error(`There is no ${s} tab (this is tab ${docTab + 1} of ${docTabs.length}).`); gotoDocTab(i); return `Opened tab ${i + 1}`; }
+    if (s.startsWith('rename:')) { const name = s.slice(7).trim(); if (!name) throw new Error('Give a name after rename:'); projects.rename(name); return `This design is now called ${name}`; }
+    if (Number.isInteger(n) && n >= 1) { if (!docTabs[n - 1]) throw new Error(`There are ${docTabs.length} tabs: there is no tab ${n}.`); gotoDocTab(n - 1); return `Opened tab ${n}`; }
+    throw new Error('Page can be add, duplicate, delete, next, previous, a tab number, or rename:<name>.');
   },
   /** A variable outline profile (optionally :width in mm) for the selected shapes and lines, or remove. */
   varline: (v) => {
@@ -6982,7 +8072,7 @@ window.artboard = {
   },
   setAssets: (list) => { for (const a of list ?? []) addAsset(a.src, a.name || 'Asset'); },
   addImage: ({ src, name }) => { addAsset(src, name || 'Image'); return addImage(src, name || 'Image'); },
-  load: (json) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then((r) => { compactNums(); syncProps(); return r; }); },
+  load: (json, name) => { if (pcEdit) { dropHelper(pcEdit.helper); pcEdit = null; muted = Math.max(0, muted - 1); } return restore(typeof json === 'string' ? json : JSON.stringify(json)).then(async (r) => { compactNums(); await splitPagesToTabs(typeof name === 'string' ? name : ''); syncProps(); return r; }); },
   clear: () => ACTIONS.new(),
   toast: (text) => toast(String(text ?? '')),
   receive: (msg) => {
@@ -6993,7 +8083,7 @@ window.artboard = {
 // The account (projects.js): host {docs, signedIn, kit, garments, placements}, docsReply {id, ok, data}, openDoc {id}.
 Object.assign(window.artboard, projects.bridge);
 // Automated tests only (?debug): reach the canvas from the browser.
-if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) }, projects, handles };
+if (params.has('debug')) window.__ab = { canvas, nodes, state, setTool, dragLayers, V, B, F: { Rect, IText, FabricImage, Group, Path }, geom: { mode: () => (geomWorker ? 'worker' : geomWorker === false ? 'page' : 'not started'), limit: (ms) => { GEOM_LIMIT = ms; }, stop: () => stopGeom(new Error('stopped')) }, projects, handles };
 addEventListener('message', (e) => { if (e.source === window.parent && typeof e.data === 'string') { try { window.artboard.receive(e.data); } catch { /* not for us */ } } });
 
 // ===================================================================
@@ -7025,6 +8115,8 @@ addEventListener('message', (e) => { if (e.source === window.parent && typeof e.
   }
   history = [snapshot()];
   syncHistory();
+  docTabsStart();
+  await splitPagesToTabs();
   fit();
   syncProps();
   setTool('select');

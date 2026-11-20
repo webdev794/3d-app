@@ -1,0 +1,88 @@
+{
+  "about": "Zip-up polo (polo-shirt-textured.glb, MODELQ5 2026-11-19, cards 27480 / 27486): coloured from the same garment split into 17 parts by Tripo (polo-shirt-parts.glb) by viewer/tripo-glbparts.mjs: the body, hem band, shoulder and armhole seams the print; the stand-up collar the Collar colour, one even band down from its top (its inside too); the zip's slider and short tape (in the collar's part, keysWhere) the print, under our own zip: tape (the Collar colour), metal teeth and a metal pull at the top, from the bottom of the collar's V straight down the centre front to the hem as our own tape (the Collar colour) and metal teeth (zipLine: data `zip`, main.js); each sleeve its own piece (Left / Right sleeve: its own colour, else the Sleeves area, else the print laid on the made sleeve, sleeveMap, so a pattern's or a design picture's sleeve colours show), its seam with the body one smooth line; each cuff an even band (the trim colour) on its sleeve (cuffOn). Stitch lines: the collar's foot, a cuff line and a hem line. Data ownPlacket: no printed button placket; insideCloth.",
+  "glbParts": {
+    "glb": "../../../tripo/polo-shirt-parts.glb",
+    "keys": {
+      "tripo_part_11": "part:rightCuff",
+      "tripo_part_15": "part:leftCuff",
+      "tripo_part_20": "area:leftSleeve",
+      "tripo_part_21": "area:rightSleeve",
+      "tripo_part_24": null,
+      "tripo_part_25": null,
+      "tripo_part_30": "collar",
+      "tripo_part_37": null,
+      "tripo_part_38": null,
+      "tripo_part_4": "area:leftSleeve",
+      "tripo_part_41": null,
+      "tripo_part_42": "area:rightSleeve",
+      "tripo_part_43": null,
+      "tripo_part_44": null,
+      "tripo_part_45": null,
+      "tripo_part_6": null,
+      "tripo_part_7": null
+    },
+    "keysWhere": [
+      {
+        "part": "tripo_part_30",
+        "where": "y < 0.86 && z > 0.05",
+        "key": null
+      }
+    ],
+    "collar": "collar",
+    "sleeves": [
+      "area:leftSleeve",
+      "area:rightSleeve",
+      "part:leftCuff",
+      "part:rightCuff"
+    ],
+    "cuffOn": {
+      "part:leftCuff": "area:leftSleeve",
+      "part:rightCuff": "area:rightSleeve"
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.006,
+      "cuff": 0.015,
+      "hem": 0.017,
+      "sigma": 0.03,
+      "cuffLongest": true
+    },
+    "evenCuffs": true,
+    "sleeveMap": {
+      "armhole": [
+        [
+          0.258,
+          0.688
+        ],
+        [
+          0.258,
+          0.53
+        ]
+      ],
+      "cuff": [
+        [
+          0.418,
+          0.566
+        ],
+        [
+          0.372,
+          0.476
+        ]
+      ]
+    },
+    "data": {
+      "insideCloth": true,
+      "ownPlacket": true
+    },
+    "cuffWidth": 0.017,
+    "evenCollar": true,
+    "zipLine": {
+      "top": 0.83
+    }
+  }
+}

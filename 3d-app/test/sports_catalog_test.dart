@@ -13,7 +13,14 @@ import 'package:three_deezi/widgets/category_icon.dart';
 void main() {
   // The website's sports (config/catalog.php): id, group, style hint, heading,
   // "More teamwear" and the garment tiles ($tile, $near and $soon calls).
-  final php = File('website/config/catalog.php').readAsStringSync();
+  // (A name with an apostrophe is written in double quotes there, as
+  // "Women's fitness top": read as the single-quoted form.)
+  final php = File('website/config/catalog.php')
+      .readAsStringSync()
+      .replaceAllMapped(
+        RegExp(r'"([^"\$]*)"'),
+        (m) => "'${m[1]!.replaceAll("'", r"\'")}'",
+      );
   final block = php.substring(
     php.indexOf(r'$sports = ['),
     php.indexOf('\nreturn ['),
@@ -41,6 +48,20 @@ void main() {
           prompt: field(text, 'prompt'),
           heading: field(text, 'heading'),
           more: !text.contains("'more' => false"),
+          subtitle: field(text, 'subtitle'),
+          selectHint: field(text, 'select_hint'),
+          descriptions: !text.contains("'descriptions' => false"),
+          backdrop: field(text, 'backdrop'),
+          // The AI designer's marking rules (netball: no names or numbers,
+          // position letters instead).
+          names: !text.contains("'names' => false"),
+          numbers: !text.contains("'numbers' => false"),
+          positions: [
+            for (final p in RegExp(r"'([^']*)'").allMatches(
+              RegExp(r"'positions' => \[([^\]]*)\]").firstMatch(text)?[1] ?? '',
+            ))
+              p[1]!,
+          ],
           tiles: [
             for (final m in tileCall.allMatches(text))
               (
@@ -62,6 +83,16 @@ void main() {
     'Shorts': 'shorts',
     'Training Tee': 'tee',
     'Singlet': 'singlet',
+    'Netball dress': 'netball-dress',
+    'Football jersey': 'nfljersey',
+    'Compression top': 'compression',
+    'Shooting shirt': 'shooting-shirt',
+    'Socks': 'socks',
+    'Cap': 'cap',
+    '5 panel cap': 'five-panel-cap',
+    'Beanie': 'beanie',
+    'Skirt': 'skirt',
+    'Bucket hat': 'bucket-hat',
     'Polo': 'polo',
     'Polo with pocket': 'pocketpolo',
     'Hoodie': 'hoodie',
@@ -81,10 +112,30 @@ void main() {
       expect(s.hint, w.prompt, reason: w.id);
       expect(s.heading, w.heading, reason: w.id);
       expect(s.more, w.more, reason: w.id);
+      // The garment step's own settings (American Football, images/165.jpg).
+      expect(s.subtitle, w.subtitle, reason: w.id);
+      expect(s.selectHint, w.selectHint, reason: w.id);
+      expect(s.descriptions, w.descriptions, reason: w.id);
+      expect(s.backdrop, w.backdrop, reason: w.id);
+      expect(s.names, w.names, reason: w.id);
+      expect(s.numbers, w.numbers, reason: w.id);
+      expect(s.positions, w.positions, reason: w.id);
+      if (s.backdrop != null) {
+        expect(
+          File('assets/images/showroom/${s.backdrop}.webp').existsSync(),
+          isTrue,
+          reason: w.id,
+        );
+      }
       // The same garment tiles (task 9.99): names, descriptions, 3D garments,
       // fit, the garment still to build, the picture and the track style.
       expect(s.tiles.length, w.tiles.length, reason: w.id);
-      expect(w.tiles.length, greaterThanOrEqualTo(6), reason: w.id);
+      // (Headwear has its four kinds, client mockup 296.jpg.)
+      expect(
+        w.tiles.length,
+        greaterThanOrEqualTo(w.id == 'headwear' ? 4 : 6),
+        reason: w.id,
+      );
       for (var i = 0; i < w.tiles.length; i++) {
         final a = s.tiles[i], b = w.tiles[i], why = '${w.id} ${b.name}';
         expect(a.name, b.name, reason: why);
@@ -125,6 +176,11 @@ void main() {
     expect(ProjectSync.sports['Training / Gym'], 'training');
     expect(ProjectSync.sports['American Football'], 'american-football');
     expect(ProjectSync.sports['Darts & Pool'], 'darts');
+    // Netball's rules are read from the website's list, not left out.
+    final netball = website.firstWhere((w) => w.id == 'netball');
+    expect(netball.names, isFalse);
+    expect(netball.numbers, isFalse);
+    expect(netball.positions, ['GS', 'GA', 'WA', 'C', 'WD', 'GD', 'GK']);
   });
 
   test('every category has its pictures, symbol, AI tile and garments', () {
@@ -204,13 +260,23 @@ void main() {
       'Tracksuit',
       'Hoodie',
     ]);
-    expect(GarmentScreen.tilesFor('Netball').first.garment, 'Singlet');
-    expect(GarmentScreen.tilesFor('Netball')[1].soon, isTrue);
+    expect(GarmentScreen.tilesFor('Netball').first.garment, 'Netball dress');
+    // The skirt has its own 3D skirt since 2026-10-29 (COMING SOON 10).
+    expect(GarmentScreen.tilesFor('Netball')[1].soon, isFalse);
+    expect(GarmentScreen.tilesFor('Netball')[1].garment, 'Skirt');
     // More teamwear: the 3D garments Netball's own tiles do not use.
     expect(GarmentScreen.moreFor('Netball').map((t) => t.garment), [
       'Full Kit',
       'Jersey',
       'Shorts',
+      'Football jersey',
+      'Compression top',
+      'Shooting shirt',
+      'Socks',
+      'Cap',
+      '5 panel cap',
+      'Bucket hat',
+      'Beanie',
       'Polo',
       'Polo with pocket',
       'Zip hoodie',
@@ -225,12 +291,13 @@ void main() {
     expect(GarmentScreen.moreFor('Rugby League'), isEmpty);
     expect(sportWithId('rugby-union')!.heading, 'Rugby');
     // A sport's garments are worked out from its tiles.
+    // (Client 2026-11-17, 582: both Darts & Pool polos on the polo model.)
     expect(sportWithId('darts')!.garments, [
-      'Polo with pocket',
       'Polo',
       'Training Tee',
       'Hoodie',
       'Zip hoodie',
+      'Cap',
     ]);
     expect(
       GarmentScreen.tilesFor('Unknown sport').map((t) => t.garment),

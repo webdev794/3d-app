@@ -32,6 +32,8 @@ return [
         'planning_model' => env('OPENAI_PLANNING_MODEL'),
         // HD renders ("HD primary", "Make HD") and the image editor; empty: the image model.
         'hd_image_model' => env('OPENAI_HD_IMAGE_MODEL'),
+        // Development only (never in production): a JSON file answered instead of the order form maker's paid call.
+        'order_form_canned' => env('ORDER_FORM_CANNED'),
     ],
 
     'resend' => [
@@ -48,6 +50,11 @@ return [
         'converter_url' => env('CDR_CONVERTER_URL'),
         'soffice' => env('CDR_SOFFICE_PATH'),
         'cloudconvert' => env('CLOUDCONVERT_API_KEY'),
+    ],
+
+    /* AI Designer design files (EPS, PDF) drawn by Ghostscript when it is installed: its path (found on the PATH when empty). */
+    'design_files' => [
+        'ghostscript' => env('GHOSTSCRIPT_PATH'),
     ],
 
     /* Where messages from the Support page's contact form are emailed (every administrator when empty). */

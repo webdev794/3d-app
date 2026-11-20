@@ -27,14 +27,22 @@ void main() {
   test('reads the garment and sport from a brief', () {
     expect(garmentInBrief('Navy polo with a gold crest'), 'Polo');
     expect(garmentInBrief('Rugby jersey and shorts'), 'Full Kit');
-    expect(garmentInBrief('A netball dress in teal'), 'Singlet');
+    expect(garmentInBrief('A netball dress in teal'), 'Netball dress');
     expect(garmentInBrief('Black and gold with stripes'), isNull);
+    // No fishing-shirt 3D model yet (images/416): the polo, with a note.
+    expect(garmentInBrief('Blue long sleeve fishing shirt'), 'Polo');
+    expect(garmentInBrief('White button-up shirt'), 'Polo');
+    expect(
+      closestNote(closestModel('a fishing shirt')!),
+      '3D preview on the closest garment: Polo; a fishing shirt 3D model is coming.',
+    );
+    expect(closestModel('rugby jersey'), isNull);
     // Hoodies and the pocket polo are garments of their own (2026-10-21).
     expect(garmentInBrief('Navy club hoodie with a gold crest'), 'Hoodie');
     expect(garmentInBrief('A zip-up hoodie for the coaches'), 'Zip hoodie');
     expect(garmentInBrief('Full zip hoodies for the bench'), 'Zip hoodie');
     expect(garmentInBrief('A darts pocket polo'), 'Polo with pocket');
-    expect(garmentInBrief('A fishing shirt with a hood'), 'Jersey');
+    expect(garmentInBrief('A fishing shirt with a hood'), 'Polo'); // images/416: the closest to a fishing shirt
     expect(garmentInBrief('Colours from my childhood club'), isNull);
     expect(sportInBrief('soccer home kit')?.sport, 'Soccer');
     expect(sportInBrief('boxing club gear')?.id, 'fight-wear');
@@ -61,26 +69,112 @@ void main() {
     expect(find.text('Describe your Netball design...'), findsOneWidget);
 
     // No garment in the brief: quick chips for the sport ask for it.
-    await tester.enterText(find.byType(TextField), 'Teal and white with a wave pattern for the Stingrays');
+    await tester.enterText(
+      find.byType(TextField),
+      'Teal and white with a wave pattern for the Stingrays',
+    );
     await tester.tap(find.byTooltip('Generate designs'));
     await tester.pump();
     expect(c.screen, AppScreen.aiDesigner);
     expect(find.text('What are we designing for Netball?'), findsOneWidget);
     // Netball's own garments by their names (task 9.99), as in Design Your
-    // Own; the coming-soon skirt is not offered.
-    expect(find.text('Netball skirt'), findsNothing);
+    // Own; the skirt is a real 3D garment now, so it is offered too.
+    expect(find.text('Netball skirt'), findsOneWidget);
     await tester.tap(find.text('Netball dress'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
     expect(c.aiSport, 'Netball');
-    expect(c.aiGarment, 'Singlet');
-    expect(c.garment, 'Singlet');
+    // Its own 3D netball dress since task 9.126.
+    expect(c.aiGarment, 'Netball dress');
+    expect(c.garment, 'Netball dress');
     expect(c.productName, 'Netball dress');
     expect(c.brief, 'Teal and white with a wave pattern for the Stingrays');
     // Let the demo generation finish before the test ends.
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(milliseconds: 400));
   });
+
+  testWidgets(
+    'a "Hooded Tracksuit" chip gives the track jacket its hood, as in Design Your Own',
+    (tester) async {
+      // Linked modules of 9.106: the AI's design never sets the hood, so the chip does.
+      final c = AppController()..screen = AppScreen.home;
+      c.trackStyle = 'collar';
+      await mountPhone(tester, c);
+      c.startAi();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('RUGBY LEAGUE'));
+      await tester.pump();
+      await tester.enterText(
+        find.byType(TextField),
+        'Black and cyan with lightning bolts for the Wildcats',
+      );
+      await tester.tap(find.byTooltip('Generate designs'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Hooded Tracksuit'));
+      await tester.pump();
+      await tester.tap(find.text('Hooded Tracksuit'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.screen, AppScreen.generating);
+      expect(
+        (c.garment, c.productName, c.trackStyle),
+        ('Track jacket', 'Hooded Tracksuit', 'hood'),
+      );
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+    },
+  );
+
+  testWidgets(
+    'a plain "Track jacket" chip after a "Hooded Tracksuit" one is the collar track jacket (QA U)',
+    (tester) async {
+      final c = AppController()..screen = AppScreen.home;
+      await mountPhone(tester, c);
+      c.startAi();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('RUGBY LEAGUE'));
+      await tester.pump();
+      await tester.enterText(
+        find.byType(TextField),
+        'Black and cyan with lightning bolts for the Wildcats',
+      );
+      await tester.tap(find.byTooltip('Generate designs'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Hooded Tracksuit'));
+      await tester.pump();
+      await tester.tap(find.text('Hooded Tracksuit'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.trackStyle, 'hood');
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+      // Back to the AI designer (same session): Soccer's plain track jacket.
+      c.go(AppScreen.aiDesigner);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(c.screen, AppScreen.aiDesigner);
+      await tester.ensureVisible(find.text('SOCCER'));
+      await tester.pump();
+      await tester.tap(find.text('SOCCER'));
+      await tester.pump();
+      await tester.enterText(
+        find.byType(TextField).last,
+        'Navy and gold with thin pinstripes for the Harbour FC',
+      );
+      await tester.tap(find.byTooltip('Generate designs'));
+      await tester.pump();
+      await tester.ensureVisible(find.text('Track jacket'));
+      await tester.pump();
+      await tester.tap(find.text('Track jacket'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.screen, AppScreen.generating);
+      expect(
+        (c.garment, c.productName, c.trackStyle),
+        ('Track jacket', 'Track jacket', 'collar'),
+      );
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+    },
+  );
 
   testWidgets('a long brief keeps 4,000 characters, with a counter', (
     tester,
@@ -125,7 +219,10 @@ void main() {
     );
     await tester.tap(find.text('WORKWEAR'));
     await tester.pump();
-    await tester.enterText(find.byType(TextField), 'Navy polo with hi-vis yellow shoulders and our logo');
+    await tester.enterText(
+      find.byType(TextField),
+      'Navy polo with hi-vis yellow shoulders and our logo',
+    );
     await tester.tap(find.byTooltip('Generate designs'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.generating);
@@ -139,12 +236,17 @@ void main() {
 
   // QA AB 2026-10-22: without an AI key the sample concepts kept a jersey for
   // a zip hoodie brief, so the Studio opened a jersey.
-  testWidgets('sample concepts keep the garment of the brief into the Studio', (tester) async {
+  testWidgets('sample concepts keep the garment of the brief into the Studio', (
+    tester,
+  ) async {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
     c.startAi();
     await tester.pump(const Duration(milliseconds: 500));
-    await tester.enterText(find.byType(TextField), 'A black full zip hoodie for the coaches with teal trims');
+    await tester.enterText(
+      find.byType(TextField),
+      'A black full zip hoodie for the coaches with teal trims',
+    );
     await tester.tap(find.byTooltip('Generate designs'));
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.aiGarment, 'Zip hoodie');
@@ -157,8 +259,45 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  // Client 2026-10-26 (images/175.jpg): netball has no player names or
+  // numbers, so a netball design from the AI opens in the Studio (and so in
+  // the order form) with no back name and no number; rugby keeps its own.
+  testWidgets('a netball AI design opens with no back name or number', (
+    tester,
+  ) async {
+    final c = AppController()..screen = AppScreen.home;
+    await mountPhone(tester, c);
+    for (final (brief, name, number) in [
+      ('A black and gold netball singlet for the Panthers', '', ''),
+      ('Black and teal rugby league jersey', 'MANTIS', '23'),
+    ]) {
+      c.startAi();
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AiDesignerScreen),
+          matching: find.byType(TextField),
+        ),
+        brief,
+      );
+      await tester.tap(find.byTooltip('Generate designs'));
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.pump(const Duration(seconds: 5));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(c.screen, AppScreen.concepts, reason: brief);
+      c.openConcept(0);
+      expect(c.screen, AppScreen.studio, reason: brief);
+      expect(c.backName, name, reason: brief);
+      expect(c.number, number, reason: brief);
+      await tester.pump(const Duration(seconds: 1));
+    }
+  });
+
   // QA AB follow-up: every garment a brief can name reaches the Studio offline.
-  testWidgets('sample concepts open the garment of each brief in the Studio', (tester) async {
+  testWidgets('sample concepts open the garment of each brief in the Studio', (
+    tester,
+  ) async {
     final c = AppController()..screen = AppScreen.home;
     await mountPhone(tester, c);
     const briefs = {
@@ -177,14 +316,22 @@ void main() {
       c.startAi();
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.enterText(find.descendant(of: find.byType(AiDesignerScreen), matching: find.byType(TextField)), brief);
+      await tester.enterText(
+        find.descendant(
+          of: find.byType(AiDesignerScreen),
+          matching: find.byType(TextField),
+        ),
+        brief,
+      );
       await tester.tap(find.byTooltip('Generate designs'));
       await tester.pump(const Duration(milliseconds: 400));
       expect(c.aiGarment, garment, reason: brief);
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(milliseconds: 400));
       expect(c.screen, AppScreen.concepts, reason: brief);
-      expect(c.concepts.map((k) => k.spec.garment).toSet(), {garment}, reason: brief);
+      expect(c.concepts.map((k) => k.spec.garment).toSet(), {
+        garment,
+      }, reason: brief);
       c.openConcept(0);
       expect(c.garment, garment, reason: brief);
       expect(c.screen, AppScreen.studio);
@@ -219,7 +366,10 @@ void main() {
     });
     await tester.pump();
     expect(find.text('Drawing the print sheet…'), findsOneWidget);
-    await tester.tap(find.text('Drawing the print sheet…'), warnIfMissed: false);
+    await tester.tap(
+      find.text('Drawing the print sheet…'),
+      warnIfMissed: false,
+    );
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.concepts, reason: 'disabled while drawing');
     c.update(() => c.sheetBusy = false);
@@ -264,7 +414,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
     expect(c.screen, AppScreen.aiDesigner);
-    expect(find.text('Your print sheet is ready in Assets › Artwork.'), findsOneWidget);
+    expect(
+      find.text('Your print sheet is ready in Assets › Artwork.'),
+      findsOneWidget,
+    );
     await tester.pump(const Duration(seconds: 5));
   });
 }
@@ -273,7 +426,10 @@ void main() {
 class _SlowSheet extends AppController {
   final sheet = Completer<Uint8List>();
   @override
-  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
+  Future<Uint8List> mockupPrintSheet({
+    bool frontOnly = false,
+    String? garment,
+  }) async {
     update(() => sheetBusy = true);
     try {
       return await sheet.future;

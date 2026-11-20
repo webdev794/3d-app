@@ -1,4 +1,4 @@
-// A print layout put onto the garment: every panel's corners (neck, underarm, hem and cuff; on shorts the waist,
+﻿// A print layout put onto the garment: every panel's corners (neck, underarm, hem and cuff; on shorts the waist,
 // crotch and side split) go to fixed points on the 3D garment's print panels, and everything between follows
 // smoothly (mean value coordinates over matching outlines). The graphics card draws the result into the kit's
 // print atlas. Fixed rules only, so the same layout always gives the same kit.
@@ -164,6 +164,13 @@ export const DRAWN = {
 };
 // The pocket polo is the polo's body with a chest pocket sewn on (garment.js SPECS.pocketpolo): the same corners.
 DRAWN.pocketpolo = DRAWN.polo;
+// The American football jersey (garment.js SPECS.nfljersey): the jersey's body and V neck, its short pad-cut sleeves.
+DRAWN.nfljersey = { N: [0.09, 0.742], T: [0, 0.665], CT: [0.39, 0.6], CB: [0.35, 0.49], U: [0.258, 0.53], H: [0.258, 0.03] };
+// The basketball shooting shirt (shootingshirt.js): a deeper V neck, its longer, wider short sleeves.
+DRAWN['shooting-shirt'] = { N: [0.09, 0.738], T: [0, 0.636], CT: [0.465, 0.545], CB: [0.4, 0.441], U: [0.258, 0.53], H: [0.258, -0.01] };
+// The netball dress (garment.js SPECS['netball-dress']): sleeveless as the singlet, its corners at its own heights (the
+// hem's corners at the foot of its straight A-line sides: NDF).
+DRAWN['netball-dress'] = { N: [0.106, 0.88], S: [0.153, 0.88], U: [0.248, 0.735], H: [0.333, 0.03], T: [0, 0.785] };
 
 /** Whether a garment drawing's shape has sleeves: much wider across its top part than near its hem. */
 export function sleevedShape(o) {
@@ -215,9 +222,12 @@ export function drawingSides(o, sleeved = false) {
     for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
     for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
   }
+  // No neck dip: the straight collar line is the neck.
+  const flat = neck ? null : flatNeck(o, x0, W, y0, H);
+  if (flat) { c.Nl = flat.l; c.Nr = flat.r; }
   c.Hr = argMax(o, (p) => p[0] + p[1]);
   c.Hl = argMax(o, (p) => -p[0] + p[1]);
-  if (neck) {
+  if (neck || flat) {
     // The armholes: the deepest dip down each side. A strap's outer corner is the sharpest outward turn between the
     // neck and the armhole's deepest point; the underarm is the sharpest between the strap and the hem.
     const deepest = (a, b) => dips.filter((p) => p !== neck && on(p.i, a, b) && on(p.j, a, b)).sort((m, q) => q.depth - m.depth)[0];
@@ -228,6 +238,15 @@ export function drawingSides(o, sleeved = false) {
       c.Sl = corner(o, left.deep, c.Nl, reach, margin);
       // The underarm is in the upper part of the garment (a gently drawn one turns less than the hem's corners).
       const upper = (p) => p[1] > y0 + 0.15 * H && p[1] < y0 + 0.6 * H;
+      c.Ur = corner(o, c.Sr, c.Hr, reach, margin, upper);
+      c.Ul = corner(o, c.Hl, c.Sl, reach, margin, upper);
+    } else {
+      // (No dip for an armhole: a singlet drawn with straight armholes sloping out, QATEST 2026-11-19 qa-flat-singlet,
+      // which was never put on: the strap's outer corner is the sharpest turn down each side in the top third, the
+      // underarm the sharpest after it in the upper part.)
+      const top3 = (p) => p[1] < y0 + 0.35 * H, upper = (p) => p[1] > y0 + 0.15 * H && p[1] < y0 + 0.6 * H;
+      c.Sr = corner(o, c.Nr, c.Hr, reach, margin, top3);
+      c.Sl = corner(o, c.Hl, c.Nl, reach, margin, top3);
       c.Ur = corner(o, c.Sr, c.Hr, reach, margin, upper);
       c.Ul = corner(o, c.Hl, c.Sl, reach, margin, upper);
     }
@@ -246,7 +265,8 @@ export function drawingSides(o, sleeved = false) {
     Object.assign(c, { Nl: near(at.N, -1), Nr: near(at.N, 1), Sr: near(at.S, 1), Ur: near(at.U, 1), Hr: near(at.H, 1), Hl: near(at.H, -1), Ul: near(at.U, -1), Sl: near(at.S, -1) });
   }
   // The neck's tip: its deepest point (a V's point).
-  c.T = farthest(o, c.Nl, c.Nr);
+  // A straight collar line (flatNeck) has no tip: its middle is.
+  c.T = flat ? middleOf(o, c.Nl, c.Nr, cx) : farthest(o, c.Nl, c.Nr);
   const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
   return { corners: c, sides, found: inOrder, neckDepth: neck ? neck.depth / H : 0 };
 }
@@ -259,6 +279,32 @@ export function drawingSides(o, sleeved = false) {
  * side; the cuff's corners are the two sharpest outward turns between the neck and the underarm. Corners that cannot
  * be told apart fall back to the tee's own places in the drawing's box.
  */
+/**
+ * The neck of a drawing whose outline has no dip there (task 9.116: AI flat sheets often draw the inside of the collar,
+ * so the top edge runs straight across): the ends of the straight top edge, when it is a neck's width and centred.
+ */
+function flatNeck(o, x0, W, y0, H) {
+  let l = -1, r = -1;
+  o.forEach((p, k) => {
+    if (p[1] > y0 + 0.015 * H) return;
+    if (l < 0 || p[0] < o[l][0]) l = k;
+    if (r < 0 || p[0] > o[r][0]) r = k;
+  });
+  if (l < 0 || r < 0) return null;
+  const span = (o[r][0] - o[l][0]) / W, mid = ((o[l][0] + o[r][0]) / 2 - x0) / W;
+  return span > 0.12 && span < 0.6 && Math.abs(mid - 0.5) < 0.08 ? { l, r } : null;
+}
+
+/** The point on the outline from index a to b nearest the middle line x = cx (its index). */
+function middleOf(o, a, b, cx) {
+  const n = o.length;
+  let best = a;
+  for (let k = a; ; k = (k + 1) % n) {
+    if (Math.abs(o[k][0] - cx) < Math.abs(o[best][0] - cx)) best = k;
+    if (k === b) return best;
+  }
+}
+
 function sleevedSides(o) {
   const xs = o.map((p) => p[0]), ys = o.map((p) => p[1]), n = o.length;
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
@@ -274,9 +320,13 @@ function sleevedSides(o) {
     for (let k = neck.i; k !== neck.deep && below(k) <= 0.012 * H; k = (k + 1) % n) c.Nl = k;
     for (let k = neck.j; k !== neck.deep && below(k) <= 0.012 * H; k = (k - 1 + n) % n) c.Nr = k;
   }
+  // No neck dip, or only a sliver of one in a nearly straight collar line: the straight line is the neck.
+  let flat = !neck || neck.depth < 0.025 * H ? flatNeck(o, x0, W, y0, H) : null;
+  if (flat && neck && o[flat.r][0] - o[flat.l][0] < 1.5 * Math.abs(o[c.Nr][0] - o[c.Nl][0])) flat = null;
+  if (flat) { c.Nl = flat.l; c.Nr = flat.r; }
   c.Hr = argMax(o, (p) => p[0] + p[1]);
   c.Hl = argMax(o, (p) => -p[0] + p[1]);
-  if (neck) {
+  if (neck || flat) {
     const deepest = (a, b) => dips.filter((p) => p !== neck && on(p.i, a, b) && on(p.j, a, b)).sort((m, q) => q.depth - m.depth)[0];
     const right = deepest(c.Nr, c.Hr), left = deepest(c.Hl, c.Nl);
     if (right && left) {
@@ -303,7 +353,8 @@ function sleevedSides(o) {
     const near = ([gx, gy], dir) => argMax(o, (p) => -Math.hypot(p[0] - (cx + (dir * gx * W) / (2 * half)), p[1] - (y0 + ((top - gy) / top) * H)));
     Object.assign(c, { Nl: near(g.N, -1), Nr: near(g.N, 1), CTr: near(g.CT, 1), CBr: near(g.CB, 1), Ur: near(g.U, 1), Hr: near(g.H, 1), Hl: near(g.H, -1), Ul: near(g.U, -1), CBl: near(g.CB, -1), CTl: near(g.CT, -1) });
   }
-  c.T = farthest(o, c.Nl, c.Nr);
+  // A straight collar line (flatNeck) has no tip: its middle is.
+  c.T = flat ? middleOf(o, c.Nl, c.Nr, cx) : farthest(o, c.Nl, c.Nr);
   const sides = order.map((k, i) => path(o, c[k], c[order[(i + 1) % order.length]]));
   return { corners: c, sides, found, neckDepth: neck ? neck.depth / H : 0 };
 }
@@ -676,14 +727,27 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
         if (!panel) continue;
         const drawn = drawingSides(panel.outline, true), o = panel.outline, c = drawn.corners;
         const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface: shape(back) };
-        if (back) out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0] });
+        // The back's neckline is left loose, except a straight one (AI flat sheets, task 9.126): loose, the middle of a
+        // straight collar line was pulled down into a V through the lettering ("RANVERS").
+        if (back) out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: drawn.neckDepth < 0.025 ? [] : [0] });
         else out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...sides(l, r).slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)] });
       }
       return out;
     }
-    const N = both(at.N), S = both(at.S), U = both(at.U), H = both(at.H), T = g.near(...at.T);
+    // (A ready-made model split into pieces (MODELQ4 2026-11-17): the drawing's front neckline is laid a little up into the
+    // model's own neck band (`neckRise`), so the drawing's printed neck trim lies under the band (which takes the trim's
+    // colour) and never shows as a second line just below it.)
+    const fg = painter.model?.pieces && at.N ? garment({ outline: painter.outline.map((p) => {
+      const [xN, yN] = at.N, rise = painter.model.neckRise ?? 0.015;
+      return Math.abs(p.x) < xN && p.y < yN && p.y > yN - 0.25 ? { x: p.x, y: Math.min(yN, p.y + rise * (1 - Math.abs(p.x) / xN)) } : p;
+    }) }) : g;
+    const N = both(at.N), S = both(at.S), U = both(at.U), H = both(at.H), T = g.near(...at.T); // (the same points in order on both outlines)
     // From the viewer's left: the front as seen from the front (the wearer's right, x < 0, first), the back from behind.
-    const sides = (l, r) => [g.edge(N[l], N[r]), g.edge(N[r], S[r]), g.edge(S[r], U[r]), g.edge(U[r], H[r]), g.edge(H[r], H[l]), g.edge(H[l], U[l]), g.edge(U[l], S[l]), g.edge(S[l], N[l])];
+    const sides = (l, r) => [fg.edge(N[l], N[r]), fg.edge(N[r], S[r]), fg.edge(S[r], U[r]), fg.edge(U[r], H[r]), fg.edge(H[r], H[l]), fg.edge(H[l], U[l]), fg.edge(U[l], S[l]), fg.edge(S[l], N[l])];
+    // (A ready-made model (MODELQ4 2026-11-17): its back is printed up to its own back neck (the painter's backOutline), so
+    // the drawing's back reaches the model's back neck band with nothing of another colour above it.)
+    const gb = painter.model && painter.backOutline ? garment({ outline: painter.backOutline }) : null;
+    const sidesBack = gb ? ((B) => (l, r) => [gb.edge(B.N[l], B.N[r]), gb.edge(B.N[r], B.S[r]), gb.edge(B.S[r], B.U[r]), gb.edge(B.U[r], B.H[r]), gb.edge(B.H[r], B.H[l]), gb.edge(B.H[l], B.U[l]), gb.edge(B.U[l], B.S[l]), gb.edge(B.S[l], B.N[l])])(Object.fromEntries(['N', 'S', 'U', 'H'].map((k) => [k, { 1: gb.near(...at[k]), [-1]: gb.near(-at[k][0], at[k][1]) }]))) : null;
     for (const [role, back, l, r] of [['front', false, -1, 1], ['back', true, 1, -1]]) {
       const panel = byRole[role];
       if (!panel) continue;
@@ -695,11 +759,11 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
       if (back) {
         // The garment's back neck is cut as deep as its front (its 3D back neckline is raised, garment.js): it cuts
         // into a drawing's shallower back neck instead of squeezing the print under it.
-        out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6], lift: raised });
+        out.push({ ...region, sides: (sidesBack ?? sides)(l, r).map(px(back)), target: drawn.sides, loose: [0], pins: [3, 4, 5, 6], lift: sidesBack ? null : raised });
       } else {
         // The front's neck in two at its tip, held there and at its ends too, so a V's trim stays where it is.
         const gs = sides(l, r);
-        out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...gs.slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)], pins: [0, 1, 2, 4, 5, 6, 7] });
+        out.push({ ...region, sides: [fg.edge(N[l], T), fg.edge(T, N[r]), ...gs.slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)], pins: [0, 1, 2, 4, 5, 6, 7] });
       }
     }
     return out;
@@ -1351,7 +1415,9 @@ function bleed(px, width, height, passes = 4) {
 }
 
 /** The average colour of a panel (or of a strip of it from `top` to `bottom`, as fractions of its height). */
-export function panelColour(image, panel, top = 0, bottom = 1) {
+// (`common`: the commonest colour instead of the average (a garment drawing's fill, CLIENT598 2026-11-18: the average of a
+// red body with a yellow sash gave orange underarms and an orange back on a front-only drawing).)
+export function panelColour(image, panel, top = 0, bottom = 1, common = false) {
   const w = 48, h = 48, c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -1364,14 +1430,25 @@ export function panelColour(image, panel, top = 0, bottom = 1) {
   const sx = w / (panel.x1 - panel.x0), sy = h / (y1 - y0);
   const P = panel.outline.map(([x, y]) => [(x - panel.x0) * sx, (y - y0) * sy]);
   let r = 0, gg = 0, b = 0, n = 0;
+  const buckets = common ? new Map() : null;
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       if (!insidePoly(P, x + 0.5, y + 0.5)) continue;
       const i = (y * w + x) * 4;
+      if (buckets) {
+        const k = ((d[i] >> 4) << 8) | ((d[i + 1] >> 4) << 4) | (d[i + 2] >> 4), e = buckets.get(k) ?? [0, 0, 0, 0];
+        e[0] += d[i]; e[1] += d[i + 1]; e[2] += d[i + 2]; e[3]++;
+        buckets.set(k, e);
+      }
       r += d[i]; gg += d[i + 1]; b += d[i + 2]; n++;
     }
   }
   if (!n) return '#808080';
+  if (buckets) {
+    const [cr, cg, cb, cn] = [...buckets.values()].reduce((a, e) => (e[3] > a[3] ? e : a));
+    const hex1 = (v) => Math.round(v / cn).toString(16).padStart(2, '0');
+    return `#${hex1(cr)}${hex1(cg)}${hex1(cb)}`;
+  }
   const hex = (v) => Math.round(v / n).toString(16).padStart(2, '0');
   return `#${hex(r)}${hex(gg)}${hex(b)}`;
 }

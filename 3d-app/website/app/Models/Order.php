@@ -20,7 +20,21 @@ class Order extends Model
         'hoodie' => 'Hoodie', 'jacket' => 'Jacket', 'warmup' => 'Warm-up top', 'pants' => 'Track pants', 'socks' => 'Socks', 'cap' => 'Cap', 'other' => 'Other'];
 
     /** A saved design's garment that the order form lists under another row (a full kit is a jersey and shorts). */
-    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'varsity' => 'jacket', 'trackjacket' => 'jacket'];
+    /** (The netball dress, task 9.126, is ordered on a singlet row, named by its product "Netball dress".) */
+    public const PROJECT_ROWS = ['ziphoodie' => 'hoodie', 'pocketpolo' => 'polo', 'nfljersey' => 'jersey', 'compression' => 'tee', 'shooting-shirt' => 'tee', 'varsity' => 'jacket', 'trackjacket' => 'jacket', 'netball-dress' => 'singlet'];
+
+    /**
+     * Whether an order row is the saved design's own garment, so the design's product name ("Netball bibs", task 9.99)
+     * may name it: the same garment, or the row the order form lists it under (a zip hoodie is a hoodie row). A full
+     * kit names no single row (its jersey and shorts keep their own names); any other garment keeps its own name too
+     * (a "Netball bibs" design on a Rugby League jersey row is a "Rugby League Jersey", task 9.97).
+     */
+    public static function isDesignRow(?string $designGarment, ?string $rowGarment): bool
+    {
+        $design = (string) $designGarment;
+
+        return $design !== '' && (self::PROJECT_ROWS[$design] ?? $design) === (string) $rowGarment;
+    }
 
     public const FITS = ['mens' => 'Mens', 'womens' => 'Womens', 'youth' => 'Kids', 'unisex' => 'Unisex'];
 
@@ -30,7 +44,7 @@ class Order extends Model
     /** The design approval: in progress, proof sent (approval needed), approved, changes requested. */
     public const APPROVALS = ['waiting', 'review', 'approved', 'changes'];
 
-    public const MAX_ITEMS = 30;
+    public const MAX_ITEMS = 60;
 
     /** Delivered orders count as completed (off the current board) this many days after delivery. */
     public const COMPLETED_AFTER_DAYS = 14;
@@ -50,6 +64,9 @@ class Order extends Model
     public const KIDS_SIZES = ['2Y', '4Y', '6Y', '8Y', '10Y', '12Y', '14Y', '16Y'];
 
     public const OLD_KIDS = 'Kids';
+
+    /** A marquee ordered from the Marquee Studio (Signage & Marquees, 2026-11-02): how many of its size, e.g. {"3x3 m": 2}. */
+    public const MARQUEE_SIZES = ['3x3 m', '3x6 m'];
 
     /** Every size, in order: Mens, Womens, Kids, then the older Kids column. */
     public const SIZES = [...self::MENS_SIZES, ...self::WOMENS_SIZES, ...self::KIDS_SIZES, self::OLD_KIDS];
@@ -89,7 +106,7 @@ class Order extends Model
     private const EDIT_LABELS = ['user_id' => 'customer', 'project_id' => 'kit', 'sizes' => 'sizes', 'items' => 'garments', 'unit_price' => 'unit price',
         'contact_name' => 'contact name', 'contact_email' => 'email', 'phone' => 'phone', 'shipping_address' => 'delivery address', 'notes' => 'instructions',
         'admin_notes' => 'internal notes', 'names' => 'names and numbers', 'players' => 'names and numbers', 'team_name' => 'name',
-        'needed_by' => 'needed-by date', 'assigned_to' => 'assigned staff', 'due_date' => 'due date'];
+        'needed_by' => 'needed-by date', 'assigned_to' => 'assigned staff', 'due_date' => 'due date', 'supplier_id' => 'made by'];
 
     protected function casts(): array
     {
@@ -102,6 +119,10 @@ class Order extends Model
     protected static function booted(): void
     {
         static::saving(function (Order $order) {
+            // The confirmation's version (images/338): up by one when a sent order's garments, sizes or players change.
+            if ($order->exists && $order->isDirty(['items', 'sizes', 'players']) && \Illuminate\Support\Facades\Schema::hasColumn('orders', 'version')) {
+                $order->version = (int) ($order->getOriginal('version') ?: 1) + 1;
+            }
             if ($order->isDirty(['names', 'players'])) {
                 $order->players = self::tidyPlayers($order->names, $order->players);
             }
@@ -287,7 +308,8 @@ class Order extends Model
         if (filled($item['label'] ?? null)) {
             return (string) $item['label'];
         }
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? null;
+        // A catalogue sport by its name, or a sport typed in "Custom…" (client 2026-11-02) as typed.
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? (filled($item['sport'] ?? null) ? trim((string) $item['sport']) : null);
 
         return trim(($sport ? $sport.' ' : '').(self::GARMENTS[$item['garment'] ?? 'other'] ?? 'Garment'));
     }
@@ -295,7 +317,21 @@ class Order extends Model
     /** The name shown for the order: the team, else the kit, else its reference. */
     public function displayName(): string
     {
-        return $this->team_name ?: ($this->project?->name ?: ($this->getAttribute('kit_name') ?: 'Order '.$this->number));
+        return $this->ownName() ?? 'Order '.$this->number;
+    }
+
+    /** The team, kit or design name, or null when the order has none (the team name is optional). */
+    public function ownName(): ?string
+    {
+        return ($this->team_name ?: ($this->project?->name ?: $this->getAttribute('kit_name'))) ?: null;
+    }
+
+    /** True when a name is only the "Order 3DZ-00010" fallback (or empty), so "3DZ-00010 · Order 3DZ-00010" isn't shown. */
+    public static function isFallbackName(?string $name, ?string $number): bool
+    {
+        $name = trim((string) $name);
+
+        return $name === '' || ($number !== null && strcasecmp($name, 'Order '.$number) === 0);
     }
 
     /** Completed orders are off the current board: cancelled, or delivered over COMPLETED_AFTER_DAYS ago. */

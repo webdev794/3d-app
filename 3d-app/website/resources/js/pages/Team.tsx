@@ -9,6 +9,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Box, CalendarClock, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronUp, CircleCheck, CreditCard, Download, FileText, ImageIcon, Info, LoaderCircle, MessageSquare, MessageSquareText, Palette, Paperclip, Pencil, Plus, RefreshCw, Send, Settings, ShieldCheck, Shirt, ShoppingBag, Truck, Upload, UserPen, Users, X } from 'lucide-react';
 import { ApiError, media, type Catalog, type User } from '../api';
 import { clearIdempotencyKey, idempotencyKey } from '../orderApi';
+import { CUSTOM, CUSTOM_MAX, CUSTOM_PLACEHOLDER, customName, typedName } from '../customChoice';
 import { TEAM_DEFAULTS, TEAM_LIMITS, TEAM_REFUNDS, TEAM_STEPS, audMoney, extOf, inclGst, teamApi, type TeamAllowance, type TeamFile, type TeamRequest, type TeamStatus } from '../teamApi';
 import '../../css/team.css';
 
@@ -218,7 +219,7 @@ export function TeamPage({ user, requireAuth, catalog }: { user: User | null; re
   useEffect(load, [load]);
   const toForm = () => document.getElementById('tm-request')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const myRequests = () => requireAuth(() => navigate('/team/requests'));
-  return <div className="tm-page">
+  return <div className="tm-page glass-ui">
     <section className="tm-hero" style={{ ['--tm-hero' as string]: `url(${media('images/art/team_hero.webp')})` }}>
       <div className="tm-hero-inner">
         <span className="tm-kicker"><Users size={15} /> HUMAN DESIGN SERVICE</span>
@@ -279,8 +280,8 @@ function GoodToKnow({ allowance }: { allowance: TeamAllowance | null }) {
   return <details className="tm-good">
     <summary><Info size={15} /> Good to know: turnaround, revisions and refunds <ChevronDown size={15} className="tm-good-caret" /></summary>
     <dl>
-      <div><dt><CalendarClock size={15} /> Turnaround</dt><dd data-testid="team-promise">First design within {turnaround.first_draft_days} business days; each revision within {turnaround.revision_days} business days (Monday to Friday). A request with a fee starts once it is paid.</dd></div>
-      <div><dt><RefreshCw size={15} /> Revisions</dt><dd>{allowance ? `Your plan includes ${allowance.revisions_per_request} revisions per request.` : 'Every request includes revisions.'} Need more? Ask your designer for an extra round; any fee is shown before it starts.</dd></div>
+      <div><dt><CalendarClock size={15} /> Turnaround</dt><dd data-testid="team-promise">First design within {turnaround.first_draft_days} business day{turnaround.first_draft_days === 1 ? '' : 's'}; each revision within {turnaround.revision_days} business day{turnaround.revision_days === 1 ? '' : 's'} (Monday to Friday). A request with a fee starts once it is paid.</dd></div>
+      <div><dt><RefreshCw size={15} /> Revisions</dt><dd>{allowance ? `Your plan includes ${allowance.revisions_per_request} revision${allowance.revisions_per_request === 1 ? '' : 's'} per request.` : 'Every request includes revisions.'} Need more? Ask your designer for an extra round; any fee is shown before it starts.</dd></div>
       <div><dt><ShieldCheck size={15} /> Refunds</dt><dd data-testid="team-refunds">{TEAM_REFUNDS.join(' ')}</dd></div>
     </dl>
   </details>;
@@ -324,7 +325,7 @@ function GarmentPicker({ options, value, onChange, invalid }: { options: { id: s
   }, [open]);
   const nameOf = (id: string) => options.find(o => o.id === id)?.name ?? id;
   const toggle = (id: string) => onChange(value.includes(id) ? value.filter(v => v !== id) : value.length >= 12 ? value : [...value, id]);
-  const addOther = () => { const v = other.trim().slice(0, 60); if (v && !value.includes(v) && value.length < 12) onChange([...value, v]); setOther(''); };
+  const addOther = () => { const v = customName(other); if (v && !value.includes(v) && value.length < 12) onChange([...value, v]); setOther(''); };
   const custom = value.filter(v => !options.some(o => o.id === v));
   return <div className={`tm-multi${open ? ' is-open' : ''}`} ref={box}>
     <button type="button" id="tm-garments" className={`tm-multi-btn${invalid ? ' is-invalid' : ''}`} aria-haspopup="true" aria-expanded={open} aria-labelledby="tm-garments-l tm-garments" onClick={() => setOpen(o => !o)}>
@@ -332,7 +333,7 @@ function GarmentPicker({ options, value, onChange, invalid }: { options: { id: s
     </button>
     {open && <div className="tm-multi-pop" role="group" aria-label="Garments needed">
       <div className="tm-multi-list">{[...options, ...custom.map(id => ({ id, name: id }))].map(o => <label key={o.id} className={value.includes(o.id) ? 'is-on' : ''}><input type="checkbox" checked={value.includes(o.id)} onChange={() => toggle(o.id)} /><span>{o.name}</span></label>)}</div>
-      <div className="tm-multi-other"><input value={other} onChange={e => setOther(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOther(); } }} maxLength={60} placeholder="Something else, e.g. Socks" aria-label="Another garment" /><button type="button" className="button button-outline" onClick={addOther} disabled={!other.trim()}><Plus size={14} /> Add</button></div>
+      <div className="tm-multi-other"><input value={other} onChange={e => setOther(typedName(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOther(); } }} maxLength={CUSTOM_MAX} placeholder={`Custom… ${CUSTOM_PLACEHOLDER}`} aria-label="Type your garment" /><button type="button" className="button button-outline" onClick={addOther} disabled={!other.trim()}><Plus size={14} /> Add</button></div>
       <button type="button" className="button button-quiet tm-multi-done" onClick={() => setOpen(false)}>Done</button>
     </div>}
   </div>;
@@ -402,6 +403,9 @@ function RequestForm({ user, catalog, allowance, loadError, requireAuth, onSent,
   useEffect(() => { if (user) { setName(n => n || user.name); setEmail(e => e || user.email); } }, [user]);
   const sports = catalog?.sports ?? [];
   const chosenSport = sports.find(s => s.id === sport);
+  /** "Custom…" (client 2026-11-02): a sport we do not list, typed; every garment is offered. */
+  const [sportText, setSportText] = useState('');
+  const customSport = sport === CUSTOM;
   const garmentOptions = useMemo(() => {
     const all = (catalog?.garments ?? []).map(g => ({ id: g.id, name: g.name }));
     const wanted = chosenSport?.garments;
@@ -417,13 +421,14 @@ function RequestForm({ user, catalog, allowance, loadError, requireAuth, onSent,
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setError(''); setFieldErrors({});
+    if (customSport && !customName(sportText)) { setFieldErrors({ sport: ['Type your sport.'] }); document.getElementById('tm-sport-custom')?.focus(); return; }
     if (!garments.length) { setFieldErrors({ garment: ['Choose at least one garment.'] }); document.getElementById('tm-garments')?.focus(); return; }
     if (!user) { requireAuth(); return; }
     if (totalMb > TEAM_LIMITS.totalMb) { setError(`Your files add up to ${totalMb.toFixed(0)} MB: the limit is ${TEAM_LIMITS.totalMb} MB per request.`); return; }
     setBusy(true);
     const key = idempotencyKey('team-request');
     try {
-      const request = await teamApi.create({ name, email, sport, garment: garments[0], garments, preferred_date: preferredDate || undefined, category: chosenSport?.group === 'apparel' ? 'Apparel' : chosenSport ? 'Sports' : undefined, description, colours, instructions, logos, references }, key);
+      const request = await teamApi.create({ name, email, sport: customSport ? customName(sportText) : sport, garment: garments[0], garments, preferred_date: preferredDate || undefined, category: chosenSport?.group === 'apparel' ? 'Apparel' : chosenSport ? 'Sports' : undefined, description, colours, instructions, logos, references }, key);
       clearIdempotencyKey('team-request');
       setPicks([]); setDescription(''); setInstructions(''); setColours([]); setPreferredDate('');
       onSent(request);
@@ -443,7 +448,8 @@ function RequestForm({ user, catalog, allowance, loadError, requireAuth, onSent,
       <label className="field">Sport / activity<select value={sport} onChange={e => setSport(e.target.value)} required>
         <option value="" disabled>{catalog ? 'Select a sport' : 'Loading the catalogue…'}</option>
         {groups.map(g => { const items = sports.filter(s => (s.group ?? 'sports') === g.key); return items.length ? <optgroup key={g.key} label={g.label}>{items.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</optgroup> : null; })}
-      </select>{fe('sport')}</label>
+        {catalog && <option value={CUSTOM}>Custom…</option>}
+      </select>{customSport && <input id="tm-sport-custom" className="tm-sport-custom" value={sportText} maxLength={CUSTOM_MAX} required placeholder="Type your sport, e.g. Lacrosse, Bowling" aria-label="Type your sport" autoFocus onChange={e => setSportText(typedName(e.target.value))} />}{fe('sport')}</label>
       <div className="field tm-garments-field"><span id="tm-garments-l">Garments needed</span><GarmentPicker options={garmentOptions} value={garments} onChange={next => { setGarments(next); if (next.length) setFieldErrors(f => { const { garment: _g, garments: _gs, ...rest } = f; return rest; }); }} invalid={!!fieldErrors.garment || !!fieldErrors.garments} />{fe('garment', 'garments', 'garments.0')}</div>
     </div>
     <label className="field">Design brief<textarea value={description} onChange={e => setDescription(e.target.value)} required minLength={10} maxLength={4000} rows={3} placeholder="Tell us about your colours, style, logos and ideas…" />{fe('description')}</label>
@@ -472,7 +478,7 @@ export function TeamRequestsPage() {
   const [requests, setRequests] = useState<TeamRequest[] | null>(null); const [error, setError] = useState('');
   const load = () => { setError(''); teamApi.list().then(setRequests).catch(e => setError((e as Error).message)); };
   useEffect(load, []);
-  return <div className="page-shell tm-shell tm-requests-page">
+  return <div className="page-shell tm-shell tm-requests-page glass-ui">
     <div className="tm-page-head"><div><span className="tm-kicker"><Users size={15} /> 3DEEZI TEAM</span><h1>MY DESIGN <span>REQUESTS</span></h1></div><Link className="button button-gradient" to="/team#tm-request">REQUEST A DESIGNER <ArrowRight size={16} /></Link></div>
     {error ? <p className="error-message" role="alert">{error} <button className="tm-link" onClick={load}>Try again</button></p> : requests ? <RequestList requests={requests} /> : <p className="muted"><LoaderCircle className="spin" size={16} /> Loading…</p>}
   </div>;
@@ -545,7 +551,7 @@ export function TeamRequestPage({ onStudio, onNotice }: { onStudio: (picture: { 
               ? <button className="button button-outline" disabled={!!busy} onClick={() => setRevising(v => v === 'extra' ? false : 'extra')} data-testid="team-extra-revision"><RefreshCw size={16} /> EXTRA REVISION {extraPrice ? audMoney(extraPrice.price, extraPrice.currency) : ''}</button>
               : <button className="button button-outline" disabled={!!busy || !request.can.revise || left <= 0} onClick={() => setRevising(v => v ? false : 'included')}><RefreshCw size={16} /> REQUEST REVISIONS</button>}
             <button className="button button-quiet" onClick={() => chatBox.current?.focus()}><MessageSquare size={16} /> MESSAGE</button>
-            <small className="muted">{left > 0 ? `${left} of ${request.revisions_allowed} revisions left` : revisionInvoice ? 'Extra revision waiting for payment.' : request.can.extra_revision ? `Your included revisions are used: an extra round is ${extraText}.` : 'No revisions left: message your designer or approve the design.'}</small>
+            <small className="muted">{left > 0 ? `${left} of ${request.revisions_allowed} revision${request.revisions_allowed === 1 ? '' : 's'} left` : revisionInvoice ? 'Extra revision waiting for payment.' : request.can.extra_revision ? `Your included revisions are used: an extra round is ${extraText}.` : 'No revisions left: message your designer or approve the design.'}</small>
           </div>}
           {revising && reviewing && <form className="tm-revise" onSubmit={e => { e.preventDefault(); act('revise', async () => { const extra = revising === 'extra'; const r = await teamApi.revise(request.id, revision.trim(), revisionFiles.files, extra); setRequest(r); setRevising(false); setRevision(''); revisionFiles.clear(); const inv = r.pending_revision?.invoice; if (extra && inv && payPath(inv)) { onNotice(`Extra revision: pay invoice ${inv.invoice_number} and your designer starts it.`); navigate(payPath(inv)!); } else onNotice('Revision request sent to your designer.'); }); }}>
             {revising === 'extra' && <p className="tm-price" role="note"><CreditCard size={16} /> An extra revision round is <b>{extraText}</b>. After sending, you pay its invoice; your designer starts once it is paid.</p>}

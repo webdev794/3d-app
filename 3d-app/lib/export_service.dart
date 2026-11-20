@@ -250,7 +250,7 @@ String _escape(String s) => s
 String _svg(AppController c) {
   final shorts = c.garment == 'Shorts';
   final cap = c.garment == 'Hat / Cap';
-  final singlet = c.garment == 'Singlet';
+  final singlet = c.garment == 'Singlet' || c.garment == 'Netball dress';
   final shape = shorts
       ? 'M110 100H250L265 290L190 302L180 207L170 302L95 290Z'
       : cap

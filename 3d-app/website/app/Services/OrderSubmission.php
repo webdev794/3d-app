@@ -46,6 +46,8 @@ class OrderSubmission
      */
     public function submit(User $user, array $data, ?string $key): array
     {
+        // The "Made by" columns are checked (and set up on shared hosting) before the order's transaction starts.
+        \App\Models\Supplier::ready();
         try {
             $order = DB::transaction(fn () => $this->create($user, $data, $key));
         } catch (UniqueConstraintViolationException $e) {
@@ -75,12 +77,22 @@ class OrderSubmission
             $data['shipping_address'] = \App\Support\OrderDelivery::text($data['delivery'], $data['address'] ?? null) ?? ($data['shipping_address'] ?? null);
             // The price list's destination follows the choice (pick up, the country), unless one was chosen on the review.
             $destination = \App\Support\OrderDelivery::destination($data['delivery'], $data['address'] ?? null);
-            if ($destination && blank($data['pricing']['destination'] ?? null)) {
+            // Picked up: always the pick-up destination, even when a "Delivery to" region was chosen before switching.
+            if ($destination === 'PICKUP') {
+                $data['pricing'] = ['destination' => 'PICKUP'] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
+            } elseif ($destination && blank($data['pricing']['destination'] ?? null)) {
                 $data['pricing'] = ['destination' => $destination] + (is_array($data['pricing'] ?? null) ? $data['pricing'] : []);
             }
         }
-        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'idempotency_key', 'items', 'pricing', 'delivery', 'address']));
+        $order = $user->orders()->make(Arr::except($data, ['design_final', 'project_version', 'draft_id', 'assist_token', 'idempotency_key', 'items', 'pricing', 'delivery', 'address', 'supplier_id']));
         $order->forceFill(['idempotency_key' => $key]);
+        // Sending the order is the customer's approval of the confirmation (the mockups, sizes and garment details,
+        // images/336): its record for the confirmation form (images/338). Version 1 is the version approved.
+        if (\Illuminate\Support\Facades\Schema::hasColumn('orders', 'approved_at')) {
+            $order->forceFill(['version' => 1, 'approved_by' => trim((string) ($user->name ?: $user->email)), 'approved_at' => now()]);
+        }
+        // Who makes it (preferred suppliers, task 9.118): the one chosen, else 3DEEZI.
+        \App\Models\Supplier::assign($order, $data['supplier_id'] ?? null);
         // The customer's pricing choices, for the invoice (payments-api.md R3).
         if (self::hasPricing()) {
             $order->forceFill(['pricing' => \App\Services\Pricing\PricingService::cleanChoices($data['pricing'] ?? null)]);
@@ -139,7 +151,7 @@ class OrderSubmission
     private function items(User $user, array $items): ?array
     {
         $ids = collect($items)->pluck('project_id')->filter()->unique();
-        $projects = $ids->isEmpty() ? collect() : $user->projects()->whereIn('id', $ids)->get(['id', 'name', 'version', 'design'])->keyBy('id');
+        $projects = $ids->isEmpty() ? collect() : $user->projects()->whereIn('id', $ids)->get(['id', 'name', 'version', 'garment', 'design'])->keyBy('id');
         $errors = [];
         foreach ($items as $i => &$item) {
             if (empty($item['project_id'])) {
@@ -155,9 +167,10 @@ class OrderSubmission
             }
             $item['project_name'] = $project->name;
             $item['project_version'] = $project->version;
-            // The design's own garment name ("Netball dress", task 9.99) names the row, unless the row has its own label.
+            // The design's own garment name ("Netball dress", task 9.99) names the row when the row is that garment, unless
+            // the row has its own label; a row of another garment keeps its own name ("Rugby League Jersey", task 9.97).
             $product = trim((string) ($project->design['productName'] ?? ''));
-            if ($product !== '' && blank($item['label'] ?? null)) {
+            if ($product !== '' && blank($item['label'] ?? null) && Order::isDesignRow($project->garment, $item['garment'] ?? null)) {
                 $item['label'] = mb_substr($product, 0, 60);
             }
         }

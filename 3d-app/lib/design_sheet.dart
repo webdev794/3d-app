@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'own_patterns.dart';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -8,6 +9,7 @@ import 'package:pdf/widgets.dart' as pw;
 
 import 'app_controller.dart';
 import 'gradient_presets.dart';
+import 'part_editing.dart';
 
 /// One-page PDF design sheet, as on the website's Export menu: front and back
 /// views, the flat print panels, colours (HEX / RGB / CMYK), pattern, text,
@@ -147,15 +149,37 @@ Future<Uint8List> designSheetPdf(AppController c) async {
     row(
       label,
       '${stops.map((s) => '${s.hex.toUpperCase()} ${(s.at * 100).round()}%').join(' > ')}, '
-          '${gradient['angle'] ?? 0}°',
+      '${gradient['angle'] ?? 0}°',
     );
+  }
+  // Parts with a look of their own (task 9.134, the Part panel) and the
+  // objects on one part only, as the website's PARTS.
+  final onParts = c.layers.where((l) => partLabels.containsKey(l['clip']));
+  if (c.changedParts.isNotEmpty || onParts.isNotEmpty) {
+    heading('PARTS');
+    for (final key in c.changedParts) {
+      row(partLabel(key), partSummary(c.partStyleOf(key)));
+    }
+    for (final l in onParts) {
+      final opacity = l['opacity'];
+      row(
+        'On ${partLabel('${l['clip']}').toLowerCase()}',
+        '${switch (l['type']) {
+          'text' => 'Text "${l['text'] ?? ''}"',
+          'image' => '${l['name'] ?? 'Logo'}',
+          _ => 'Shape',
+        }}${opacity is num && opacity < 1 ? ' · ${(opacity * 100).round()}% opacity' : ''}',
+      );
+    }
   }
   heading('PATTERN');
   row('Style', c.pattern);
   if (c.patternTile != null) row('Custom', 'Pattern image');
   // Patterns set on single areas of the garment (body, yoke, sleeves, sides, hem).
   for (final MapEntry(:key, :value) in c.zones.entries) {
-    if (value.isNotEmpty) row(_title(key), _title(value));
+    if (value.isNotEmpty) {
+      row(_title(key), isPatternPicture(value) ? 'My pattern' : _title(value));
+    }
   }
   row('Fabric', c.fabric);
   heading('TEXT AND NUMBER');

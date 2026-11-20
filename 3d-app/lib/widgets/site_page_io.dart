@@ -14,7 +14,8 @@ Future<bool> Function(String url) openExternalBrowser = _openExternal;
 
 Future<bool> _openExternal(String url) async {
   final uri = Uri.tryParse(url);
-  if (uri == null || !(uri.isScheme('https') || uri.isScheme('http'))) return false;
+  if (uri == null || !(uri.isScheme('https') || uri.isScheme('http')))
+    return false;
   try {
     return await _browser.invokeMethod<bool>('open', {'url': url}) ?? false;
   } on PlatformException {
@@ -25,7 +26,8 @@ Future<bool> _openExternal(String url) async {
 }
 
 /// The pay page inside the app, when no browser opens (replaced in tests).
-Future<void> Function(BuildContext context, String url, String title) openPayFallback = openSitePage;
+Future<void> Function(BuildContext context, String url, String title)
+openPayFallback = openSitePage;
 
 /// Phones: the invoice's pay page (a signed 2-hour link) opens in the phone's
 /// own browser, where Apple Pay and Google Pay work. Returns when the customer
@@ -33,9 +35,11 @@ Future<void> Function(BuildContext context, String url, String title) openPayFal
 /// opens, the page opens inside the app instead (and returns when it closes).
 Future<void> openPayLink(BuildContext context, String url, String title) async {
   final back = Completer<void>();
-  final listener = AppLifecycleListener(onResume: () {
-    if (!back.isCompleted) back.complete();
-  });
+  final listener = AppLifecycleListener(
+    onResume: () {
+      if (!back.isCompleted) back.complete();
+    },
+  );
   try {
     if (!await openExternalBrowser(url)) {
       if (context.mounted) await openPayFallback(context, url, title);
@@ -51,7 +55,9 @@ Future<void> openPayLink(BuildContext context, String url, String title) async {
 /// token, see ApiClient.sitePage). Links to other sites stay in the page.
 Future<void> openSitePage(BuildContext context, String url, String title) =>
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => _SitePage(url: url, title: title)),
+      MaterialPageRoute<void>(
+        builder: (_) => _SitePage(url: url, title: title),
+      ),
     );
 
 class _SitePage extends StatefulWidget {

@@ -1,10 +1,16 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import 'api_client.dart';
 import 'app_controller.dart';
+import 'screens/create_home.dart' show convertFlow;
+import 'screens/team.dart' show TeamRequestsScreen, TeamScreen;
+import 'widgets/site_page_stub.dart'
+    if (dart.library.js_interop) 'widgets/site_page_web.dart'
+    if (dart.library.io) 'widgets/site_page_io.dart';
+import 'widgets/ui.dart' show showToast;
 
 /// Runs one 3DEEZI ASSIST command on a screen; returns what it did, or throws
 /// an [AssistError] saying why it could not.
@@ -54,8 +60,28 @@ class AssistMessage {
 /// 3DEEZI ASSIST in the app: the same help chat as on the website, answered
 /// by the website's server (`POST /assist`), with the same commands.
 class AssistController extends ChangeNotifier {
-  AssistController(this.app);
+  AssistController(this.app) {
+    latest = this;
+  }
+
+  /// The app's chat, for links that open it (the Home's "Ask 3DEEZI
+  /// Assist"). Null when no app is running.
+  static AssistController? latest;
+
   final AppController app;
+
+  /// The app's navigator (MaterialApp.navigatorKey): the pages that open over the app screens need it, 3DEEZI TEAM
+  /// and My design requests, Convert's picture sheet and the website's About, Support, Privacy and Terms.
+  final navigator = GlobalKey<NavigatorState>();
+
+  /// Opens a website page (About, Support, Privacy, Terms) the way Profile's rows do: a new browser tab on the web,
+  /// inside the app on phones (replaced in tests).
+  static Future<void> Function(BuildContext context, String url, String title)
+  openSite = openSitePage;
+
+  /// Convert an image to 3D, as the Home's Convert line (replaced in tests).
+  static Future<void> Function(BuildContext context, AppController app)
+  convert = convertFlow;
 
   static const greeting =
       "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
@@ -103,6 +129,19 @@ class AssistController extends ChangeNotifier {
   void toggle() {
     open = !open;
     notifyListeners();
+  }
+
+  /// Opens the chat (the Home's Assist link).
+  void show() {
+    if (open) return;
+    open = true;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    if (identical(latest, this)) latest = null;
+    super.dispose();
   }
 
   void minimise() {
@@ -159,13 +198,15 @@ class AssistController extends ChangeNotifier {
     AppScreen.studio ||
     AppScreen.saveProject ||
     AppScreen.export ||
-    AppScreen.showcase => '/studio',
+    AppScreen.showcase ||
+    AppScreen.mockup => '/studio',
     AppScreen.projects => '/projects',
     AppScreen.assets => '/assets',
     AppScreen.profile => '/dashboard',
     AppScreen.artboard => '/artboard',
     AppScreen.pricing => '/pricing',
     AppScreen.orders => '/orders',
+    AppScreen.orderHub => '/order-now',
     _ => '/',
   };
 
@@ -173,18 +214,35 @@ class AssistController extends ChangeNotifier {
     '/': 'Home',
     '/create/ai': 'AI Powered Sportswear',
     '/create/sport': 'Design Your Own', //
-    '/convert': 'Home',
+    // The Home's Convert line: the picture sheet.
+    '/convert': 'Convert an image to 3D',
+    // The TEAM screen, and My design requests over it.
+    '/team': '3DEEZI TEAM',
+    '/team/requests': 'My design requests',
+    // The website's own pages, as Profile opens them.
+    '/about': 'About',
+    '/support': 'Support',
+    '/privacy': 'Privacy',
+    '/terms': 'Terms',
     '/projects': 'Projects',
     '/approved': 'Projects',
     '/assets': 'Assets',
     '/dashboard': 'Projects',
     '/downloads': 'Projects',
-    // The website's Orders page: in the app, the home's ORDER NOW WITH 3DEEZI.
-    '/order-now': 'Home',
+    // The website's Orders page: in the app, the Orders tab.
+    '/order-now': 'Orders',
     '/orders': 'My orders',
+    // The Orders tab's Create Order Form and Upload Your Order.
+    '/orders/new': 'Create order form',
+    '/orders/upload': 'Upload your order',
     '/pricing': 'Plans',
     '/studio': 'the 3D Studio', '/artboard': 'the Artboard',
   };
+
+  /// Create Order Form ('form') or Upload Your Order ('upload') asked for by a
+  /// link or an `open` command (/orders/new, /orders/upload): the Orders tab
+  /// opens it and clears this.
+  static final orderEntry = ValueNotifier<String?>(null);
 
   /// Opens the app screen for a website path (from a link or an `open` command).
   void openPath(String path) {
@@ -200,14 +258,56 @@ class AssistController extends ChangeNotifier {
         app.go(AppScreen.assets);
       case '/orders':
         app.go(AppScreen.orders);
+      case '/order-now':
+        app.go(AppScreen.orderHub);
+      case '/orders/new' || '/orders/upload':
+        // The Orders tab opens it (signed out: sign in first), so the tab first.
+        app.go(AppScreen.orderHub);
+        orderEntry.value = page == '/orders/new' ? 'form' : 'upload';
       case '/pricing':
         app.go(AppScreen.pricing);
       case '/studio':
         app.go(AppScreen.studio);
       case '/artboard':
         app.go(AppScreen.artboard);
+      case '/team' || '/team/requests':
+        _openTeam(requests: page == '/team/requests');
+      case '/convert':
+        _overApp((context) => convert(context, app));
+      case '/about' || '/support' || '/privacy' || '/terms':
+        _overApp(
+          (context) =>
+              openSite(context, app.api.sitePage(page), _pageNames[page]!),
+        );
       default:
         app.go(AppScreen.home);
+    }
+  }
+
+  /// Runs [open] with the navigator's context; without the app's navigator (a chat on its own), the Home instead.
+  void _overApp(void Function(BuildContext context) open) {
+    final context = navigator.currentContext;
+    if (context == null) return app.go(AppScreen.home);
+    open(context);
+  }
+
+  /// 3DEEZI TEAM over the current screen, as the Home's tile opens it, and with [requests] My design requests over it
+  /// (as its VIEW MY REQUESTS; back goes to the TEAM screen). Signed out, the TEAM screen says to sign in first.
+  void _openTeam({required bool requests}) {
+    final nav = navigator.currentState;
+    if (nav == null) return app.go(AppScreen.home);
+    unawaited(
+      nav.push(MaterialPageRoute<void>(builder: (_) => TeamScreen(app))),
+    );
+    if (!requests) return;
+    if (app.signedIn) {
+      unawaited(
+        nav.push(
+          MaterialPageRoute<void>(builder: (_) => TeamRequestsScreen(app)),
+        ),
+      );
+    } else {
+      showToast(nav.context, 'Sign in to see your design requests.');
     }
   }
 

@@ -37,7 +37,7 @@ class OpenAiDesigner
     /** Concepts are designed freely; the 3D kit's pattern list is only the nearest editable match. */
     public const FREE_DESIGN = 'Design each concept freely, like a premium sublimated teamwear brand: renderPrompt describes the whole design '
         .'(graphics such as lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures where they suit the theme; '
-        .'where the client\'s logo goes; the back name and number; trims), never a plain template with flat colour blocks. '
+        .'the club\'s crest on the chest; the lettering on the back; trims), never a plain template with flat colour blocks. '
         .'pattern is only the nearest built-in pattern for the editable 3D kit, and patternMotif is the custom print that carries the concept\'s graphics onto the 3D kit.';
 
     /**
@@ -47,10 +47,19 @@ class OpenAiDesigner
     public const OWN_LOGO = 'The attached logos belong to the client, who owns the right to use them: keep the client\'s logo, mascot and lettering exactly as supplied in every design, '
         .'never redraw, replace, simplify or "make original" the client\'s own logo or mascot.';
 
-    /** Kit colours like a top teamwear brand: from the logo's brand colours, dark and bold when the brief is, readable names and numbers. */
+    /** Kit colours like a top teamwear brand: from the logo's brand colours, dark and bold when the brief is, readable lettering. */
     public const COLOUR_RULES = 'Colours: take the kit colours only from the dominant brand colours of the client\'s logo or the brief, never from skin tones or tiny logo details. '
         .'For a cool, bold or aggressive brief with a logo, prefer a dark body (black or deep navy) with the logo\'s main colour as the graphics and white highlights. '
-        .'Back names and numbers are white with an outline in the accent colour, so they stand out from the graphics.';
+        .'The lettering on the back is white with an outline in the accent colour, so it stands out from the graphics.';
+
+    /**
+     * Every sport (client 2026-10-26, images/175.jpg: a huge 3DEEZI logo had filled the chest): the club's symbol on the
+     * chest at a normal crest size, and 3DEEZI only as a small word mark at the top of the back.
+     */
+    public const BRAND_RULES = 'Logos: the club\'s symbol goes on the chest at a normal crest size (about a hand\'s width, on the left chest or centred high on the chest), unless the brief or the client\'s own design places it differently: '
+        .'the client\'s own logo when one is attached, otherwise a simple original crest (a shield or roundel in the kit colours, with the team\'s initials when there is a team name). '
+        .'Never put a large 3DEEZI logo, the 3DEEZI emblem or the words "AI SPORTSWEAR DESIGNER" on the chest or anywhere on the front. '
+        .'3DEEZI appears only as a small 3DEEZI word mark at the top of the back, just under the collar, and nowhere else on the garment.';
 
     /**
      * The three alternatives look clearly different (client 2026-10-21: the BLITZ options were all dark blue with
@@ -64,24 +73,254 @@ class OpenAiDesigner
 
     /** Colours for a direction that sets its own body colour (an alternative): no dark body preference. */
     public const DIRECTION_COLOUR_RULES = 'Colours: from the client\'s logo or the brief, never from skin tones or tiny logo details, with the body colour the creative direction sets. '
-        .'Back names and numbers contrast clearly with the body, with an outline in the accent colour.';
+        .'The lettering on the back contrasts clearly with the body, with an outline in the accent colour.';
 
     /** Layouts an alternative can take; anything but all-over graphics replaces the "no flat panels" rule. */
     public const LAYOUTS = ['all-over graphics', 'bold panels', 'diagonal sash', 'hoops', 'stripes', 'minimal'];
 
     /** The art director's brief for the HD mockup (strict JSON). */
     private const DIRECTION_FIELDS = [
-        'summary' => 'One friendly sentence to the client saying what you will create, e.g. "I\'ll create a BLITZ training singlet in electric blue, black and white, with your logo as the centrepiece and lightning details flowing around the sides."',
+        'summary' => 'One friendly sentence to the client saying what you will create, e.g. "I\'ll create a BLITZ training singlet in electric blue, black and white, with your logo on the chest and lightning details flowing around the sides."',
         'ownDesign' => 'true only if an attached image is the client\'s own complete garment design (front and/or back fully designed) that must be kept exactly.',
         'teamName' => 'The team, club or brand name from the brief or the logo\'s wordmark, exactly as written; empty if none.',
         'palette' => 'The 3-4 kit colours with names and hex: the dominant brand colours of the client\'s logo or the brief (ignore skin tones and small details), high contrast, e.g. "electric blue #1E5BFF, black #0A0C12, white #FFFFFF".',
         'theme' => 'The theme and motifs drawn from the logo and brief, e.g. "speed and lightning: the mascot sprinting, jagged lightning edges".',
-        'front' => 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the main logo large as the centrepiece, and the sublimated graphics around it.',
-        'back' => 'The back design: the team name in bold white athletic lettering over a large white player number (e.g. 01) with an outline in the accent colour, when it suits the garment, plus graphics.',
+        'front' => 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the club\'s symbol on the chest at a normal crest size (the client\'s logo, or a simple crest when there is none; never a 3DEEZI logo), and the sublimated graphics around it.',
+        'back' => 'The back design: the small 3DEEZI word mark just under the collar, then the team name in bold white athletic lettering over a large white player number (e.g. 01) with an outline in the accent colour, when it suits the garment, plus graphics.',
         'graphics' => 'The all-over sublimated graphics: shapes, flow across the sides, textures (halftone, gradients, grunge) and colours.',
         'trims' => 'Collar, armhole or cuff binding, side panels and hem, in the palette.',
         'presentation' => 'The photo setting: dramatic and dark (night stadium, floodlights, haze in the kit\'s main colour, reflective floor) unless the brief asks for something else.',
     ];
+
+    /** The small 3DEEZI word mark the designs wear under the back collar (the only 3DEEZI branding, client 2026-10-26). */
+    public const WORD_MARK = 'media/images/brand-wordmark.png';
+
+    /**
+     * The sport's marking rules from the catalogue (config/catalog.php 'names', 'numbers' and 'positions'; client
+     * 2026-10-26, images/175.jpg): netball has no player names or numbers and shows the playing position letters
+     * instead. `$sport` is the catalogue id or name, with or without its style hint ("Golf (golf: ...)").
+     *
+     * @return array{names: bool, numbers: bool, positions: array<int, string>}
+     */
+    public static function sportMarkings(string $sport): array
+    {
+        $key = mb_strtolower(trim($sport));
+        $entry = collect(config('catalog.sports', []))->first(fn (array $s) => $key === mb_strtolower($s['id'])
+            || $key === mb_strtolower($s['name']) || str_starts_with($key, mb_strtolower($s['name']).' ('));
+
+        return [
+            'names' => (bool) ($entry['names'] ?? true),
+            'numbers' => (bool) ($entry['numbers'] ?? true),
+            'positions' => array_values((array) ($entry['positions'] ?? [])),
+        ];
+    }
+
+    /**
+     * What the client's brief itself asks for (user report 2026-11-03, picture 367: "cotton oversized tshirt on a
+     * hanger" came back as four sublimated jerseys with team names and 01 in a stadium). The brief's own garment,
+     * fabric, fit, presentation, background and plainness win over the sportswear defaults; sport-jersey details
+     * (team names, numbers, sublimated graphics, the stadium) are only used when the brief asks for teamwear.
+     *
+     * @return array{garment: string, fabric: string, fit: string, presentation: string, background: string, plain: bool, numbers: bool, teamwear: bool}
+     */
+    public static function briefIntent(string $brief): array
+    {
+        $b = ' '.mb_strtolower($brief).' ';
+        $first = function (array $map) use ($b): string {
+            foreach ($map as $label => $pattern) {
+                if (preg_match('/'.$pattern.'/u', $b)) {
+                    return $label;
+                }
+            }
+
+            return '';
+        };
+        $garment = $first(self::INTENT_GARMENTS);
+        $fabric = $first(self::INTENT_FABRICS);
+        $fit = $first(self::INTENT_FITS);
+        $presentation = $first(self::INTENT_PRESENTATIONS);
+        $background = $first(self::INTENT_BACKGROUNDS);
+        $plain = (bool) preg_match('/\b(plain|blank|minimal(ist)?|simple|basic|solid colou?r|essential)\b/u', $b);
+        $numbers = (bool) preg_match('/\bnumbers?\b|#\s?\d|\bno\.\s?\d/u', $b);
+        $teamWords = (bool) preg_match('/\b(jerseys?|kits?|singlets?|uniforms?|team|club|fc|afc|united|squad|sublimat\w*|match ?day|bibs?|league)\b/u', $b);
+        $casualGarment = in_array($garment, ['t-shirt', 'hoodie', 'sweatshirt', 'polo shirt', 'tank top', 'jacket', 'shirt'], true);
+        $casualFabric = in_array($fabric, ['cotton', 'organic cotton', 'heavyweight cotton', 'linen', 'fleece', 'french terry', 'denim', 'wool', 'bamboo'], true);
+        // Teamwear when the brief names it, or when it names nothing casual (a plain sport brief keeps the jersey style).
+        $teamwear = $teamWords || ! ($casualGarment || $casualFabric || $plain || in_array($presentation, ['hanger', 'flat lay', 'folded'], true));
+
+        return compact('garment', 'fabric', 'fit', 'presentation', 'background', 'plain', 'numbers', 'teamwear');
+    }
+
+    /** Brief words, first match wins (mirrored in the app's lib/ai_service.dart BriefIntent). */
+    public const INTENT_GARMENTS = [
+        'hoodie' => '\bhood(ie|y|ies|ed sweat\w*)\b', 'sweatshirt' => '\b(sweat ?shirts?|crew ?neck sweat\w*|jumpers?|pullovers?)\b',
+        'polo shirt' => '\bpolos?\b', 'tank top' => '\b(tank ?tops?|tanks?|vests?)\b', 'jacket' => '\b(jackets?|windbreakers?|bombers?)\b',
+        'singlet' => '\bsinglets?\b', 'jersey' => '\b(jerseys?|kits?|uniforms?)\b',
+        't-shirt' => '\b(t-? ?shirts?|tees?)\b', 'shorts' => '\bshorts\b', 'shirt' => '\bshirts?\b',
+    ];
+
+    public const INTENT_FABRICS = [
+        'organic cotton' => '\borganic cotton\b', 'heavyweight cotton' => '\bheavy ?weight cotton\b', 'cotton' => '\bcotton\b',
+        'linen' => '\blinen\b', 'fleece' => '\bfleece\b', 'french terry' => '\bfrench terry\b', 'denim' => '\bdenim\b',
+        'wool' => '\b(wool|merino)\b', 'bamboo' => '\bbamboo\b', 'mesh' => '\bmesh\b', 'polyester' => '\b(polyester|poly)\b',
+        'performance fabric' => '\b(dri-? ?fit|performance fabric)\b',
+    ];
+
+    public const INTENT_FITS = [
+        'oversized' => '\b(over-? ?sized?|oversize)\b', 'boxy' => '\bboxy\b', 'relaxed' => '\b(relaxed|loose)\b', 'cropped' => '\bcropped\b',
+        'slim' => '\b(slim|skinny|fitted)\b', 'muscle' => '\bmuscle fit\b', 'regular' => '\bregular fit\b', 'athletic' => '\bathletic fit\b',
+    ];
+
+    public const INTENT_PRESENTATIONS = [
+        'hanger' => '\bhang(er|ers|ing)\b', 'flat lay' => '\bflat ?-?lay\b|\blaid flat\b|\blying flat\b', 'folded' => '\bfolded\b',
+        'model' => '\b(on|worn by) (a |an )?(\w+ )?(model|person|man|woman|guy|girl|athlete|player)\b|\bmodel(led|ed|s)?\b|\bworn\b',
+        'ghost mannequin' => '\bmannequin\b',
+    ];
+
+    public const INTENT_BACKGROUNDS = [
+        'stadium' => '\bstadium\b|\bfloodlights?\b|\bpitch\b', 'locker room' => '\blocker ?room\b', 'gym' => '\bgym\b',
+        'white background' => '\bwhite (background|backdrop|wall)\b', 'black background' => '\bblack (background|backdrop|wall)\b',
+        'grey background' => '\bgr[ae]y (background|backdrop|wall)\b', 'studio' => '\bstudio\b', 'street' => '\b(street|urban|city)\b',
+        'outdoors' => '\b(outdoors?|park|nature|beach|forest)\b', 'wall' => '\bwall\b',
+    ];
+
+    /** The scene for "Auto": from the brief's background, else from its presentation (a hanger: a clean wall, not a stadium). */
+    public static function autoScene(array $intent): string
+    {
+        $bg = $intent['background'];
+        if ($bg !== '' && $bg !== 'stadium') {
+            return match ($bg) {
+                'white background' => 'on a clean pure white seamless background with a soft natural shadow',
+                'black background' => 'on a clean deep black seamless background with soft studio light',
+                'grey background', 'studio' => 'in a clean premium photo studio with a seamless light-grey backdrop and soft even lighting',
+                'wall' => 'against a clean plain light wall with soft natural daylight',
+                'street' => 'in a softly blurred modern city street in daylight',
+                'outdoors' => 'outdoors in soft natural daylight with a softly blurred background',
+                'locker room' => 'in a modern locker room with warm spotlights and a shallow depth of field',
+                'gym' => 'in a clean modern gym with soft light and a blurred background',
+                default => 'in a clean premium photo studio',
+            }.', as the client asked. ';
+        }
+        if ($bg === 'stadium' || $intent['teamwear']) {
+            return 'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. ';
+        }
+
+        return match ($intent['presentation']) {
+            'hanger' => 'against a clean plain light wall or seamless light studio backdrop with soft natural light and a soft shadow behind the hanger (no stadium, no dramatic lights). ',
+            'flat lay', 'folded' => 'on a clean light surface (light wood, linen or seamless paper) with soft natural light (no stadium). ',
+            'model' => 'in a clean bright photo studio or a soft lifestyle setting that suits the garment, natural light (no stadium). ',
+            default => 'in a clean premium photo studio with a seamless light backdrop and soft even lighting (no stadium). ',
+        };
+    }
+
+    /** The brief's own words as rules every prompt follows ("the brief wins"). */
+    public static function intentRules(array $intent, string $garment = ''): string
+    {
+        $what = trim(implode(' ', array_filter([$intent['fit'], $intent['fabric'], $intent['garment']])));
+        $rules = [];
+        if ($intent['garment'] !== '') {
+            $rules[] = 'the garment is '.(preg_match('/^[aeiou]/i', $what) ? 'an ' : 'a ').$what.' exactly as the brief says'.($garment !== '' && mb_stripos($garment, strtok($intent['garment'], ' ')) === false ? " (this replaces the selected product \"{$garment}\")" : '');
+        } elseif ($what !== '') {
+            $rules[] = "the garment is {$what} as the brief says";
+        }
+        if ($intent['fabric'] !== '') {
+            $rules[] = "show real {$intent['fabric']} fabric texture".(in_array($intent['fabric'], ['cotton', 'organic cotton', 'heavyweight cotton', 'fleece', 'french terry'], true) ? ' (soft matte cotton knit, not shiny polyester mesh)' : '');
+        }
+        if ($intent['fit'] !== '') {
+            $rules[] = "a clearly {$intent['fit']} fit and cut".($intent['fit'] === 'oversized' ? ' (dropped shoulders, wide body, longer sleeves)' : '');
+        }
+        $rules[] = match ($intent['presentation']) {
+            'hanger' => 'presented hanging on a hanger',
+            'flat lay' => 'presented as a flat lay, shot top-down',
+            'folded' => 'presented neatly folded',
+            'model' => 'presented worn by a model',
+            'ghost mannequin' => 'presented on an invisible ghost mannequin',
+            default => '',
+        };
+        if ($intent['plain']) {
+            $rules[] = 'the design stays plain or minimal as asked, with no all-over graphics';
+        }
+        if (! $intent['teamwear']) {
+            $rules[] = 'this is not a sports jersey: no sublimated sports graphics, no team name'.($intent['numbers'] ? '' : ', no player number').' and no stadium unless the brief asks';
+        }
+        $rules = array_values(array_filter($rules));
+
+        return $rules ? 'The client\'s brief wins over every default: '.implode('; ', $rules).'.' : '';
+    }
+
+    /** The design rules for a non-teamwear brief (a cotton tee, a hoodie, a polo): clean apparel, nothing sporty unless asked. */
+    public static function casualRules(array $intent, int $count): string
+    {
+        return 'Design: a premium '.trim(($intent['fabric'] ?: '').' '.($intent['garment'] ?: 'garment')).' photographed the way a real clothing brand would. '
+            .($intent['plain'] ? 'Keep it plain or minimal: a clean solid colour, at most one small tasteful detail. '
+                : 'Keep the design clean and wearable: a solid colour body with at most a tasteful print or small graphic that follows the brief, no all-over sublimated sports graphics. ')
+            .($count ? 'Place the client\'s logo where the brief says, or small on the left chest. ' : 'No crest, team name or wordmark on the front unless the brief asks. ')
+            .($intent['numbers'] ? 'Show the number the brief asks for. ' : 'No numbers anywhere. ')
+            .'3DEEZI appears only as a small 3DEEZI word mark printed inside the back neck or just under the back collar, and nowhere else.';
+    }
+
+    /** What the sport's kits carry on the back (and, with playing positions, on the front), for every planning and image prompt. */
+    public static function markingRules(string $sport): string
+    {
+        ['names' => $names, 'numbers' => $numbers, 'positions' => $positions] = self::sportMarkings($sport);
+        if ($names && $numbers) {
+            return 'Below the word mark, the back carries the team name in bold athletic lettering over a large player number (for example 01) when it suits the garment.';
+        }
+        $rule = match (true) {
+            ! $names && ! $numbers => 'This sport has no player names and no numbers: never put a player name or any number anywhere on the garment (front, back, sides or hem). ',
+            ! $names => 'This sport has no player names: never put a player name anywhere on the garment; below the word mark the back carries a large player number (for example 01). ',
+            default => 'This sport has no numbers: never put a number anywhere on the garment; below the word mark the back carries the team name in bold athletic lettering. ',
+        };
+        if ($positions) {
+            $rule .= 'Instead, match wear shows the playing position letters, as on real bibs ('.implode(', ', $positions).'): '
+                .'one position only (for example '.$positions[0].'), in large bold athletic lettering centred on the front below the club\'s crest, '
+                .'and again large on the back below the word mark (on the bib when the garment has one). '
+                .'The back shows only the small word mark and the position letters: no team name, player name or number. '
+                .'Training and warm-up wear (tees, hoodies, jackets) shows no position letters.';
+        }
+
+        return trim($rule);
+    }
+
+    /** The lettering the planner varies and scores: "the team name and number", or "the position letters" (netball). */
+    public static function lettering(string $sport): string
+    {
+        $m = self::sportMarkings($sport);
+
+        return $m['positions'] ? 'the position letters' : match (true) {
+            $m['names'] && $m['numbers'] => 'the team name and number',
+            $m['names'] => 'the team name',
+            $m['numbers'] => 'the number',
+            default => 'the lettering',
+        };
+    }
+
+    /** The art direction's fields for the sport: its own back (and front) lettering. */
+    public static function directionFields(string $sport): array
+    {
+        ['names' => $names, 'numbers' => $numbers, 'positions' => $positions] = self::sportMarkings($sport);
+        $fields = self::DIRECTION_FIELDS;
+        $outline = 'in bold white athletic lettering with an outline in the accent colour';
+        if ($positions) {
+            $fields['front'] = 'The front design: base colour (dark black or navy for a cool or bold brief with a logo), the club\'s symbol on the chest at a normal crest size (the client\'s logo, or a simple crest when there is none; never a 3DEEZI logo), '
+                ."one playing position's letters (e.g. {$positions[0]}) large {$outline} centred below it, and the sublimated graphics around them.";
+            $fields['back'] = "The back design: the small 3DEEZI word mark just under the collar, then the same position letters large {$outline}; no team name, no player name and no number anywhere; plus graphics.";
+        } elseif (! $names || ! $numbers) {
+            $fields['back'] = 'The back design: the small 3DEEZI word mark just under the collar, then '
+                .($names ? "the team name {$outline}; no numbers anywhere" : ($numbers ? "a large player number (e.g. 01) {$outline}; no player names anywhere" : 'no player names and no numbers anywhere'))
+                .'; plus graphics.';
+        }
+
+        return $fields;
+    }
+
+    /** The editable 3D kit's back name and number for the sport: none where the sport has none (netball: also no order defaults). */
+    public static function kitBack(string $sport, string $logoText): array
+    {
+        $m = self::sportMarkings($sport);
+
+        return ['number' => $m['numbers'] ? '23' : '', 'backName' => $m['names'] ? $logoText : ''];
+    }
 
     /** The model that plans designs (art direction, the four designs, concepts); the ASSIST chat stays on the text model. */
     public static function planningModel(): string
@@ -120,13 +359,13 @@ class OpenAiDesigner
      */
     public function concepts(string $prompt, string $sport, string $garment, array $references = []): array
     {
-        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$prompt}\n"
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$prompt}\n".self::intentRules(self::briefIntent($prompt), $garment)."\n"
             .'Create exactly 4 clearly different concept directions, each designed the way a top custom sublimation sportswear brand would: '
             .'1) bold and aggressive, with dynamic all-over sublimated graphics drawn from the theme of the client\'s logo or brief, '
             .'2) classic and clean, 3) heritage or pattern-led, 4) modern minimal. Keep the team name consistent across all four. '
-            .self::FREE_DESIGN.' '.self::COLOUR_RULES;
+            .self::FREE_DESIGN.' '.self::COLOUR_RULES.' '.self::BRAND_RULES.' '.self::markingRules($sport);
         if ($references) {
-            $text .= "\nReference images are attached. Take the palette, motifs and mood from them (a logo's colours, mascot and lettering style set the theme), and make the client's main logo the chest centrepiece. If one shows the client's own finished garment design, make concept 1 follow it closely (its colours, pattern and lettering).";
+            $text .= "\nReference images are attached. Take the palette, motifs and mood from them (a logo's colours, mascot and lettering style set the theme), and make the client's main logo the crest on the chest. If one shows the client's own finished garment design, make concept 1 follow it closely (its colours, pattern and lettering).";
         }
         $content = [['type' => 'input_text', 'text' => $text]];
         foreach (array_slice($references, 0, 3) as $reference) {
@@ -157,9 +396,9 @@ class OpenAiDesigner
         }
 
         // Quick low-quality previews, generated in parallel (about 15 s). The
-        // client's logos go in first as real image inputs (the chest
-        // centrepiece), then the 3DEEZI logo for the emblem or neck label.
-        $logo = file_get_contents(public_path('media/images/logo_full.png'));
+        // client's logos go in first as real image inputs (the chest crest),
+        // then the 3DEEZI word mark (only ever small under the back collar).
+        $logo = file_get_contents(public_path(self::WORD_MARK));
         $clientImages = array_map(fn (string $r) => $this->decodeDataUrl($r), array_slice($references, 0, 3));
         $responses = Http::pool(fn (Pool $pool) => array_map(
             function (array $spec) use ($pool, $logo, $clientImages, $sport, $garment) {
@@ -168,7 +407,7 @@ class OpenAiDesigner
                     $request = $request->attach('image[]', $bytes, "reference-{$i}.".explode('/', $mime)[1], ['Content-Type' => $mime]);
                 }
 
-                return $request->attach('image[]', $logo, '3deezi-logo.png', ['Content-Type' => 'image/png'])
+                return $request->attach('image[]', $logo, '3deezi-word-mark.png', ['Content-Type' => 'image/png'])
                     ->post(self::BASE.'/images/edits', [
                         'model' => config('services.openai.image_model'),
                         'prompt' => self::conceptPreviewPrompt($sport, $garment, $spec['renderPrompt'], $spec['logoText'], count($clientImages)),
@@ -181,12 +420,13 @@ class OpenAiDesigner
             $specs,
         ));
 
-        return array_map(function (array $spec, int $index) use ($responses, $prompt, $garment) {
+        return array_map(function (array $spec, int $index) use ($responses, $prompt, $garment, $sport) {
             $preview = $responses[$index] instanceof Response && $responses[$index]->successful()
                 ? 'data:image/jpeg;base64,'.$responses[$index]->json('data.0.b64_json')
                 : null;
             $main = $this->hex($spec['mainColor']);
             $secondary = $this->hex($spec['secondaryColor']);
+            $logoText = mb_strtoupper(mb_substr($spec['logoText'], 0, 20));
 
             return [
                 'id' => substr(hash('sha256', json_encode($spec).$index), 0, 16),
@@ -200,9 +440,8 @@ class OpenAiDesigner
                     'secondary' => $secondary,
                     'accent' => $this->hex($spec['accentColor']),
                     'pattern' => in_array($spec['pattern'], self::PATTERNS, true) ? $spec['pattern'] : 'Chevron',
-                    'logoText' => mb_strtoupper(mb_substr($spec['logoText'], 0, 20)),
-                    'number' => '23',
-                    'backName' => mb_strtoupper(mb_substr($spec['logoText'], 0, 20)),
+                    'logoText' => $logoText,
+                    ...self::kitBack($sport, $logoText),
                     'patternColor' => $this->mix($main, $secondary, 0.55),
                     'patternBody' => 0.08,
                     'prompt' => $prompt,
@@ -239,7 +478,8 @@ class OpenAiDesigner
         $prompt = "Transform this 3D render of a {$meta['sport']} {$meta['garment']} into a premium photorealistic commercial sportswear photograph, "
             .(self::SCENES[$scene] ?? reset(self::SCENES)).'. '
             .'Keep the garment design EXACTLY as in the image: the same colours, panel layout, pattern, collar and trims, and the same '
-            .($back ? "back name and number (the name reads exactly \"{$logo}\" and the number reads \"{$number}\")" : "chest wordmark and crest (the wordmark reads exactly \"{$logo}\")")
+            // A kit without a number (netball) gets none added.
+            .($back ? (filled($number) ? "back name and number (the name reads exactly \"{$logo}\" and the number reads \"{$number}\")" : "back lettering (it reads exactly \"{$logo}\", with no number)") : "chest wordmark and crest (the wordmark reads exactly \"{$logo}\")")
             .'. Do not add, remove or change any text, logos or graphics. Make the fabric photoreal: fine knit and mesh texture, natural folds and drape, flatlock stitching, slight sheen on the print. Professional lighting with realistic shadows, ultra-detailed, no watermark, no UI.';
 
         $response = $this->withSafeModel((string) config('services.openai.image_model'), self::SAFE_IMAGE_MODEL, fn (string $model) => $this->send(fn () => $this->client()
@@ -257,10 +497,24 @@ class OpenAiDesigner
     }
 
     /**
+     * The Studio's "Mockup" (App\Services\ProductMockup builds the prompt): the 3D captures in, one
+     * studio product photo out, with high input fidelity so the design stays as made. Raw JPEG bytes.
+     *
+     * @param  array<int, string>  $captures  data URLs, the view to photograph first
+     */
+    public function productMockup(array $captures, string $prompt): string
+    {
+        return $this->highFidelityEdit($prompt, array_map(fn (string $c) => $this->decodeDataUrl($c), $captures), [
+            'size' => '1024x1024', 'quality' => 'medium', 'output_format' => 'jpeg', 'output_compression' => '90',
+        ]);
+    }
+
+    /**
      * One brief in, one finished HD presentation mockup out, the way people
      * use ChatGPT: front and back views with close-up detail panels. Logos the
-     * user attaches are placed as the brief says; otherwise the garment wears
-     * the 3DEEZI emblem and wordmark. Returns raw JPEG bytes.
+     * user attaches are placed as the brief says (the club's symbol on the
+     * chest); otherwise a simple crest. 3DEEZI is only a small word mark under
+     * the back collar. Returns raw JPEG bytes.
      *
      * @param  array<int, string>  $references  data URLs (logos, sketches, photos)
      */
@@ -290,12 +544,14 @@ class OpenAiDesigner
     public function artDirection(string $brief, string $sport, string $garment, array $references = []): ?array
     {
         $count = count($references);
-        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n"
+        $intent = self::briefIntent($brief);
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n".self::intentRules($intent, $garment)."\n"
             .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
+            .(! $intent['teamwear'] ? 'This brief is not teamwear: ignore the sportswear defaults below wherever they differ from the brief (no sublimated sports graphics, team names, numbers or stadium unless asked). ' : '')
             .'You are the art director of a top custom sublimation sportswear brand. Before the designer renders one hero mockup, write its creative direction. '
             .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
             .'Design bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
-            .'The client\'s main logo goes large as the front centrepiece; the back carries the team name over a big number when it suits the garment. '
+            .self::BRAND_RULES.' '.self::markingRules($sport).' '
             .'Follow everything the brief specifies (colours, layout, background, text). If an attached image is the client\'s own complete garment design, set ownDesign to true and describe that design exactly instead of inventing one. '
             .self::COLOUR_RULES.' '
             .'Never use real club, league or brand logos other than the client\'s own. '.self::OWN_LOGO;
@@ -304,7 +560,7 @@ class OpenAiDesigner
             $content[] = ['type' => 'input_image', 'image_url' => $reference];
         }
         $properties = [];
-        foreach (self::DIRECTION_FIELDS as $field => $description) {
+        foreach (self::directionFields($sport) as $field => $description) {
             $properties[$field] = ['type' => $field === 'ownDesign' ? 'boolean' : 'string', 'description' => $description];
         }
         try {
@@ -326,20 +582,27 @@ class OpenAiDesigner
 
     /**
      * The HD mockup prompt: a bold sublimated design from the logo's theme,
-     * the logo as the front centrepiece, name and number on the back,
-     * front and back side by side in a dramatic dark setting (unless the
-     * brief asks otherwise); a client's own complete design is kept exactly.
+     * the club's symbol on the chest at crest size, the sport's own back
+     * lettering (netball: position letters, no names or numbers), the small
+     * 3DEEZI word mark under the back collar, front and back side by side in
+     * a dramatic dark setting (unless the brief asks otherwise); a client's
+     * own complete design is kept exactly.
      *
      * @param  ?array<string, mixed>  $direction  from artDirection()
      */
-    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation', bool $portrait = true): string
+    public static function mockupPrompt(string $brief, string $sport, string $garment, int $count, ?array $direction = null, string $view = 'presentation', bool $portrait = true, string $scene = 'auto', bool $sceneImage = false): string
     {
         // A full kit (a top with shorts) stands as worn: each top with its shorts below it (client picture 146.jpg).
         $fullKit = str_contains(mb_strtolower($garment), 'kit');
         $labels = ['body' => 'Body colour', 'layout' => 'Layout', 'theme' => 'Theme', 'palette' => 'Palette', 'front' => 'Front', 'back' => 'Back', 'graphics' => 'Graphics', 'trims' => 'Trims', 'presentation' => 'Presentation'];
         $layout = strtolower(trim((string) ($direction['layout'] ?? '')));
-        $prompt = "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
-            ."Sport: {$sport}. Garment: {$garment}.\nClient brief: {$brief}\n\n";
+        $intent = self::briefIntent($brief);
+        $team = $intent['teamwear'];
+        $prompt = ($team ? "You are the lead designer of a top custom sublimation sportswear brand, making a client presentation mockup.\n"
+                ."Sport: {$sport}. Garment: {$garment}.\n"
+                : "You are the lead designer of a premium apparel brand, making a client presentation photo.\n"
+                    .'Garment: '.($intent['garment'] ?: $garment).".\n")
+            ."Client brief: {$brief}\n".self::intentRules($intent, $garment)."\n\n";
         if (array_filter(array_intersect_key($direction ?? [], $labels), 'filled')) { // the brief as written adds nothing
             $prompt .= "Creative direction (follow it; the brief wins if they differ):\n";
             foreach ($labels as $key => $label) {
@@ -349,41 +612,50 @@ class OpenAiDesigner
             }
             $prompt .= "\n";
         }
-        $prompt .= 'Design: unless the client attached their own complete garment design, design the garment freely like a premium sublimated teamwear brand: '
+        $prompt .= ! $team ? self::casualRules($intent, $count)."\n" : 'Design: unless the client attached their own complete garment design, design the garment freely like a premium sublimated teamwear brand: '
             .'a bold, fully sublimated all-over design with dynamic graphics drawn from the theme and colours of the client\'s logo or brief '
             .'(for example lightning, speed lines, sharp angular shards, halftone dot fades, gradients and textures) flowing across the front, sides and back. '
             .($layout !== '' && $layout !== 'all-over graphics'
                 ? 'Follow the layout in the creative direction ('.$layout.'), finished with sublimated textures and fine detail, never a cheap flat template. '
                 : 'Never a plain template with flat colour blocks or simple side panels. ')
-            .'The client\'s main logo is the large centrepiece on the front, reproduced faithfully (the same artwork, colours and lettering). '
+            .self::BRAND_RULES.' '
             .(filled($direction['body'] ?? null) ? self::DIRECTION_COLOUR_RULES : self::COLOUR_RULES).' '
-            .'The back carries the team name in bold athletic lettering over a large player number (for example 01) when it suits the garment, with matching trims on the collar, armholes or cuffs and hem.'."\n"
-            .($view === 'front'
+            .self::markingRules($sport).' Matching trims on the collar, armholes or cuffs and hem.'."\n";
+        // The brief's presentation (a hanger, a flat lay, a model) replaces the ghost mannequins.
+        $holder = match ($intent['presentation']) {
+            'hanger' => 'each hanging on its own hanger',
+            'flat lay' => 'laid flat and shot from directly above',
+            'folded' => 'neatly folded or laid flat',
+            'model' => 'worn by a model (the back view worn by the same model turned around)',
+            default => 'on invisible ghost mannequins',
+        };
+        $prompt .= ($view === 'front'
                 // The option cards (client picture 138.jpg): one garment that reads well small.
                 ? 'Presentation: one square image of premium commercial product photography: a single garment, the front view only (straight on or a slight three-quarter turn), '
-                    .'centred, complete and fully visible with a little space around it, on an invisible ghost mannequin, no back view, '
+                    .'centred, complete and fully visible with a little space around it, '.str_replace(['each hanging on its own hanger', 'invisible ghost mannequins', 'worn by a model (the back view worn by the same model turned around)'], ['hanging on a hanger', 'an invisible ghost mannequin', 'worn by a model'], $holder).', no back view, '
                 : ($portrait
                     // YOUR DESIGNS (client picture 146.jpg, 2026-10-22): one tall picture that fills a phone screen.
                     ? 'Presentation: unless the brief asks for a different layout, angle or background, make one tall portrait image (2:3) of premium commercial product photography that fills a phone screen: '
                         .($fullKit
                             ? 'each set stands as worn, the top with its shorts directly below it: the front set on the left and the back set on the right, side by side, '
                             : 'the front view on the left and the back view on the right, side by side, ')
-                        .'both complete, fully visible and not overlapping, large so they fill most of the width and height of the frame with a little space around them, on invisible ghost mannequins, '
+                        .'both complete, fully visible and not overlapping, large so they fill most of the width and height of the frame with a little space around them, '.$holder.', '
                     : 'Presentation: unless the brief asks for a different layout, angle or background, make one landscape image of premium commercial product photography: '
                         .($fullKit ? 'the front set (the top with its shorts below it) on the left and the back set on the right, side by side, ' : 'the front view on the left and the back view on the right, side by side, ')
-                        .'both complete, fully visible and not overlapping, on invisible ghost mannequins, '))
-            .'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting. '
-            .'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
+                        .'both complete, fully visible and not overlapping, '.$holder.', '))
+            .self::sceneText($scene, $sceneImage, $count, $intent)
+            .($team ? 'Photorealistic fabric: fine knit and mesh texture, natural folds, flatlock stitching, a crisp vivid sublimated print. '
+                : 'Photorealistic fabric: '.($intent['fabric'] ?: 'the garment\'s').' texture, natural folds and drape, clean stitching, true to the fit. ')
             .'All text must be spelled exactly as written in the brief or the logo. ';
         $prompt .= $count
             ? "The first {$count} attached image(s) come from the client: logos, references, or the client's own finished garment design (flat artwork, a sketch, a snapshot or a photo). "
                 .'If one of them shows a complete garment design, make the garment exactly that design: the same colours, pattern, panels, collar, trims, logos, text and numbers, front and back as shown; '
                 .'do not redesign or simplify it, just turn it into a real 3D garment presented as the brief asks. '
-                .'Reproduce any logos faithfully and place them where the brief says, where the design shows them, or in sensible positions (the main logo large on the front). '
-                .'The last attached image is the 3DEEZI logo: use it only for the small neck label, unless the brief asks for 3DEEZI branding; leave it out when the client\'s design carries its own brand.'
-            : 'The attached image is the 3DEEZI logo (emblem and wordmark). '
-                .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says and do NOT put 3DEEZI on the chest; then use the 3DEEZI emblem only on the small neck label. '
-                .'Only if the brief names no wordmark or brand at all, put the 3DEEZI wordmark across the chest and the 3DEEZI emblem as the crest, exactly as in the logo.';
+                .'Reproduce any logos faithfully (the same artwork, colours and lettering) and place them where the brief says, where the design shows them, or in sensible positions (the main logo on the chest at a normal crest size). '
+                .'The last attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else; leave it out when the client\'s design carries its own brand.'
+            : 'The attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else; do NOT put 3DEEZI on the chest or anywhere on the front. '
+                .'If the brief gives any wordmark, team, club or brand name, use exactly that text where the brief says. '
+                .($team ? 'With no client logo, the chest carries a simple original crest at a normal crest size.' : 'With no client logo and no text in the brief, the front stays clean.');
 
         return $prompt.($count ? ' '.self::OWN_LOGO : '').' No watermarks, no extra brands.';
     }
@@ -391,9 +663,10 @@ class OpenAiDesigner
     /**
      * The AI designer's results (client visual 2026-10-21, images/138.jpg), fast like ChatGPT: the PRIMARY (the brief
      * exactly as written, under the full design rules) starts rendering at once; meanwhile this one short planning call
-     * gives its 3D kit spec and three clearly different alternatives (palette, motifs, layout, name and number
-     * treatment), scored and ranked best first as options 2-4. Every direction follows the logo, colour, neck label and
-     * brand rules. When the call fails or takes over `$timeout` seconds, ready-made takes on the brief are used
+     * gives its 3D kit spec and three clearly different alternatives (palette, motifs, layout, treatment of the sport's
+     * lettering), scored and ranked best first as options 2-4. Every direction follows the logo, colour, word mark,
+     * sport marking (netball: position letters) and brand rules. When the call fails or takes over `$timeout` seconds,
+     * ready-made takes on the brief are used
      * (`planned` false), so the pictures never wait.
      *
      * @param  array<int, string>  $references  data URLs (logos, sketches, photos)
@@ -404,7 +677,7 @@ class OpenAiDesigner
         try {
             return $this->plannedDirections($brief, $sport, $garment, $references, $timeout ?? (int) config('services.openai.plan_timeout', 45));
         } catch (RuntimeException) {
-            return $this->readyDirections($brief, $garment);
+            return $this->readyDirections($brief, $garment, $sport);
         }
     }
 
@@ -412,9 +685,14 @@ class OpenAiDesigner
      * Four designs without the planning call: the brief exactly as written first (the full design rules still
      * apply), then three clearly different takes on it.
      */
-    public function readyDirections(string $brief, string $garment): array
+    public function readyDirections(string $brief, string $garment, string $sport = ''): array
     {
-        $takes = [
+        $takes = ! self::briefIntent($brief)['teamwear'] ? [
+            ['Your brief', null],
+            ['Neutral Tone', 'a calm neutral colourway (off-white, sand, stone or grey), the same garment, fit and presentation'],
+            ['Deep Tone', 'a deep rich colourway (black, navy or forest green), the same garment, fit and presentation'],
+            ['Minimal Detail', 'the same garment with one small tasteful detail, such as a tiny chest print or a tonal stitch, nothing sporty'],
+        ] : [
             ['Your brief', null],
             ['Bold Strike', 'bold and aggressive: dynamic sharp angular shards and speed lines across the front and sides, a dark body with the logo\'s main colour as the graphics'],
             ['Clean Classic', 'classic and clean: confident colour blocking with thin pinstripes and a tidy collar, the logo crisp on a calm body'],
@@ -430,7 +708,7 @@ class OpenAiDesigner
             'description' => $take[1] ? ucfirst(strtok($take[1], ':')).' take on your brief.' : 'Your brief, exactly as written.',
             'motif' => '',
             'direction' => $take[1] ? ['theme' => $take[1], 'ownDesign' => false] : ['ownDesign' => false],
-            'design' => $this->kitSpec(['pattern' => ['Velocity', 'Velocity', 'Stripes', 'Chevron'][$i], 'mainColor' => '#0B1016', 'secondaryColor' => '#04D9E8', 'accentColor' => '#FFFFFF'], $brief, $garment),
+            'design' => $this->kitSpec(['pattern' => ['Velocity', 'Velocity', 'Stripes', 'Chevron'][$i], 'mainColor' => '#0B1016', 'secondaryColor' => '#04D9E8', 'accentColor' => '#FFFFFF'], $brief, $garment, $sport),
         ], $takes, array_keys($takes));
     }
 
@@ -438,18 +716,21 @@ class OpenAiDesigner
     {
         $references = array_slice($references, 0, 4);
         $count = count($references);
-        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n"
+        $intent = self::briefIntent($brief);
+        $text = "Sport: {$sport}\nGarment: {$garment}\nClient brief: {$brief}\n".self::intentRules($intent, $garment)."\n"
             .($count ? "{$count} image(s) from the client are attached: logos, references or their own finished design.\n" : "No images are attached.\n")
+            .(! $intent['teamwear'] ? 'This brief is not teamwear: every design keeps the brief\'s garment, fabric, fit, presentation and background, and varies only the colourway, a small print or detail and the styling; '
+                .'ignore the sportswear defaults below wherever they differ from the brief (no sublimated sports graphics, team names, numbers or stadium unless asked; for layout use "minimal"). ' : '')
             .'You are the art director of a top custom sublimation sportswear brand. The designer is already rendering the brief exactly as written; '
             .'give its editable 3D kit spec in `brief`. Then write exactly 3 clearly different alternative design directions in `directions`, '
-            .'each with its own palette, motifs, layout of the graphics and treatment of the team name and number. '
+            .'each with its own palette, motifs, layout of the graphics and treatment of '.self::lettering($sport).'. '
             .'Take the palette and theme from the client\'s logo (its colours, mascot, lettering style and motifs such as lightning, flames, claws or waves) or from the brief. '
             .'Bold, fully sublimated graphics derived from that theme, flowing across the front, sides and back, never a plain template with flat colour blocks. '
-            .'The client\'s main logo stays large as the front centrepiece, reproduced faithfully; the back carries the team name over a big number when it suits the garment. '
+            .self::BRAND_RULES.' The client\'s logo is reproduced faithfully. '.self::markingRules($sport).' '
             .'Follow everything the brief specifies (colours, layout, background, text) and keep the team name the same. '
             .self::COLOUR_RULES.' '
             .self::VARIETY_RULES.' '
-            .'Score each alternative 0-100 as the client would judge it: brief fit, logo fit, boldness and readability of the name and number. '
+            .'Score each alternative 0-100 as the client would judge it: brief fit, logo fit, boldness and readability of '.self::lettering($sport).'. '
             .'Every design, including the brief, gets its own different name. Be quick and brief: every text field is one short phrase of at most 20 words. '
             .'Never use real club, league or brand logos other than the client\'s own. '.self::OWN_LOGO;
         $content = [['type' => 'input_text', 'text' => $text]];
@@ -467,11 +748,12 @@ class OpenAiDesigner
             'logoText' => $string('Chest wordmark, max 12 characters. Use the team or brand name from the brief; if the brief names none, use 3DEEZI.'),
             'patternMotif' => $string('The signature print as a black-and-white pattern description for the 3D kit, max 20 words. No colours.'),
         ];
-        $alternative = $kit + ['score' => ['type' => 'integer', 'description' => '0-100: brief fit, logo fit, boldness and readability of the name and number.']];
+        $alternative = $kit + ['score' => ['type' => 'integer', 'description' => '0-100: brief fit, logo fit, boldness and readability of '.self::lettering($sport).'.']];
         $alternative['bodyColour'] = $string('The main body colour, name and hex, e.g. "white #FFFFFF"; different for each design.');
         $alternative['layout'] = ['type' => 'string', 'enum' => self::LAYOUTS, 'description' => 'The layout of the graphics; the alternatives use different layouts.'];
+        $fields = self::directionFields($sport);
         foreach (['palette', 'theme', 'front', 'back', 'graphics', 'trims'] as $field) {
-            $alternative[$field] = $string(self::DIRECTION_FIELDS[$field]);
+            $alternative[$field] = $string($fields[$field]);
         }
         $object = fn (array $properties) => ['type' => 'object', 'additionalProperties' => false, 'required' => array_keys($properties), 'properties' => $properties];
         $json = $this->post('/responses', [
@@ -493,7 +775,7 @@ class OpenAiDesigner
         // The alternatives best first (equal scores keep the AI's order), after the brief as written.
         $order = array_keys($specs);
         usort($order, fn (int $a, int $b) => [-(int) ($specs[$a]['score'] ?? 0), $a] <=> [-(int) ($specs[$b]['score'] ?? 0), $b]);
-        $entry = function (array $spec, int $rank, array $direction) use ($brief, $garment) {
+        $entry = function (array $spec, int $rank, array $direction) use ($brief, $garment, $sport) {
             return [
                 'id' => substr(hash('sha256', json_encode($spec).$rank), 0, 16),
                 'rank' => $rank,
@@ -503,7 +785,7 @@ class OpenAiDesigner
                 'description' => (string) ($spec['summary'] ?? ''),
                 'motif' => (string) ($spec['patternMotif'] ?? ''),
                 'direction' => [...array_map(fn ($v) => mb_substr(trim((string) $v), 0, 1500), $direction), 'ownDesign' => false],
-                'design' => $this->kitSpec($spec, $brief, $garment),
+                'design' => $this->kitSpec($spec, $brief, $garment, $sport),
             ];
         };
 
@@ -536,23 +818,49 @@ class OpenAiDesigner
      *
      * @param  array<string, mixed>  $direction  from designDirections()
      */
-    public function renderDirection(string $brief, string $sport, string $garment, array $direction, array $references = [], string $quality = 'high', string $view = 'presentation'): string
+    /**
+     * The YOUR DESIGNS background (client picture 362, 2026-11-03): part of the generated scene, the same for all four
+     * designs. auto/stadium: the dark night stadium; studio: a light seamless studio; custom: the client's own background
+     * photo (attached after their images).
+     */
+    public const SCENES_BG = ['auto', 'studio', 'stadium', 'custom'];
+
+    public static function sceneText(string $scene, bool $sceneImage, int $count, ?array $intent = null): string
     {
-        $references = array_slice($references, 0, 4);
+        return match (true) {
+            $scene === 'stadium' => 'in a dramatic dark setting: a night stadium with floodlights, haze tinted in the kit\'s main colour, a glossy reflective floor and rim lighting (this setting wins over any other presentation note). ',
+            $scene === 'studio' => 'in a clean premium photo studio: a seamless light-grey backdrop, soft even studio lighting and a soft floor shadow (this setting wins over any other presentation note). ',
+            $scene === 'custom' && $sceneImage => 'in front of the background shown in attached image '.($count + 1).' (the client\'s background photo, used only as the scene behind the garments, matched in light and perspective; this setting wins over any other presentation note). ',
+            // Auto: from the brief (a hanger: a clean wall or studio, not a stadium).
+            default => self::autoScene($intent ?? ['background' => '', 'teamwear' => true, 'presentation' => '']),
+        };
+    }
+
+    public function renderDirection(string $brief, string $sport, string $garment, array $direction, array $references = [], string $quality = 'high', string $view = 'presentation', string $scene = 'auto', ?string $sceneImage = null, bool $wide = false): string
+    {
+        $references = array_slice($references, 0, $sceneImage ? 3 : 4);
+        $count = count($references);
+        $hasScene = $scene === 'custom' && $sceneImage !== null;
+        if ($hasScene) {
+            $references[] = $sceneImage;
+        }
+        if ($wide && $view !== 'front') { // the website's wide results page (client picture 362)
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, false, $scene, $hasScene), $references, $quality, '1536x1024');
+        }
         if ($view === 'front') {
-            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, '1024x1024');
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, true, $scene, $hasScene), $references, $quality, '1024x1024');
         }
         // Portrait (2026-10-22, client picture 146.jpg: the design fills a phone); a model that turns the size down gets
         // the landscape picture once instead (the results page fits any proportions).
         try {
-            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view), $references, $quality, self::PORTRAIT);
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, true, $scene, $hasScene), $references, $quality, self::PORTRAIT);
         } catch (RuntimeException $e) {
             if (! self::sizeProblem($e->getMessage())) {
                 throw $e;
             }
             Log::warning('The image model turned down '.self::PORTRAIT.'; rendered landscape instead: '.$e->getMessage());
 
-            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, count($references), $direction, $view, false), $references, $quality, '1536x1024');
+            return $this->renderMockup(self::mockupPrompt($brief, $sport, $garment, $count, $direction, $view, false, $scene, $hasScene), $references, $quality, '1536x1024');
         }
     }
 
@@ -565,8 +873,8 @@ class OpenAiDesigner
         return (bool) preg_match('/\bsize\b|1024x1536|dimension|aspect ratio/i', $message);
     }
 
-    /** The editable 3D kit's spec for a design direction. */
-    private function kitSpec(array $spec, string $prompt, string $garment): array
+    /** The editable 3D kit's spec for a design direction (netball: no back name or number, so the Studio and orders add none). */
+    private function kitSpec(array $spec, string $prompt, string $garment, string $sport = ''): array
     {
         $main = $this->hex((string) ($spec['mainColor'] ?? ''));
         $secondary = $this->hex((string) ($spec['secondaryColor'] ?? ''));
@@ -579,20 +887,22 @@ class OpenAiDesigner
             'accent' => $this->hex((string) ($spec['accentColor'] ?? '')),
             'pattern' => in_array($spec['pattern'] ?? null, self::PATTERNS, true) ? $spec['pattern'] : 'Chevron',
             'logoText' => $logoText,
-            'number' => '23',
-            'backName' => $logoText,
+            ...self::kitBack($sport, $logoText),
             'patternColor' => $this->mix($main, $secondary, 0.55),
             'patternBody' => 0.08,
             'prompt' => $prompt,
         ];
     }
 
-    /** Renders a mockup prompt with the client's images and the 3DEEZI logo as real image inputs. Returns raw JPEG bytes. */
+    /**
+     * Renders a mockup prompt with the client's images and the 3DEEZI word mark (only the lettering, client 2026-10-26:
+     * the full logo had ended up huge on the chest) as real image inputs. Returns raw JPEG bytes.
+     */
     public function renderMockup(string $prompt, array $references = [], string $quality = 'high', string $size = '1536x1024'): string
     {
-        $references = array_slice($references, 0, 4);
+        $references = array_slice($references, 0, 5); // up to 4 client images, or 3 and a background photo
         $images = array_map(fn (string $r) => $this->decodeDataUrl($r), $references);
-        $images[] = ['image/png', file_get_contents(public_path('media/images/logo_full.png'))];
+        $images[] = ['image/png', file_get_contents(public_path(self::WORD_MARK))];
 
         return $this->highFidelityEdit($prompt, $images, [
             'model' => $quality === 'medium' ? config('services.openai.image_model') : self::hdImageModel(),
@@ -619,24 +929,84 @@ class OpenAiDesigner
             $images[] = $this->decodeDataUrl($reference);
         }
 
-        return $this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1, $frontOnly), $images, [
+        return self::separateHalves($this->highFidelityEdit(self::printSheetPrompt($sport, $garment, count($images) - 1, $frontOnly), $images, [
             'size' => '1536x1024',
             'quality' => 'high',
             'output_format' => 'jpeg',
             'output_compression' => '95',
-        ]);
+        ]));
+    }
+
+    /**
+     * A print sheet whose front and back touch (task 9.116: the image model sometimes draws the sleeves overlapping, and
+     * the 3D check then reads both as one garment, half front and half back): cut at the middle, where the prompt puts
+     * the gap, and moved apart with white between. A sheet with a clear gap, or one that cannot be read, is kept as is.
+     */
+    public static function separateHalves(string $jpeg): string
+    {
+        if (! function_exists('imagecreatefromstring')) {
+            return $jpeg;
+        }
+        $image = @imagecreatefromstring($jpeg);
+        if (! $image) {
+            return $jpeg;
+        }
+        $w = imagesx($image);
+        $h = imagesy($image);
+        if ($w < 64 || $h < 64) {
+            imagedestroy($image);
+
+            return $jpeg;
+        }
+        $white = function (int $x) use ($image, $h): bool {
+            for ($y = 0; $y < $h; $y += 3) {
+                $c = imagecolorat($image, $x, $y);
+                if ((($c >> 16) & 255) < 225 || (($c >> 8) & 255) < 225 || ($c & 255) < 225) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
+        // A white column near the middle: the two are apart already.
+        for ($x = (int) ($w * 0.38); $x <= (int) ($w * 0.62); $x += 2) {
+            if ($white($x)) {
+                imagedestroy($image);
+
+                return $jpeg;
+            }
+        }
+        $gap = (int) round($w * 0.08);
+        $half = intdiv($w, 2);
+        $out = imagecreatetruecolor($w + $gap, $h);
+        imagefill($out, 0, 0, imagecolorallocate($out, 255, 255, 255));
+        imagecopy($out, $image, 0, 0, 0, 0, $half, $h);
+        imagecopy($out, $image, $half + $gap, 0, $half, 0, $w - $half, $h);
+        ob_start();
+        imagejpeg($out, null, 95);
+        $bytes = (string) ob_get_clean();
+        imagedestroy($image);
+        imagedestroy($out);
+
+        return $bytes !== '' ? $bytes : $jpeg;
     }
 
     public static function printSheetPrompt(string $sport, string $garment, int $logos = 0, bool $frontOnly = false): string
     {
+        $m = self::sportMarkings($sport);
+        $back = $m['positions'] ? 'the same position letters large, no team name, no player name and no number'
+            : ($m['names'] && $m['numbers'] ? 'the team name in bold lettering over a large number'
+                : ($m['names'] ? 'the team name in bold lettering, no numbers' : ($m['numbers'] ? 'a large number, no player names' : 'no player names and no numbers')));
+
         return "The first attached image shows a {$sport} {$garment} design. Redraw exactly the same design as a flat print artwork sheet for the factory: "
-            .($frontOnly ? 'The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the team name in bold lettering over a large number). ' : '')
+            .($frontOnly ? "The picture shows the front only: draw the front exactly and design the back to match it (the same colours, graphics and trims, the small 3DEEZI word mark just under the collar, {$back}). " : '')
             .'the garment\'s front on the left and its back on the right, side by side, both complete and the same size, drawn flat and straight-on like a technical flat drawing, '
-            .'on a plain pure white background with clear white space around and between them. '
+            .'on a plain pure white background with clear white space around and between them: a wide white gap between the front and the back, so their sleeves and edges never touch or overlap. '
+            .'Draw each neck opening as an empty white cut-out, as on a technical flat drawing: never show the inside of the garment, the inner collar or the neckline of the other side through it, and keep all lettering clear of the collar. '
             .'No mannequin, no person, no folds, no perspective, no lighting effects, no shadows, no scene. '
             .'Keep the design exactly: the same colours, graphics, gradients, lettering, logos, numbers and trims, in the same places and proportions, and the same garment shape (neck, armholes or sleeves, hem). '
             .($logos ? "The other {$logos} attached image(s) are the client's logos: reproduce them faithfully where the design shows them. " : '')
-            .'No labels, captions, measurements, hangers, neck labels or extra text.';
+            .'No labels, captions, measurements, hangers, sewn-in neck labels or extra text.';
     }
 
     /**
@@ -684,18 +1054,25 @@ class OpenAiDesigner
         return ! str_starts_with($model, 'gpt-image-2.5');
     }
 
-    /** The quick concept preview: the concept's free design, the client's logo as the chest centrepiece. */
+    /**
+     * The quick concept preview (a front view): the concept's free design, the club's symbol on the chest at crest size,
+     * the sport's own front lettering (netball: position letters) and no 3DEEZI on the front.
+     */
     public static function conceptPreviewPrompt(string $sport, string $garment, string $design, string $logoText, int $clientImages): string
     {
+        // A team name is a wordmark on the front; 3DEEZI never is (client 2026-10-26).
+        $wordmark = filled($logoText) && mb_strtoupper(trim($logoText)) !== '3DEEZI' ? "Any team wordmark on the front reads exactly \"{$logoText}\". " : '';
+
         return "Premium photoreal product render of a {$sport} {$garment}, front view, centred and fully visible, on an invisible ghost mannequin "
             .'against a dramatic dark background with soft floodlight haze and a rim light in the kit\'s colours. '
             ."Design: {$design} A bold, fully sublimated print, never a plain template. "
             .($clientImages
-                ? "The first {$clientImages} attached image(s) come from the client: reproduce the client's main logo faithfully as the large chest centrepiece "
-                    ."(if one shows the client's own complete garment design, follow it). Any chest wordmark reads exactly \"{$logoText}\". "
-                    .'The last attached image is the 3DEEZI logo: use its emblem only on the small neck label. '
-                : "The chest wordmark reads exactly \"{$logoText}\". The attached image is the 3DEEZI logo: use its emblem as the chest crest. ")
-            .'No other logos or text.';
+                ? "The first {$clientImages} attached image(s) come from the client: reproduce the client's main logo faithfully as the crest on the chest, at a normal crest size "
+                    ."(if one shows the client's own complete garment design, follow it). "
+                : 'The chest carries a simple original crest at a normal crest size. ')
+            .$wordmark
+            .'The last attached image is the 3DEEZI word mark: it goes only small under the back collar, which this front view does not show, so never put 3DEEZI on the front. '
+            .self::markingRules($sport).' No other logos or text.';
     }
 
     /** Output sizes the image model can make. */
@@ -896,6 +1273,333 @@ class OpenAiDesigner
         ];
     }
 
+    /**
+     * Our 3D garments an AI picture can open on (task 9.116), each with what it stands for, so the nearest one is
+     * chosen for a garment we have no 3D model of (a long-sleeve top is a tee; since task 9.126 a netball dress has its own).
+     */
+    public const READ_GARMENTS = [
+        'jersey' => 'short-sleeve sports jersey (rugby, soccer, league, cricket shirts)',
+        'nfljersey' => 'American football jersey: cut wide over shoulder pads, short cap sleeves, big numbers (game and practice jerseys)',
+        'compression' => 'skin-tight long-sleeve compression top or base layer',
+        'shooting-shirt' => 'loose short-sleeve V-neck raglan warm-up shirt (basketball shooting shirt)',
+        'socks' => 'knee-high team socks with hoops (rugby, football, footy, hockey socks)',
+        'cap' => 'six-panel team cap with a curved brim (ball cap, golf, cricket, cycling, club cap)',
+        'skirt' => 'a skirt alone: netball and tennis skirts, hockey skorts',
+        'bucket-hat' => 'a soft bucket hat with a wide brim (sun hat for golf, cricket, bowls, the sideline)',
+        'polo' => 'polo shirt with a collar and buttons; also the closest for fishing shirts and other button-up or collared shirts (short or long sleeves)',
+        'pocketpolo' => 'polo shirt with a chest pocket (pool, darts)',
+        'singlet' => 'any other sleeveless top: singlets, tanks, bibs, basketball tops, AFL guernseys',
+        'netball-dress' => 'a fitted dress for women, with a skirt: netball dresses and tennis dresses',
+        'tee' => 'training t-shirt or other crew-neck top, also long-sleeve tops',
+        'hoodie' => 'pull-over hoodie',
+        'ziphoodie' => 'full-zip hoodie',
+        'varsity' => 'varsity or letterman jacket',
+        'trackjacket' => 'full-zip track jacket or tracksuit top (with a stand-up collar or a hood)',
+        'shorts' => 'shorts alone',
+        'fullkit' => 'a top and shorts shown together as one kit',
+    ];
+
+    /**
+     * "Open in 3D Designer" (task 9.116, client 2026-10-23 and 2026-10-26): reads an AI design picture for the editable
+     * 3D kit. One cheap planning call gives the nearest 3D garment we have (never a refusal: when the picture shows a
+     * garment we have no model of, the closest one, with `exact` false), the picture's own colours, the nearest pattern,
+     * the team name, the back name and number (netball: the position letters instead) and where the club symbol is.
+     *
+     * @return array{garment: string, seen: string, exact: bool, hood: bool, motif: ?string, crest: ?array{x: float, y: float, w: float, h: float}, design: array<string, mixed>}
+     */
+    public function readDesign(string $image, string $sport, string $asked): array
+    {
+        $m = self::sportMarkings($sport);
+        $garments = implode('; ', array_map(fn ($id, $what) => "{$id}: {$what}", array_keys(self::READ_GARMENTS), self::READ_GARMENTS));
+        $string = fn (string $d) => ['type' => 'string', 'description' => $d];
+        $number = fn (string $d) => ['type' => 'number', 'description' => $d];
+        $text = "This picture is an AI design of a {$sport} garment (the client asked for: {$asked}). Read it so the same design can be put on our editable 3D garment.\n"
+            ."Our 3D garments: {$garments}.\n"
+            .'Choose the nearest of them to the main garment in the picture; when the picture shows something we have no model of, choose the closest and set exact to false. '
+            .'Take the colours exactly as they look in the picture (not from the brief): the body\'s main colour, the second colour of its panels and graphics, and the accent colour of its lettering and trims. '
+            .'Read every text exactly as written. 3DEEZI is our brand and never the team name.'
+            .($m['positions'] ? ' This sport shows playing position letters ('.implode(', ', $m['positions']).') instead of names and numbers.' : '');
+        $json = $this->post('/responses', [
+            'model' => self::planningModel(),
+            'input' => [
+                ['role' => 'system', 'content' => self::SYSTEM],
+                ['role' => 'user', 'content' => [
+                    ['type' => 'input_text', 'text' => $text],
+                    ['type' => 'input_image', 'image_url' => $image],
+                ]],
+            ],
+            'text' => ['format' => ['type' => 'json_schema', 'name' => 'design_for_3d', 'strict' => true, 'schema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['seen', 'garment', 'exact', 'hood', 'mainColor', 'secondaryColor', 'accentColor', 'pattern', 'patternMotif', 'teamName', 'nameOnFront', 'backName', 'number', 'positionLetters', 'crest', 'printBox'],
+                'properties' => [
+                    'seen' => $string('The garment in the picture in 1-3 words, e.g. "netball dress", "soccer jersey".'),
+                    'garment' => ['type' => 'string', 'enum' => array_keys(self::READ_GARMENTS), 'description' => 'The nearest of our 3D garments.'],
+                    'exact' => ['type' => 'boolean', 'description' => 'True when the picture\'s garment is that kind of garment, false when it is only the closest.'],
+                    'hood' => ['type' => 'boolean', 'description' => 'True when the garment has a hood.'],
+                    'mainColor' => $string('Hex of the body\'s main colour as seen, e.g. #0B6E3A.'),
+                    'secondaryColor' => $string('Hex of the second colour (panels, graphics, stripes) as seen.'),
+                    'accentColor' => $string('Hex of the lettering and trims as seen; contrasts the main colour.'),
+                    'pattern' => ['type' => 'string', 'enum' => self::PATTERNS, 'description' => 'The nearest of these patterns: Velocity (sweeping or flowing graphics, swirls, streaks), Chevron, Stripes (stripes or hoops), Solid (only a plain body with no graphics).'],
+                    'patternMotif' => $string('The body\'s signature print as a black-and-white pattern description, max 20 words, no colours; empty when plain.'),
+                    'teamName' => $string('The team or club name written on the garment (chest wordmark or back), exactly; empty if none. Never 3DEEZI.'),
+                    'nameOnFront' => ['type' => 'boolean', 'description' => 'True when the team name is written across the front of the garment (not only on the back).'],
+                    'backName' => $string('The name on the back, exactly; empty if none. Never 3DEEZI.'),
+                    'number' => $string('The player number on the back, digits only; empty if none.'),
+                    'positionLetters' => $string('Playing position letters shown large (e.g. GS); empty if none.'),
+                    'printBox' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'A patch of the front garment body that shows only its all-over print (graphics, stripes, texture): no crest, lettering, pocket, collar, seam, edge or background. A typical patch with the same mix of colours as the whole body (not its brightest part), as large as possible, as a box in fractions of the whole picture width and height. found is false when the body is plain.', 'properties' => [
+                        'found' => ['type' => 'boolean', 'description' => 'True when the body has a print and such a patch exists.'],
+                        'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
+                    ]],
+                    'crest' => ['type' => 'object', 'additionalProperties' => false, 'required' => ['found', 'x0', 'y0', 'x1', 'y1'], 'description' => 'The club symbol (crest or logo) on the chest of the front view (the garment on the left when front and back are shown), as a box in fractions of the whole picture\'s width and height (0 = left/top, 1 = right/bottom). Measure carefully: the box tightly encloses the whole symbol and nothing else.', 'properties' => [
+                        'found' => ['type' => 'boolean', 'description' => 'True when the front shows a club symbol on the chest.'],
+                        'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
+                    ]],
+                ],
+            ]]],
+        ], 60);
+        $s = json_decode($this->outputText($json), true);
+        if (! is_array($s)) {
+            throw new RuntimeException('The AI could not read this design. Please try again.');
+        }
+
+        return self::designFromReading($s, $sport, $asked);
+    }
+
+    /**
+     * The 3D kit from a reading of the picture (readDesign): the garment it opens on, the colours, pattern and lettering.
+     * Netball's position letters go in the number's place and its back shows no name (the name mark is hidden).
+     */
+    public static function designFromReading(array $s, string $sport, string $asked = ''): array
+    {
+        $hex = function ($value, string $fallback) {
+            $v = ltrim(trim((string) $value), '#');
+
+            return preg_match('/^[0-9a-f]{6}$/i', $v) ? '#'.strtoupper($v) : $fallback;
+        };
+        $garment = array_key_exists($s['garment'] ?? '', self::READ_GARMENTS) ? $s['garment'] : (array_key_exists($asked, self::READ_GARMENTS) ? $asked : 'jersey');
+        $main = $hex($s['mainColor'] ?? '', '#0B1016');
+        $secondary = $hex($s['secondaryColor'] ?? '', '#04D9E8');
+        $mixed = sprintf('#%02X%02X%02X', ...array_map(fn ($a, $b) => (int) round($a + ($b - $a) * 0.55), sscanf($main, '#%02x%02x%02x'), sscanf($secondary, '#%02x%02x%02x')));
+        $clean = fn ($v) => mb_strtoupper(mb_substr(trim(preg_replace('/\b3\s?DEEZI\b/i', '', (string) $v)), 0, 20));
+        $m = self::sportMarkings($sport);
+        $team = $clean($s['teamName'] ?? '');
+        $letters = mb_substr(preg_replace('/[^A-Z]/', '', mb_strtoupper((string) ($s['positionLetters'] ?? ''))), 0, 3);
+        if ($m['positions'] && ! in_array($letters, $m['positions'], true)) {
+            $letters = $m['positions'][0];
+        }
+        $marks = [];
+        if ($m['positions']) {
+            // Netball: no names or numbers; the position letters in the number's place, no name above them.
+            $backName = '';
+            $num = $letters;
+            $marks['top_name'] = ['hidden' => true];
+        } else {
+            $backName = $m['names'] ? ($clean($s['backName'] ?? '') ?: $team) : '';
+            $num = $m['numbers'] ? mb_substr(preg_replace('/\D/', '', (string) ($s['number'] ?? '')), 0, 3) : '';
+            if ($m['numbers'] && $num === '') {
+                $num = '23';
+            }
+        }
+        // No team name on the picture's front: no chest wordmark (3DEEZI is never on the front, client 2026-10-26).
+        if ($team === '' || ($s['nameOnFront'] ?? true) === false) {
+            $marks['top_wordmark'] = ['hidden' => true];
+        }
+        $box = $s['crest'] ?? null;
+        $crest = null;
+        if (is_array($box) && ($box['found'] ?? false)) {
+            $x0 = max(0.0, min(1.0, (float) $box['x0']));
+            $y0 = max(0.0, min(1.0, (float) $box['y0']));
+            $x1 = max(0.0, min(1.0, (float) $box['x1']));
+            $y1 = max(0.0, min(1.0, (float) $box['y1']));
+            // A sensible crest only: not a speck, not half the picture.
+            if ($x1 - $x0 > 0.015 && $y1 - $y0 > 0.01 && $x1 - $x0 < 0.4 && $y1 - $y0 < 0.4) {
+                $crest = ['x' => $x0, 'y' => $y0, 'w' => $x1 - $x0, 'h' => $y1 - $y0];
+            }
+        }
+
+        // A patch of the picture's own print (task 9.126): the hosts cut it from the picture and lay it on the body.
+        $pb = $s['printBox'] ?? null;
+        $print = null;
+        if (is_array($pb) && ($pb['found'] ?? false)) {
+            $x0 = max(0.0, min(1.0, (float) $pb['x0']));
+            $y0 = max(0.0, min(1.0, (float) $pb['y0']));
+            $x1 = max(0.0, min(1.0, (float) $pb['x1']));
+            $y1 = max(0.0, min(1.0, (float) $pb['y1']));
+            if ($x1 - $x0 > 0.04 && $y1 - $y0 > 0.03 && $x1 - $x0 < 0.5 && $y1 - $y0 < 0.5) {
+                $print = ['x' => $x0, 'y' => $y0, 'w' => $x1 - $x0, 'h' => $y1 - $y0];
+            }
+        }
+
+        return [
+            'garment' => $garment,
+            'print' => $print,
+            'seen' => mb_substr(trim((string) ($s['seen'] ?? '')), 0, 40),
+            'exact' => (bool) ($s['exact'] ?? true),
+            'hood' => (bool) ($s['hood'] ?? false),
+            'motif' => filled($s['patternMotif'] ?? null) ? mb_substr(trim((string) $s['patternMotif']), 0, 300) : null,
+            'crest' => $crest,
+            'design' => [
+                'garment' => $garment,
+                'main' => $main,
+                'secondary' => $secondary,
+                'accent' => $hex($s['accentColor'] ?? '', '#FFFFFF'),
+                // A picture with graphics is never a plain kit (the model often answers Solid for an all-over print).
+                'pattern' => in_array($s['pattern'] ?? null, self::PATTERNS, true) && ! ($s['pattern'] === 'Solid' && filled($s['patternMotif'] ?? null)) ? $s['pattern'] : 'Velocity',
+                'logoText' => $team !== '' ? $team : '3DEEZI',
+                'backName' => $backName,
+                'number' => $num,
+                'patternColor' => $mixed,
+                'patternBody' => 0.08,
+                ...($garment === 'trackjacket' ? ['trackStyle' => ($s['hood'] ?? false) ? 'hood' : 'collar'] : []),
+                ...($marks ? ['marks' => $marks] : []),
+                // Netball: the position letters large on the front too, below the crest (an editable text layer).
+                ...($m['positions'] ? ['layers' => [['id' => 'position-front', 'name' => 'Position letters', 'type' => 'text', 'part' => 'top', 'side' => 'front', 'x' => 0, 'y' => $garment === 'netball-dress' ? 0.5 : 0.36, 'rot' => 0, 'text' => $letters, 'size' => 0.17, 'color' => $hex($s['accentColor'] ?? '', '#FFFFFF')]]] : []),
+            ],
+        ];
+    }
+
+    /**
+     * The headwear and accessories artwork goes on as drawn (CP1, client 2026-11-02: a cap artwork sheet in Artwork to
+     * 3D): our 3D model of each, with what it stands for.
+     */
+    public const ACCESSORIES = [
+        'cap' => 'a baseball cap with a curved or flat brim (six-panel or five-panel ball cap, snapback, trucker, golf, cricket, club cap)',
+        'five-panel-cap' => 'a five-panel cap: one wide seamless front panel and a flat brim (camp cap)',
+        'bucket-hat' => 'a soft bucket hat with a wide brim all round',
+        'beanie' => 'a knitted beanie with a folded cuff (with or without a pom-pom)',
+        'socks' => 'team socks',
+        'skirt' => 'a skirt or skort alone',
+    ];
+
+    /**
+     * A headwear or accessory artwork (a cap sheet: front, back and side views, labels and badges) read for our 3D model
+     * (CP1): the nearest model, the colours of its parts (body, piping and brim edge, brim top and underside, lettering)
+     * and where each logo is in the picture (front, back, the wearer's left and right side), so the page can cut the
+     * logos out and put each on its place on the 3D model. One cheap planning call.
+     *
+     * @return array{garment: string, exact: bool, name: string, design: array<string, mixed>, marks: array<string, ?array<string, mixed>>, views: array<string, ?array<string, float>>}
+     */
+    public function readAccessory(string $image, string $asked): array
+    {
+        $kinds = implode('; ', array_map(fn ($id, $what) => "{$id}: {$what}", array_keys(self::ACCESSORIES), self::ACCESSORIES));
+        $string = fn (string $d) => ['type' => 'string', 'description' => $d];
+        $number = fn (string $d) => ['type' => 'number', 'description' => $d];
+        $box = fn (string $d, bool $level = false) => ['type' => 'object', 'additionalProperties' => false, 'description' => $d.' A box in fractions of the whole picture\'s width and height (0 = left/top, 1 = right/bottom) that tightly encloses that logo or label only (not the whole garment); found is false when there is none.',
+            'required' => ['found', 'x0', 'y0', 'x1', 'y1', ...($level ? ['level'] : [])],
+            'properties' => ['found' => ['type' => 'boolean'], 'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.'),
+                ...($level ? ['level' => ['type' => 'string', 'enum' => ['low', 'middle', 'high'], 'description' => 'How high it sits on the side: low (just above the band or brim), middle, high.']] : [])]];
+        $view = fn (string $d) => ['type' => 'object', 'additionalProperties' => false, 'description' => $d.' A box in fractions of the picture round that whole view of the garment; found is false when the picture has no such view.', 'required' => ['found', 'x0', 'y0', 'x1', 'y1'],
+            'properties' => ['found' => ['type' => 'boolean'], 'x0' => $number('Left edge.'), 'y0' => $number('Top edge.'), 'x1' => $number('Right edge.'), 'y1' => $number('Bottom edge.')]];
+        $text = "This picture is a client's artwork of a garment (the client chose: {$asked}). It may show several views (front, back, both sides) and separate labels or badges. Read it so the same design goes on our editable 3D model.\n"
+            ."Our 3D models: {$kinds}.\n"
+            .'Choose the nearest model; set exact to false when the picture shows something else. Take the colours exactly as they look. '
+            .'Then find each logo as it sits ON the garment views (not the separate swatches, badges or the strip at the top): the main logo or wordmark on the front, the logo on the back, '
+            .'and the label or mark on the wearer\'s left side and on the wearer\'s right side (a side view with the brim or toe pointing left shows the wearer\'s left side; pointing right, the right side). '
+            .'Read the front wordmark exactly as written.';
+        $json = $this->post('/responses', [
+            'model' => self::planningModel(),
+            'input' => [
+                ['role' => 'system', 'content' => self::SYSTEM],
+                ['role' => 'user', 'content' => [
+                    ['type' => 'input_text', 'text' => $text],
+                    ['type' => 'input_image', 'image_url' => $image],
+                ]],
+            ],
+            'text' => ['format' => ['type' => 'json_schema', 'name' => 'accessory_for_3d', 'strict' => true, 'schema' => [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['garment', 'exact', 'name', 'mainColor', 'trimColor', 'brimColor', 'underColor', 'accentColor', 'frontText', 'front', 'back', 'left', 'right', 'frontView', 'backView'],
+                'properties' => [
+                    'garment' => ['type' => 'string', 'enum' => array_keys(self::ACCESSORIES), 'description' => 'The nearest of our 3D models.'],
+                    'exact' => ['type' => 'boolean', 'description' => 'True when the picture shows that kind of garment.'],
+                    'name' => $string('A short name for the design, max 3 words, e.g. "Mantis Cap".'),
+                    'mainColor' => $string('Hex of the body (crown, panels, leg) as seen, e.g. #0B0B0D.'),
+                    'trimColor' => $string('Hex of the piping, seam tape, brim edge or binding as seen (the main colour when there is none).'),
+                    'brimColor' => $string('Hex of the brim\'s top (the main colour when the same or when there is no brim).'),
+                    'underColor' => $string('Hex of the brim\'s underside (the brim colour when it is not shown).'),
+                    'accentColor' => $string('Hex of the front lettering as seen.'),
+                    'frontText' => $string('The front wordmark exactly as written; empty when the front logo is a symbol only.'),
+                    'front' => $box('The main logo or wordmark on the front view.'),
+                    'back' => $box('The logo on the back view (above the strap on a cap).'),
+                    'left' => $box('The label or mark on the wearer\'s left side.', true),
+                    'right' => $box('The label or mark on the wearer\'s right side.', true),
+                    'frontView' => $view('The front view of the garment.'),
+                    'backView' => $view('The back view of the garment.'),
+                ],
+            ]]],
+        ], 60);
+        $s = json_decode($this->outputText($json), true);
+        if (! is_array($s)) {
+            throw new RuntimeException('The AI could not read this artwork. Please try again.');
+        }
+
+        return self::accessoryFromReading($s, $asked);
+    }
+
+    /** Our 3D accessory from a reading of the artwork (readAccessory): its model, colours and the logos' boxes. */
+    public static function accessoryFromReading(array $s, string $asked = 'cap'): array
+    {
+        $hex = function ($value, string $fallback) {
+            $v = ltrim(trim((string) $value), '#');
+
+            return preg_match('/^[0-9a-f]{6}$/i', $v) ? '#'.strtoupper($v) : $fallback;
+        };
+        // The garment the client chose stays when it is one of ours (a cap sheet on the bucket hat is the client's call).
+        $garment = array_key_exists($asked, self::ACCESSORIES) ? $asked : (array_key_exists($s['garment'] ?? '', self::ACCESSORIES) ? $s['garment'] : 'cap');
+        $main = $hex($s['mainColor'] ?? '', '#0B1016');
+        $trim = $hex($s['trimColor'] ?? '', $main);
+        $brim = $hex($s['brimColor'] ?? '', $main);
+        $under = $hex($s['underColor'] ?? '', $brim);
+        $accent = $hex($s['accentColor'] ?? '', '#FFFFFF');
+        $clip = function ($b, float $min, float $max) {
+            if (! is_array($b) || ! ($b['found'] ?? false)) {
+                return null;
+            }
+            $x0 = max(0.0, min(1.0, (float) $b['x0']));
+            $y0 = max(0.0, min(1.0, (float) $b['y0']));
+            $x1 = max(0.0, min(1.0, (float) $b['x1']));
+            $y1 = max(0.0, min(1.0, (float) $b['y1']));
+            if ($x1 - $x0 < $min || $y1 - $y0 < $min * 0.5 || $x1 - $x0 > $max || $y1 - $y0 > $max) {
+                return null;
+            }
+
+            return ['x' => $x0, 'y' => $y0, 'w' => $x1 - $x0, 'h' => $y1 - $y0];
+        };
+        $marks = [];
+        foreach (['front', 'back', 'left', 'right'] as $k) {
+            $b = $clip($s[$k] ?? null, 0.01, 0.6);
+            if ($b && in_array($k, ['left', 'right'], true)) {
+                $b['level'] = in_array($s[$k]['level'] ?? '', ['low', 'middle', 'high'], true) ? $s[$k]['level'] : 'middle';
+            }
+            $marks[$k] = $b;
+        }
+        $parts = match ($garment) {
+            'cap', 'five-panel-cap' => ['capBrim' => ['colour' => $brim], 'capUnder' => ['colour' => $under]],
+            'bucket-hat' => ['hatBrim' => ['colour' => $brim], 'hatUnder' => ['colour' => $under]],
+            default => [],
+        };
+        $word = mb_strtoupper(mb_substr(trim(preg_replace('/\b3\s?DEEZI\b/i', '', (string) ($s['frontText'] ?? ''))), 0, 20));
+
+        return [
+            'garment' => $garment,
+            'seen' => array_key_exists($s['garment'] ?? '', self::ACCESSORIES) ? $s['garment'] : $garment,
+            'exact' => (bool) ($s['exact'] ?? true),
+            'name' => mb_substr(trim((string) ($s['name'] ?? '')), 0, 60),
+            'marks' => $marks,
+            'views' => ['front' => $clip($s['frontView'] ?? null, 0.05, 1.0), 'back' => $clip($s['backView'] ?? null, 0.05, 1.0)],
+            'design' => [
+                'garment' => $garment,
+                'main' => $main,
+                'secondary' => $trim,
+                'accent' => $accent,
+                'pattern' => 'Solid',
+                'logoText' => $word,
+                'parts' => $parts,
+            ],
+        ];
+    }
+
     // ------------------------------------------------------------------ helpers
 
     private function conceptSchema(): array
@@ -914,7 +1618,7 @@ class OpenAiDesigner
                 'accentColor' => $string('Hex for the wordmark and numbers; must contrast mainColor.'),
                 'pattern' => ['type' => 'string', 'enum' => self::PATTERNS],
                 'logoText' => $string('Chest wordmark, max 12 characters. Use the team or brand name from the brief; if the brief names none, use 3DEEZI.'),
-                'renderPrompt' => $string('Detailed visual description of the whole fully sublimated garment design for an image model: colours, graphics and how they flow across front, sides and back, textures, trims, collar, where the client logo and wordmark go, the back name and number. Free design, not limited to the pattern list. Garment only.'),
+                'renderPrompt' => $string('Detailed visual description of the whole fully sublimated garment design for an image model: colours, graphics and how they flow across front, sides and back, textures, trims, collar, the club\'s crest on the chest, the small 3DEEZI word mark under the back collar and the lettering the sport uses. Free design, not limited to the pattern list. Garment only.'),
                 'patternMotif' => $string('The concept signature print as a black-and-white pattern description for the 3D kit, max 25 words, e.g. "jagged lightning bolts and speed streaks with halftone dot fades". No colours.'),
             ],
         ];

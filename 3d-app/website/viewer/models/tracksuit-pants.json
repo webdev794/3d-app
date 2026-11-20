@@ -1,0 +1,59 @@
+{
+  "about": "Tracksuit pants (Basketball > Tracksuit and Netball > Tracksuit: the pants under the track jacket, user 2026-11-16): Tripo model tracksuit-pants.glb (card 11007), its own waistband as a part. Shown by the flag tsPants, set in those tiles own looks (bballTracksuit, trackSuit in catalog.php / sports_catalog.dart); this look line is not used by a tile. MODELQ2 2026-11-16. Look: the tile's existing look (user 2026-11-16: the booklet was only a rough guide) with the model's flag.",
+  "glb": "../../../tripo/tracksuit-pants.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "trackpants",
+    "legs": 0.694,
+    "creaseDeg": 25
+  },
+  "part": "trackpants",
+  "garment": "trackjacket",
+  "flag": "tsPants",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "zoneColors": {
+      "shoulder": "#27282a",
+      "side": "#16b4f0",
+      "sideBlade": "#0a5ae6",
+      "stripe": "#16b4f0",
+      "zip": "#27282a",
+      "pantsStripe": "#16b4f0",
+      "tsPants": "#27282a"
+    },
+    "marks": {
+      "top_crest": {
+        "x": 0.105,
+        "y": 0.605,
+        "scale": 0.6
+      },
+      "top_wordmark": {
+        "x": 0.105,
+        "y": 0.572,
+        "scale": 0.75
+      },
+      "shorts_crest": {
+        "x": 0.17,
+        "y": 0.84
+      },
+      "shorts_wordmark": {
+        "x": 0.17,
+        "y": 0.802
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D70P72",
+      "zoomQ-160D70P72"
+    ]
+  }
+}

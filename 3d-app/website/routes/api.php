@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin;
+use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AiController;
 use App\Http\Controllers\ArtboardDocumentController;
 use App\Http\Controllers\AssistController;
@@ -13,17 +14,18 @@ use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderDraftController;
 use App\Http\Controllers\OrderFileController;
 use App\Http\Controllers\PartnerApplicationController;
+use App\Http\Controllers\PresetController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\SupportMessageController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\TeamRequestController;
 use App\Http\Middleware\EnsureTeamStaff;
 use App\Services\OpenAiDesigner;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware('throttle:api')->group(function () {
-    Route::get('/presets', fn () => response()->json(['data' => json_decode(
-        file_get_contents(public_path('media/presets.json')), true, 512, JSON_THROW_ON_ERROR,
-    )]));
+    // Preset designs (task 9.148): the 3DEEZI presets; the own ones and saving are under auth below.
+    Route::get('/presets', [PresetController::class, 'index']);
     Route::get('/catalog', fn () => response()->json(['data' => array_merge(
         config('catalog'),
         OpenAiDesigner::enabled()
@@ -33,18 +35,44 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
     Route::get('/convert/formats', [ConvertController::class, 'formats']);
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('throttle:auth');
     Route::post('/partners/apply', [PartnerApplicationController::class, 'store'])->middleware('throttle:auth');
+    // Preferred suppliers (task 9.118): the page's list with the listing prices, and their logos (public).
+    Route::get('/suppliers', [SupplierController::class, 'index']);
+    Route::get('/suppliers/{supplier}/logo', [SupplierController::class, 'logo'])->whereNumber('supplier');
     // The Support page's contact form (/support): open to visitors; saved for Admin > Support and emailed to the team.
     Route::post('/support', [SupportMessageController::class, 'store'])->middleware('throttle:auth');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('throttle:auth');
+    // "Forgot password?": a 6-digit code by email, then sign in with it or set a new password (LoginCodeController).
+    Route::post('/auth/code', [\App\Http\Controllers\LoginCodeController::class, 'send'])->middleware('throttle:auth');
+    Route::post('/auth/code/login', [\App\Http\Controllers\LoginCodeController::class, 'login'])->middleware('throttle:auth');
+    Route::post('/auth/code/reset', [\App\Http\Controllers\LoginCodeController::class, 'reset'])->middleware('throttle:auth');
     // 3DEEZI ASSIST, the help chat on every page: open to visitors too.
     Route::post('/assist', [AssistController::class, 'chat'])->middleware('throttle:assist');
     // 3DEEZI Orders: the order forms' choices, and "Help me add sizes" (open to visitors, who fill the form before signing in).
     Route::get('/orders/options', [OrderController::class, 'options']);
+    // Street address suggestions for the order forms (task TL-2): Photon (OpenStreetMap), cached, no key.
+    Route::get('/address/suggest', [AddressController::class, 'suggest']);
     Route::post('/orders/assist', [OrderController::class, 'assist'])->middleware('throttle:assist');
+    Route::post('/orders/read-notes', [OrderController::class, 'readNotes'])->middleware('throttle:assist');
+    // "Paste your order here" (ORDERPASTE): 3DEEZI AI for signed-in customers, the built-in reading otherwise.
+    Route::post('/orders/fill', \App\Http\Controllers\OrderFillController::class)->middleware('throttle:assist');
+    // The Order Assistant (task TL-3): collates sheets, notes and pictures into an order, a share page, a PDF and an Excel.
+    // Open to visitors (sheets and typed notes, no AI); the token is the share link.
+    Route::post('/order-assistant', [\App\Http\Controllers\OrderAssistController::class, 'store'])->middleware('throttle:assist');
+    Route::get('/order-assistant/{assist}', [\App\Http\Controllers\OrderAssistController::class, 'show'])->where('assist', '[A-Za-z0-9]{40}');
+    Route::post('/order-assistant/{assist}', [\App\Http\Controllers\OrderAssistController::class, 'append'])->where('assist', '[A-Za-z0-9]{40}')->middleware('throttle:assist');
+    Route::get('/order-assistant/{assist}/pdf', [\App\Http\Controllers\OrderAssistController::class, 'pdf'])->where('assist', '[A-Za-z0-9]{40}');
+    Route::get('/order-assistant/{assist}/xlsx', [\App\Http\Controllers\OrderAssistController::class, 'xlsx'])->where('assist', '[A-Za-z0-9]{40}');
+    Route::get('/order-assistant/{assist}/designs/{n}', [\App\Http\Controllers\OrderAssistController::class, 'design'])->where('assist', '[A-Za-z0-9]{40}')->whereNumber('n');
+    // The order form maker's form corrected in place (names, colourways, sizes): no AI (client 2026-11-13).
+    Route::post('/order-assistant/{assist}/form', [\App\Http\Controllers\OrderAssistController::class, 'form'])->where('assist', '[A-Za-z0-9]{40}')->middleware('throttle:60,1');
 
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/auth/me', [AuthController::class, 'me']);
-        Route::patch('/auth/me', [AuthController::class, 'update']);
+        Route::get('/presets/mine', [PresetController::class, 'mine']);
+        Route::post('/presets', [PresetController::class, 'store'])->middleware('throttle:uploads');
+        Route::patch('/presets/{preset}', [PresetController::class, 'update'])->whereNumber('preset');
+        Route::delete('/presets/{preset}', [PresetController::class, 'destroy'])->whereNumber('preset');
+        Route::patch('/auth/me', [AuthController::class, 'update'])->middleware('throttle:auth');
         Route::post('/auth/logout', [AuthController::class, 'logout']);
         Route::get('/dashboard', [ProjectController::class, 'dashboard']);
         Route::get('/projects/{project}/versions', [ProjectController::class, 'versions'])->whereNumber('project');
@@ -62,22 +90,40 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         Route::delete('/artboards/{artboard}', [ArtboardDocumentController::class, 'destroy'])->whereNumber('artboard');
         Route::post('/concepts', [ConceptController::class, 'store'])->middleware('throttle:concepts');
         Route::post('/convert/cdr', [ConvertController::class, 'cdr'])->middleware('throttle:uploads');
+        // The AI Designer's design files the page or app cannot draw itself (EPS, PSD, TIFF, HEIC): their picture.
+        Route::post('/convert/picture', [ConvertController::class, 'picture'])->middleware('throttle:uploads');
         Route::post('/ai/pattern', [AiController::class, 'pattern'])->middleware('throttle:concepts');
         Route::post('/ai/showcase', [AiController::class, 'showcase'])->middleware('throttle:concepts');
+        // See it on a player (9.128 C): the kit on a photoreal athlete; saved to Assets only on request.
+        Route::post('/ai/player', [\App\Http\Controllers\PlayerShotController::class, 'make'])->middleware('throttle:concepts');
+        Route::post('/ai/player/save', [\App\Http\Controllers\PlayerShotController::class, 'save'])->middleware('throttle:uploads');
         Route::post('/ai/mockup', [AiController::class, 'mockup'])->middleware('throttle:concepts');
+        // The Studio's Mockup: studio product photos of the design (one view per call), and Save to my assets.
+        Route::post('/ai/product-mockup', [\App\Http\Controllers\MockupController::class, 'generate'])->middleware('throttle:concepts');
+        Route::post('/ai/product-mockup/save', [\App\Http\Controllers\MockupController::class, 'save'])->middleware('throttle:uploads');
         // The AI designer's results: four ranked directions, then one render each (PRIMARY HD, options medium).
         Route::post('/ai/designs', [AiController::class, 'designs'])->middleware('throttle:concepts');
         Route::post('/ai/designs/render', [AiController::class, 'renderDesign'])->middleware('throttle:concepts');
         Route::post('/ai/print-sheet', [AiController::class, 'printSheet'])->middleware('throttle:concepts');
+        Route::post('/ai/designs/read', [AiController::class, 'readDesign'])->middleware('throttle:concepts');
+        Route::post('/ai/accessory/read', [AiController::class, 'readAccessory'])->middleware('throttle:concepts');
         Route::post('/ai/edit', [AiController::class, 'edit'])->middleware('throttle:concepts');
         Route::post('/ai/image-edit', [AiController::class, 'imageEdit'])->middleware('throttle:concepts');
         Route::post('/ai/convert', [AiController::class, 'convert'])->middleware('throttle:concepts');
+        // Recent designs on the AI Designer page: each brief with its four designs, reopened with no new AI call.
+        Route::get('/ai/sessions', [\App\Http\Controllers\AiSessionController::class, 'index']);
+        Route::post('/ai/sessions', [\App\Http\Controllers\AiSessionController::class, 'store'])->middleware('throttle:uploads');
+        Route::get('/ai/sessions/{session}', [\App\Http\Controllers\AiSessionController::class, 'show'])->whereNumber('session');
+        Route::put('/ai/sessions/{session}', [\App\Http\Controllers\AiSessionController::class, 'update'])->whereNumber('session')->middleware('throttle:uploads');
+        Route::delete('/ai/sessions/{session}', [\App\Http\Controllers\AiSessionController::class, 'destroy'])->whereNumber('session');
         Route::get('/orders', [OrderController::class, 'index']);
         Route::post('/orders', [OrderController::class, 'store'])->middleware('throttle:uploads');
         // 3DEEZI Orders: my board, one order, design approval; drafts with their files; file downloads; notifications.
         Route::get('/orders/board', [OrderController::class, 'board']);
         Route::get('/orders/{order}', [OrderController::class, 'show'])->whereNumber('order');
         Route::post('/orders/{order}/approval', [OrderController::class, 'approval'])->whereNumber('order');
+        // The order confirmation form's signed PDF and Excel links (images/336, 338).
+        Route::get('/orders/{order}/confirmation-links', [\App\Http\Controllers\OrderConfirmationController::class, 'links'])->whereNumber('order');
         Route::get('/order-drafts', [OrderDraftController::class, 'index']);
         Route::post('/order-drafts', [OrderDraftController::class, 'store']);
         Route::get('/order-drafts/{draft}', [OrderDraftController::class, 'show'])->whereNumber('draft');
@@ -87,9 +133,14 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // 3DEEZI AI reads the draft's order forms (once per file; called on Review).
         Route::post('/order-drafts/{draft}/read', \App\Http\Controllers\OrderFormReadController::class)->whereNumber('draft')->middleware('throttle:concepts');
         Route::get('/order-drafts/{draft}/files', [OrderDraftController::class, 'files'])->whereNumber('draft');
+        Route::get('/order-drafts/{draft}/confirmation-links', [\App\Http\Controllers\OrderConfirmationController::class, 'draftLinks'])->whereNumber('draft');
         Route::post('/order-drafts/{draft}/files', [OrderDraftController::class, 'storeFile'])->whereNumber('draft')->middleware('throttle:uploads');
         Route::delete('/order-drafts/{draft}/files/{file}', [OrderDraftController::class, 'destroyFile'])->whereNumber(['draft', 'file']);
         Route::get('/order-files/{file}', [OrderFileController::class, 'show'])->whereNumber('file');
+        // Become a preferred supplier: apply (with the logo and plan), my listing, pay for another month or year.
+        Route::post('/suppliers/apply', [SupplierController::class, 'apply'])->middleware('throttle:uploads');
+        Route::get('/suppliers/mine', [SupplierController::class, 'mine']);
+        Route::post('/suppliers/mine/renew', [SupplierController::class, 'renew'])->middleware('throttle:payments');
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::post('/notifications/read', [NotificationController::class, 'read']);
 
@@ -128,6 +179,9 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
         // The admin panel.
         Route::prefix('admin')->name('admin.')->middleware('admin')->group(function () {
             Route::get('/stats', [Admin\OrderController::class, 'stats'])->name('stats');
+            // Users › "Remove test accounts": the preview, then the removal (confirm: true).
+            Route::get('/users/test-accounts', [Admin\UserController::class, 'testAccounts'])->name('users.test-accounts');
+            Route::post('/users/test-accounts/remove', [Admin\UserController::class, 'removeTestAccounts'])->name('users.test-accounts.remove');
             Route::apiResource('users', Admin\UserController::class)->whereNumber('user');
             // The order board (before the orders resource, so "board" and "staff" are not read as an order).
             Route::get('/orders/board', [Admin\OrderBoardController::class, 'board'])->name('orders.board');
@@ -139,6 +193,20 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::apiResource('orders', Admin\OrderController::class)->whereNumber('order');
             Route::apiResource('projects', Admin\ProjectController::class)->only(['index', 'update', 'destroy'])->whereNumber('project');
             Route::apiResource('partners', Admin\PartnerController::class)->only(['index', 'update', 'destroy'])->whereNumber('partner');
+            // Admin > Suppliers and the listing prices (Admin > Pricing).
+            Route::get('/suppliers/prices', [Admin\SupplierAdminController::class, 'prices'])->name('suppliers.prices');
+            Route::put('/suppliers/prices', [Admin\SupplierAdminController::class, 'prices'])->name('suppliers.prices.update');
+            Route::get('/suppliers', [Admin\SupplierAdminController::class, 'index'])->name('suppliers');
+            Route::post('/suppliers', [Admin\SupplierAdminController::class, 'store'])->name('suppliers.store');
+            Route::patch('/suppliers/{supplier}', [Admin\SupplierAdminController::class, 'update'])->whereNumber('supplier')->name('suppliers.update');
+            Route::post('/suppliers/{supplier}/logo', [Admin\SupplierAdminController::class, 'uploadLogo'])->whereNumber('supplier')->name('suppliers.logo');
+            Route::delete('/suppliers/{supplier}/logo', [Admin\SupplierAdminController::class, 'deleteLogo'])->whereNumber('supplier')->name('suppliers.logo.delete');
+            Route::delete('/suppliers/{supplier}', [Admin\SupplierAdminController::class, 'destroy'])->whereNumber('supplier')->name('suppliers.destroy');
+            // Admin > Presets (task 9.148): the 3DEEZI presets.
+            Route::get('/presets', [Admin\PresetAdminController::class, 'index'])->name('presets');
+            Route::post('/presets/order', [Admin\PresetAdminController::class, 'reorder'])->name('presets.order');
+            Route::patch('/presets/{preset}', [Admin\PresetAdminController::class, 'update'])->whereNumber('preset')->name('presets.update');
+            Route::delete('/presets/{preset}', [Admin\PresetAdminController::class, 'destroy'])->whereNumber('preset')->name('presets.destroy');
             Route::apiResource('support-messages', Admin\SupportMessageController::class)->only(['index', 'update', 'destroy'])->whereNumber('support_message');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
             Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');

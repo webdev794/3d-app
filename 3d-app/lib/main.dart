@@ -18,6 +18,7 @@ void main() {
   final controller = _initialController();
   // Saved projects load in the background, then the signed-in account
   // reopens and syncs; the list updates when ready.
+  controller.restoreDevicePrefs();
   controller.restoreProjects().whenComplete(controller.restoreSession);
   runApp(ThreeDeeziApp(controller: controller));
 }

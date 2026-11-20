@@ -56,3 +56,11 @@
 
 /* The AI brief: pictures dragged over it (they are attached when dropped). */
 .brief-form.dropping textarea{border-color:var(--cyan);box-shadow:0 0 0 3px #00d9ed22}.brief-form.dropping .reference-upload{border-style:solid;background:#00d9ed12}
+
+/* Word look tiles (task 9.146): the TEXT and NUMBERS panels. */
+.word-look h4 { margin: 14px 0 6px; }
+.word-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.word-tile { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: rgba(255,255,255,.04); color: inherit; font: 600 11px Inter, system-ui, sans-serif; cursor: pointer; }
+.word-tile canvas { border-radius: 6px; max-width: 100%; }
+.word-tile.selected { border-color: #2fd0e0; box-shadow: 0 0 0 1px #2fd0e0 inset; }
+.word-look .word-colour input[type=color] { width: 48px; height: 32px; padding: 0; border: 0; background: none; }

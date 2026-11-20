@@ -92,12 +92,19 @@ void main() {
   testWidgets('every garment lists the website areas and each area takes a pattern', (tester) async {
     final c = AppController(store: FakeStore());
     addTearDown(c.dispose);
+    // A tall screen, so an area's open pattern menu shows every pattern (Blades and Swirl, 2026-10-30, made the list
+    // longer than the default test screen: Tribal was off the menu, never built).
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
     const common = ['Chest & body', 'Shoulders', 'Sleeves', 'Side panels', 'Hem'];
     const expected = {
       'Jersey': common,
       'Training Tee': common,
       'Polo': common,
-      'Singlet': common,
+      // No sleeves (website 2026-10-23): the singlet's outline ends at x 0.254
+      // and the viewer's sleeve area starts at 0.27, so a pattern there painted nothing.
+      'Singlet': ['Chest & body', 'Shoulders', 'Side panels', 'Hem'],
       'Full Kit': common,
       'Polo with pocket': [...common, 'Chest pocket'],
       'Hoodie': [...common, 'Kangaroo pocket', 'Hood'],
@@ -106,10 +113,11 @@ void main() {
       // The track jacket's hood area is its collar unless it has a hood (website: Hood or Collar).
       'Track jacket': [...common, 'Collar'],
       // The 3D shorts have no shoulders or sleeves (viewer zones.js uses
-      // sides, hem and body only), so the app leaves those two out.
-      'Shorts': ['Chest & body', 'Side panels', 'Hem'],
+      // sides, hem and body only), so the app leaves those two out; their
+      // areas read as on the website.
+      'Shorts': ['Body', 'Side panels', 'Leg hems'],
     };
-    final keyOf = {for (final e in garmentZones.entries) e.value: e.key, 'Kangaroo pocket': 'pocket', 'Collar': 'hood'};
+    final keyOf = {for (final e in garmentZones.entries) e.value: e.key, 'Kangaroo pocket': 'pocket', 'Collar': 'hood', 'Body': 'body', 'Leg hems': 'hem'};
     for (final MapEntry(key: garment, value: areas) in expected.entries) {
       c.garment = garment;
       c.zones = {};

@@ -97,11 +97,13 @@ export interface ContactDetails { contact_name: string; contact_email: string; t
 export const emptyContact = (): ContactDetails => ({ contact_name: '', contact_email: '', team_name: '', phone: '' });
 
 /** Section "Contact & team details": contact name, email, team / organisation and phone, two by two (one column on phones). */
-export function ContactDetailsCard({ number = 1, title = 'Contact & team details', value, onChange, errors = {}, disabled = false, phone = { label: 'Phone', placeholder: 'Your phone number' }, children }: {
+export function ContactDetailsCard({ number = 1, title = 'Contact & team details', value, onChange, errors = {}, disabled = false, phone = { label: 'Phone', placeholder: 'Your phone number' }, team = true, children }: {
   number?: number | string; title?: ReactNode; value: ContactDetails; onChange: (next: ContactDetails) => void;
   errors?: Partial<Record<keyof ContactDetails, string>>; disabled?: boolean;
   /** The phone field's label and placeholder (Upload Your Order: a required "Mobile"). */
   phone?: { label: ReactNode; placeholder: string; required?: boolean };
+  /** The Team / organisation line (the order form leaves it out: only the basics, client 2026-11-05). */
+  team?: boolean;
   children?: ReactNode;
 }) {
   const set = (key: keyof ContactDetails) => (e: ChangeEvent<HTMLInputElement>) => onChange({ ...value, [key]: e.target.value });
@@ -109,7 +111,7 @@ export function ContactDetailsCard({ number = 1, title = 'Contact & team details
     <div className="op-fields">
       <OrderField label="Contact name" error={errors.contact_name}><input className="op-input" name="contact_name" autoComplete="name" maxLength={120} placeholder="Your name" value={value.contact_name} onChange={set('contact_name')} aria-invalid={!!errors.contact_name} disabled={disabled} /></OrderField>
       <OrderField label="Email" error={errors.contact_email}><input className="op-input" type="email" name="contact_email" autoComplete="email" maxLength={190} placeholder="Your email address" value={value.contact_email} onChange={set('contact_email')} aria-invalid={!!errors.contact_email} disabled={disabled} /></OrderField>
-      <OrderField label="Team / organisation" error={errors.team_name}><input className="op-input" name="team_name" autoComplete="organization" maxLength={120} placeholder="Your team or club" value={value.team_name} onChange={set('team_name')} aria-invalid={!!errors.team_name} disabled={disabled} /></OrderField>
+      {team && <OrderField label="Team / organisation" error={errors.team_name}><input className="op-input" name="team_name" autoComplete="organization" maxLength={120} placeholder="Your team or club" value={value.team_name} onChange={set('team_name')} aria-invalid={!!errors.team_name} disabled={disabled} /></OrderField>}
       <OrderField label={phone.label} error={errors.phone}><input className="op-input" type="tel" name="phone" autoComplete="tel" inputMode="tel" maxLength={40} placeholder={phone.placeholder} value={value.phone} onChange={set('phone')} aria-invalid={!!errors.phone} aria-required={phone.required || undefined} disabled={disabled} /></OrderField>
     </div>
     {children}
@@ -200,11 +202,14 @@ export interface BarButton { label: ReactNode; onClick: () => void; disabled?: b
  * an optional status text, and the gradient primary button on the right (default icon: →) with `note` under it.
  * 3DEEZI ASSIST's button sits above the bar (data-assist-above).
  */
-export function OrderBottomBar({ secondary, primary, note, status }: { secondary?: BarButton; primary: BarButton; note?: ReactNode; status?: ReactNode }) {
+export function OrderBottomBar({ secondary, extra, primary, note, status }: { secondary?: BarButton; /** A second small button (Copy form link). */ extra?: BarButton; primary: BarButton; note?: ReactNode; status?: ReactNode }) {
   return <div className="op-bar" data-assist-above="">
     <div className="op-bar-inner">
       {secondary && <button type="button" className="op-bar-secondary" onClick={secondary.onClick} disabled={secondary.disabled || secondary.busy} aria-busy={secondary.busy || undefined}>
         {secondary.busy ? <LoaderCircle className="spin" size={22} /> : secondary.icon ?? <FileText size={22} />}<span>{secondary.label}</span>
+      </button>}
+      {extra && <button type="button" className="op-bar-secondary" onClick={extra.onClick} disabled={extra.disabled || extra.busy} data-testid="bar-extra">
+        {extra.icon ?? <FileText size={22} />}<span>{extra.label}</span>
       </button>}
       <p className="op-bar-status" aria-live="polite">{status}</p>
       <div className="op-bar-primary-wrap">
@@ -295,4 +300,33 @@ export function FileDropBox({ items, onFiles, onRemove, onRetry, extensions, max
       </div>
     </li>)}</ul>}
   </div>;
+}
+
+/**
+ * The order forms' step bar (client pictures images/337, 339): Details > Garments > Artwork > Review on the Create
+ * order form, Upload > Check details > Review on Upload order. A step with a section scrolls to it; the one in view
+ * is lit (the last, Review, only through the page's Review order button).
+ */
+export function OrderSteps({ steps, onReview, current, onGo }: { steps: { label: string; target?: string }[]; onReview?: () => void; current?: number; onGo?: (i: number) => void }) {
+  const [watched, setOn] = useState(0);
+  const on = current ?? watched;
+  useEffect(() => {
+    if (current !== undefined) return;
+    const els = steps.map(s => (s.target ? document.getElementById(s.target) : null));
+    const watch = () => {
+      let at = 0;
+      els.forEach((el, i) => { if (el && el.getBoundingClientRect().top < 220) at = i; });
+      setOn(at);
+    };
+    watch();
+    window.addEventListener('scroll', watch, { passive: true });
+    return () => window.removeEventListener('scroll', watch);
+  }, [steps, current]);
+  return <ol className="op-steps" aria-label="Order steps">
+    {steps.map((s, i) => <li key={s.label} className={i < on ? 'is-done' : i === on ? 'is-on' : ''} aria-current={i === on ? 'step' : undefined}>
+      <button type="button" onClick={() => { if (onGo) onGo(i); else if (s.target) document.getElementById(s.target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); else onReview?.(); }}>
+        <span className="op-step-dot">{i < on ? '✓' : i + 1}</span><span className="op-step-name">{s.label}</span>
+      </button>
+    </li>)}
+  </ol>;
 }

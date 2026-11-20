@@ -1,4 +1,6 @@
-import { Store, TriangleAlert, Truck } from 'lucide-react';
+import { MapPin, Store, TriangleAlert, Truck } from 'lucide-react';
+import { useEffect, useId, useRef, useState } from 'react';
+import { api } from '../api';
 import { OrderField } from './OrderPageParts';
 import '../../css/order-delivery.css';
 
@@ -103,7 +105,7 @@ export function DeliveryFieldsCard({ value, errors, onChange, leadWeeks = DEFAUL
     </div>
     {value.delivery === 'deliver' && <div className="op-fields od-address" data-testid="delivery-address">
       <OrderField label="Street address" error={errors.street} className="od-wide">
-        <input className="op-input" name="street" autoComplete="street-address" maxLength={200} placeholder="e.g. 12 Smith Street" value={value.street} onChange={e => onChange({ street: e.target.value })} aria-invalid={!!errors.street} aria-required />
+        <StreetAddressInput value={value.street} invalid={!!errors.street} onType={street => onChange({ street })} onPick={onChange} />
       </OrderField>
       <OrderField label="Suburb / town" error={errors.suburb}>
         <input className="op-input" name="suburb" autoComplete="address-level2" maxLength={200} value={value.suburb} onChange={e => onChange({ suburb: e.target.value })} aria-invalid={!!errors.suburb} aria-required />
@@ -124,5 +126,66 @@ export function DeliveryFieldsCard({ value, errors, onChange, leadWeeks = DEFAUL
         <datalist id="od-countries">{COUNTRIES.map(c => <option key={c} value={c} />)}</datalist>
       </OrderField>
     </div>}
+  </div>;
+}
+
+/** One address suggestion from GET /address/suggest (AddressController): the fields it fills. */
+export interface AddressSuggestion { label: string; street: string; suburb: string; state: string; postcode: string; country: string }
+const suggestionCache = new Map<string, AddressSuggestion[]>();
+
+/**
+ * Street address with suggestions (task TL-2, 2026-11-05): about 400 ms after the customer stops typing, the server asks
+ * Photon (OpenStreetMap, Australia / New Zealand first); picking one fills Street, Suburb / town, State, Postcode and
+ * Country. Nothing found or the service down: no list, and the typed address stays as it is.
+ */
+export function StreetAddressInput({ value, invalid, onType, onPick }: {
+  value: string; invalid?: boolean; onType: (street: string) => void; onPick: (fields: Partial<DeliveryFields>) => void;
+}) {
+  const [items, setItems] = useState<AddressSuggestion[]>([]);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const typed = useRef<string | null>(null);
+  const listId = useId();
+  useEffect(() => {
+    const q = typed.current;
+    if (q === null) return;
+    const key = q.trim().toLowerCase();
+    if (key.length < 4) { setItems([]); return; }
+    const known = suggestionCache.get(key);
+    if (known) { setItems(known); setActive(-1); return; }
+    let live = true;
+    const timer = window.setTimeout(() => {
+      api<AddressSuggestion[]>(`/address/suggest?q=${encodeURIComponent(q.trim())}`)
+        .then(found => { const list = Array.isArray(found) ? found : []; suggestionCache.set(key, list); if (live) { setItems(list); setActive(-1); } })
+        .catch(() => { if (live) setItems([]); });
+    }, 400);
+    return () => { live = false; window.clearTimeout(timer); };
+  }, [value]);
+  const pick = (a: AddressSuggestion) => {
+    typed.current = null;
+    setOpen(false); setItems([]);
+    const au = isAustralia(a.country);
+    onPick({ street: a.street || value, suburb: a.suburb, state: au && !AU_STATES.includes(a.state.toUpperCase()) ? '' : a.state, postcode: a.postcode, country: a.country || 'Australia' });
+  };
+  const shown = open && items.length > 0;
+  return <div className="od-street">
+    <input className="op-input" name="street" autoComplete="street-address" maxLength={200} placeholder="Start typing, e.g. 12 Smith Street" value={value}
+      role="combobox" aria-autocomplete="list" aria-expanded={shown} aria-controls={listId}
+      aria-activedescendant={shown && active >= 0 ? `${listId}-${active}` : undefined}
+      onChange={e => { typed.current = e.target.value; setOpen(true); onType(e.target.value); }}
+      onBlur={() => setOpen(false)}
+      onKeyDown={e => {
+        if (!shown) return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); setActive(i => (i + 1) % items.length); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(i => (i <= 0 ? items.length : i) - 1); }
+        else if (e.key === 'Enter' && active >= 0) { e.preventDefault(); pick(items[active]); }
+        else if (e.key === 'Escape') setOpen(false);
+      }}
+      aria-invalid={invalid} aria-required />
+    {shown && <ul className="od-suggest" id={listId} role="listbox" aria-label="Address suggestions" data-testid="address-suggestions">
+      {items.map((a, i) => <li key={a.label} id={`${listId}-${i}`} role="option" aria-selected={i === active} className={i === active ? 'is-active' : ''}
+        onMouseDown={e => { e.preventDefault(); pick(a); }}><MapPin size={14} /><span>{a.label}</span></li>)}
+      <li className="od-suggest-credit" aria-hidden>Addresses © OpenStreetMap</li>
+    </ul>}
   </div>;
 }

@@ -45,6 +45,10 @@
 .of-subtotal{display:flex;flex-direction:column;justify-content:center;min-height:64px;margin-left:14px;padding-left:30px;border-left:1px solid #4a5568;color:#dfebf9;font-size:13px;line-height:1.2}
 .of-subtotal strong{font-size:26px;line-height:1.1;color:#fff;font-variant-numeric:tabular-nums}
 .of-other{max-width:420px}
+/* "Custom…" (client 2026-11-02): the typed sport and its garment, side by side (stacked on phones). */
+.of-custom{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;max-width:640px}
+.of-custom .of-other{max-width:none}
+@media (max-width:560px){.of-custom{grid-template-columns:1fr}}
 .of-row-files{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0}
 .of-row-files li{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 6px 4px 9px;border:1px solid #2a4a68;border-radius:20px;background:#071628;font-size:12px;color:#d7e6f4}
 .of-row-files li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -220,3 +224,88 @@ p.of-helper-result.is-ok{color:#9af0cd}
   .of-price th,.of-price td{padding:8px 3px;font-size:13px}
   .of-ref{font-size:28px}
 }
+/* Step 3 Artwork & files (client 2026-11-03, images/337) */
+.of-art-actions{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:14px}
+.of-art-actions .of-btn{flex:1 1 180px;min-height:44px}
+.of-art-designs{margin-bottom:14px}
+.of-art-rows{list-style:none;margin:0 0 16px;padding:0;display:flex;flex-direction:column;gap:10px}
+.of-art-row{display:grid;grid-template-columns:56px 1fr auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--op-line-soft);border-radius:10px;background:#061424}
+.of-art-thumb{width:56px;height:56px;border-radius:8px;background:#0b2238;display:grid;place-items:center;overflow:hidden}
+.of-art-thumb img{width:100%;height:100%;object-fit:contain}
+.of-art-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.of-art-text strong{font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-art-text span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--op-muted)}
+.of-art-text span.is-ok,.of-sheet .is-ok{color:#4ade80}
+.of-art-pick{grid-column:1/-1}
+.of-sheet{margin:6px 0 16px;padding:16px;border:2px dashed var(--op-line);border-radius:12px;background:#04101c}
+.of-sheet-head{display:flex;align-items:center;gap:12px}
+.of-sheet-head>div{flex:1;display:flex;flex-direction:column;gap:2px}
+.of-sheet-head small{color:var(--op-muted);font-size:12.5px}
+.of-sheet-head svg{color:var(--op-cyan)}
+.of-sheet-files{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:8px}
+.of-sheet-files li{display:inline-flex;align-items:center;gap:8px;max-width:100%;padding:6px 10px;border:1px solid var(--op-line);border-radius:999px;background:#071a2c;font-size:13px}
+.of-sheet-files li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.of-sheet-files li.is-error{border-color:#f87171;color:#fca5a5}
+.of-sheet-files button{border:0;background:none;color:var(--op-muted);display:grid;place-items:center;padding:2px}
+.of-sheet-note{margin:10px 0 0;color:var(--op-light);font-size:13px}
+.of-confirm-hint{margin:12px 0 0;color:var(--op-muted);font-size:13px}
+.of-back{margin-top:16px}
+.of-artwork>.of-art-actions,.of-artwork>.of-art-designs,.of-artwork>.of-art-rows,.of-artwork>.of-sheet,.of-artwork>.of-confirm-hint{grid-column:1/-1}
+.of-art-actions .of-btn{flex:1 1 200px}
+@media (max-width:760px){.of-page .of-artwork{padding-bottom:120px}.of-page .of-sheet{scroll-margin-bottom:140px}}
+/* "Write or snap your notes" (client 2026-11-03) */
+.of-notes{padding:18px 20px;margin-bottom:16px;border-color:#1d6a8a}
+.of-notes h2{display:flex;align-items:center;gap:10px;margin:0 0 6px;font:700 clamp(16px,1.3vw,19px)/1.1 var(--heading);letter-spacing:.12em;text-transform:uppercase;color:#fff}
+.of-notes h2 svg{color:var(--op-cyan)}
+.of-notes .op-hint{margin:0 0 10px}
+.of-notes-text{width:100%;min-height:120px;font-family:inherit;resize:vertical}
+.of-notes-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
+.of-notes-actions label.of-btn{cursor:pointer}
+.of-notes-status{margin:10px 0 0;color:#d7ffe6;font-size:14px}
+.of-notes-check{margin-top:8px;padding:10px 12px;border:1px solid #b7862a;border-radius:8px;background:#2a2009;color:#ffe6b0;font-size:13.5px}
+/* "Paste your order here" (ORDERPASTE 2026-11-13): one big box, one button, what was filled and what to check. */
+.of-paste-box .of-notes-text{min-height:150px;font-size:15px}
+.of-paste-box .of-notes-actions{align-items:center;gap:16px}
+.of-fill-btn{min-width:200px;justify-content:center;font-size:15px}
+.of-paste-add{display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:14px}
+.of-notes-check ul{margin:6px 0 0;padding-left:18px}
+.of-notes-check li{margin:3px 0;line-height:1.45}
+.of-notes-built{padding:14px 20px 16px;margin-bottom:16px}
+.of-notes-built .of-notes-status{display:flex;align-items:center;gap:8px;margin:0;font-weight:600}
+.of-notes-built .of-notes-status .is-ok{color:#3ddc84;flex:none}
+.of-filled{margin:10px 0 0;padding-left:20px;color:#e9f6ff;font-size:14.5px;line-height:1.5}
+.of-filled-also{margin:8px 0 0;color:var(--op-light);font-size:13.5px}
+
+/* The AI section's look (client 2026-11-18, 584: "looks like the AI section"; as /create/ai and the Order Form Maker):
+   the AI designer's studio picture behind the page, the logo and widely spaced heading, the paste box as the glowing
+   prompt bar, the cards as dark glass, the cyan buttons. Layout and every control unchanged. */
+.op-page.of-ai{position:relative;isolation:isolate;background:#02060b}
+.of-ai-bg{position:absolute;inset:0 0 auto;z-index:-2;height:min(100vh,980px);pointer-events:none;-webkit-mask-image:linear-gradient(180deg,#000 50%,transparent);mask-image:linear-gradient(180deg,#000 50%,transparent)}
+.of-ai-bg img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% 58%}
+.op-page.of-ai::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse 42% 30% at 50% 16%,#02060bc4,#02060b5c 62%,transparent),linear-gradient(180deg,#02060b80,#02060b33 22%,#02060b99 70vh,#02060b 100vh)}
+.of-ai .op-head{text-align:center}
+.of-ai .op-head-bar{text-align:left}
+.of-ai .op-head h1{font:600 clamp(16px,1.7vw,28px)/1.2 var(--heading);letter-spacing:.42em;margin-right:-.42em;color:#e8eef5;text-shadow:0 2px 16px #000}
+.of-ai .of-logo{display:block;width:clamp(200px,24vw,400px);height:auto;margin:4px auto 18px;mix-blend-mode:screen;filter:drop-shadow(0 8px 30px #000)}
+.of-ai .op-head p{margin-top:10px;color:#b9c7d4;text-shadow:0 1px 8px #000}
+.of-ai .op-card{border:1.5px solid #19d6ea59;border-radius:22px;background:linear-gradient(180deg,#07131ecc,#030a12e6);box-shadow:0 0 22px #00d9ed1f,inset 0 0 18px #00d9ed0d;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.of-ai .op-section-head{border-radius:21px 21px 0 0;background:linear-gradient(90deg,#0b2232cc,#07131e66)}
+.of-ai .op-input{border-radius:10px;border-color:#ffffff2b;background-color:#0a141ecc}
+.of-ai .op-input:focus{border-color:#3fe6f5;box-shadow:0 0 0 1px #00d9ed4d,0 0 14px #00d9ed33}
+/* "Paste your order here": the AI designer's prompt bar. */
+.of-ai .of-paste-box{border:1.5px solid #19d6eacc;border-radius:28px;box-shadow:0 0 0 1px #00d9ed1f,0 0 22px #00d9ed3d,inset 0 0 18px #00d9ed12;transition:border-color .2s,box-shadow .2s}
+.of-ai .of-paste-box:focus-within{border-color:#3fe6f5;box-shadow:0 0 0 1px #00d9ed4d,0 0 30px #00d9ed5c,inset 0 0 18px #00d9ed1c}
+.of-ai .of-paste-box h2{letter-spacing:.24em}
+.of-ai .of-paste-box .of-notes-text{border:0;border-radius:14px;background:#0a141e80;box-shadow:none;font-size:clamp(15px,1.06vw,17px);line-height:1.45}
+.of-ai .of-btn{border-radius:12px;border:1.5px solid #19d6ea8c;background:#04101acc}
+.of-ai .of-btn:not(:disabled):hover{border-color:#3fe6f5;background:#0b2636}
+.of-ai .of-btn.is-primary{border:0;background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;box-shadow:0 0 22px #00d9ed4d}
+.of-ai .of-fill-btn{border-radius:999px;min-height:46px;background:#14d8ec;color:#021219;font-weight:700;box-shadow:0 0 18px #00d9ed80}
+.of-ai .of-fill-btn:not(:disabled):hover{background:#3fe6f5;box-shadow:0 0 24px #00d9edaa;filter:none}
+.of-ai .op-bar{border-top:1px solid #19d6ea59;background:linear-gradient(180deg,#030a12e6,#02060bf2);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.of-ai .op-bar-secondary{border-radius:14px;border-color:#19d6eacc;background:#04101acc}
+.of-ai .op-bar-primary{background:linear-gradient(90deg,#17d8f0,#1aa6f6 55%,#2f7bff);color:#031423;box-shadow:0 0 22px #00d9ed4d}
+/* This step has its own 3DEEZI ASSIST card (as Upload Your Order, order-upload.css): it replaces the floating button,
+   which covered the card's rows (client 2026-11-18, 584). Its "Ask for help" box still opens the chat; the review and
+   sent steps, with no card, keep the floating button. */
+body:has(.of-page:not(.is-review):not(.is-done)) .assist-launcher{display:none}

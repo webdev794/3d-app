@@ -3,7 +3,9 @@
 // loaded from media/vendor only when someone downloads a sheet.
 import { media } from './api';
 import type { Design } from './types';
-import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel } from './components/KitViewer';
+import { varsityAreas, varsityColour, trackAreas, trackColour, trackAreaLabel, dressAreas, dressColour, fabricLabel } from './components/KitViewer';
+import { styleRows } from './garmentStyle';
+import { allParts, partLabels, partSummary } from './parts';
 
 interface Pdf {
     setFont(name: string, style?: string): void;
@@ -18,11 +20,13 @@ interface Pdf {
     addImage(data: string, format: string, x: number, y: number, w: number, h: number): void;
     splitTextToSize(text: string, width: number): string[];
     output(type: 'blob'): Blob;
+    /** (The Marquee Studio's print PDF: one page per panel.) */
+    addPage(): void;
 }
 type PdfConstructor = new (options: { orientation: string; unit: string; format: string }) => Pdf;
 declare global { interface Window { jspdf?: { jsPDF: PdfConstructor } } }
 
-async function loadJsPdf(): Promise<PdfConstructor> {
+export async function loadJsPdf(): Promise<PdfConstructor> {
     if (!window.jspdf) {
         await new Promise<void>((resolve, reject) => {
             const script = document.createElement('script');
@@ -128,17 +132,36 @@ export async function designSheetPdf(info: SheetInfo): Promise<Blob> {
         // Short labels: the sheet's label column is narrow.
         const short: Partial<Record<string, string>> = { shoulder: 'Shoulder panels', cuffs: 'Cuffs & hem' };
         for (const a of trackAreas) { const hex = trackColour(d, a.key); row(short[a.key] ?? trackAreaLabel(a.key, d.trackStyle), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${d.zoneColors?.[a.key] ? '' : `   (${a.follows})`}`); }
+    } else if (d.garment === 'netball-dress') {
+        // The netball dress's NETBALL DRESS AREAS, each as the 3D kit shows it (NDF).
+        heading('NETBALL DRESS AREAS');
+        const short: Partial<Record<string, string>> = { binding: 'Binding' };
+        for (const a of dressAreas) { const hex = dressColour(d as never, a.key); row(short[a.key] ?? a.label, `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}${(d.zoneColors as Record<string, string> | null | undefined)?.[a.key] ? '' : `   (${a.follows})`}`); }
     } else if (areas.length) {
         heading('HOODIE AREAS');
-        const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip' };
+        const names: Record<string, string> = { hood: 'Hood', lining: 'Hood lining', rib: 'Rib cuffs', pocket: 'Pocket', zip: 'Zip', stripe: 'Sleeve stripe' };
         for (const [area, hex] of areas) row(names[area] ?? title(area), `${hex.toUpperCase()}   RGB ${rgbOf(hex).join(', ')}`);
     }
+    // Parts with a look of their own (task 9.134: the Parts panel), and the objects on one part only.
+    const ownParts = allParts.filter(key => d.parts?.[key]);
+    const onParts = (d.layers ?? []).filter(l => l.clip);
+    if (ownParts.length || onParts.length) {
+        heading('PARTS');
+        for (const key of ownParts) row(partLabels[key], partSummary(d.parts![key]!));
+        for (const l of onParts) row(`On ${partLabels[l.clip!].toLowerCase()}`, `${l.type === 'text' ? `Text "${l.text ?? ''}"` : l.type === 'image' ? l.name ?? 'Logo' : 'Shape'}${typeof l.opacity === 'number' && l.opacity < 1 ? ` · ${Math.round(l.opacity * 100)}% opacity` : ''}`);
+    }
+    // The fabric the kit is made of (Colours › Fabric type; Standard: the garment's own).
+    heading('FABRIC');
+    row('Fabric', fabricLabel(d));
+    // Garment style (the Studio's Style tool): the neck or rugby collar, its trim colour and a rugby jersey's fit.
+    const style = styleRows({ ...d, garment: d.garment || info.garment }, info.sport);
+    if (style.length) { heading('GARMENT STYLE'); for (const [label, value] of style) row(label, value); }
     heading('PATTERN');
     row('Style', d.pattern);
     if (d.patternScale) row('Size', `${Math.round(d.patternScale * 100)}%`);
     if (d.patternImage) row('Custom', 'Pattern image');
     // Patterns set on single areas of the garment (body, yoke, sleeves, sides, hem).
-    for (const [zone, pattern] of Object.entries(d.zones ?? {})) if (pattern) row(title(zone), title(String(pattern)));
+    for (const [zone, pattern] of Object.entries(d.zones ?? {})) if (pattern) row(title(zone), /^(data:image\/|\/|https?:)/.test(String(pattern)) ? 'My pattern' : title(String(pattern)));
     heading('TEXT AND NUMBER');
     row('Front text', d.logoText);
     row('Back name', d.backName ?? '');

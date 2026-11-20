@@ -12,8 +12,8 @@
 .site-header .header-actions .quick-tab:hover{color:#fff;background-position:100% 0;transform:translateY(-1px) scale(1.04);box-shadow:inset 0 0 0 1px #ffffff55,0 0 16px #12e1f0aa,0 0 26px #7560ff77}
 .site-header .header-actions .quick-tab:active{transform:scale(.97)}
 .site-header .header-actions .quick-tab:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.site-header .header-actions .quick-tab.qp-home.active{box-shadow:inset 0 0 0 2px #ffffffd9,0 2px 10px #0006}
-.site-header .header-actions .quick-tab.qp-home.active:hover{box-shadow:inset 0 0 0 2px #fff,0 0 16px #12e1f0aa,0 0 26px #7560ff77}
+.site-header .header-actions .quick-tab.qp-home.active{box-shadow:0 2px 10px #0006}
+.site-header .header-actions .quick-tab.qp-home.active:hover{box-shadow:inset 0 0 0 1px #ffffff55,0 0 16px #12e1f0aa,0 0 26px #7560ff77}
 .site-header .quick-tab .qp-i{width:1.3em;height:1.3em;flex:none;color:#fff;stroke:currentColor;fill:none;stroke-width:1.15;stroke-linecap:round;stroke-linejoin:round;overflow:visible;transition:transform .25s ease}
 .site-header .quick-tab .qp-i path{vector-effect:non-scaling-stroke}
 .site-header .quick-tab:hover .qp-i{transform:rotate(-12deg) scale(1.15)}
@@ -47,3 +47,21 @@
   .site-header[data-fit="4"]:not(.is-home) .brand,.site-header[data-fit="4"]:not(.is-home) .brand img{width:118px}
   .site-header[data-fit="4"]:not(.is-home) .brand>span{font-size:4.8px}
 }
+/* The homepage on phones (home.css: the big centred logo, the account buttons and ☰ in the bottom-right corner): the
+   icon pills sit in the bottom-left corner (QA S 3d: they never showed there, data-fit 5, as the corner buttons were
+   placed outside the header's padding, which fitHeader() counts as spilling). With the pills, the logo rides a little
+   higher; at level 4 (short phones) it is a little smaller. Icons only, as on the other pages (the words would crowd
+   the logo's tagline). Without the pills (level 5) the header looks as before. */
+@media(max-width:759px){
+  header.site-header.is-home .header-inner{padding-left:10px;padding-right:10px}
+  header.site-header.is-home .header-actions{left:10px;justify-content:flex-end}
+  header.site-header.is-home .header-actions .quick-tabs{order:-1;margin-right:auto;gap:4px}
+  header.site-header.is-home:not([data-fit="4"]) .header-actions .quick-tab{--qp-fs:16px;width:32px;padding:0;gap:0;justify-content:center;letter-spacing:.05em}
+  header.site-header.is-home .quick-tab .qp-word{display:none}
+  header.site-header.is-home:not([data-fit="5"]) .header-inner{padding-bottom:26px}
+  header.site-header.is-home[data-fit="4"] .brand img{width:min(36vw,170px)}
+}
+
+/* Sign in in the header: as tall and readable as the AI / DYO / HOME pills (user 2026-10-28, images/202.jpg). */
+.site-header .header-actions .header-signin{height:34px;padding:0 18px;font-size:15px;font-weight:700;letter-spacing:.04em;border-radius:999px;border:1px solid #ffffff55;color:#fff}
+.site-header .header-actions .header-signin:hover{border-color:#12e1f0;color:#12e1f0}

@@ -10,11 +10,17 @@ import 'package:image_picker/image_picker.dart';
 import '../ai_service.dart';
 import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
+import '../design_files.dart';
+import '../custom_choice.dart';
 import '../sports_catalog.dart';
 import '../design_document.dart' show isHoodie, isVarsity, isTrack;
 import '../export_service.dart';
+import '../player_shot.dart';
+import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
 import '../widgets/ai_stage.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/glass_bubble.dart' show GlassRim;
+import '../widgets/recent_designs.dart';
 import '../widgets/showroom.dart';
 import '../widgets/ui.dart';
 import 'image_editor.dart';
@@ -81,6 +87,14 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                 onTap: () => Navigator.pop(sheet, 'camera'),
               ),
               ListTile(
+                leading: const Icon(Icons.upload_file_outlined),
+                title: const Text('Design file'),
+                subtitle: const Text(
+                  'PDF, SVG, AI, EPS, PSD, TIFF or a picture · up to 25 MB',
+                ),
+                onTap: () => Navigator.pop(sheet, 'file'),
+              ),
+              ListTile(
                 leading: const Icon(Icons.collections_outlined),
                 title: const Text('Sample references'),
                 onTap: () => Navigator.pop(sheet, 'samples'),
@@ -121,6 +135,7 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       return;
     }
     if (choice == 'samples') return _pickSample();
+    if (choice == 'file') return _pickFile();
     return _pickImage(
       choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
     );
@@ -138,6 +153,81 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
         c.references.add(bytes);
         c.uploads.add(bytes);
       });
+    }
+  }
+
+  /// The picture button in the bar: a photo, the camera or a design file.
+  Future<void> _pickAny() async {
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Palette.surface,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library_outlined),
+              title: const Text('Photo library'),
+              onTap: () => Navigator.pop(sheet, 'gallery'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(sheet, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.upload_file_outlined),
+              title: const Text('Design file'),
+              subtitle: const Text(
+                'PDF, SVG, AI, EPS, PSD, TIFF or a picture · up to 25 MB',
+              ),
+              onTap: () => Navigator.pop(sheet, 'file'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || choice == null) return;
+    if (choice == 'file') return _pickFile();
+    return _pickImage(
+      choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+    );
+  }
+
+  /// A design file (client 2026-11-02, 295.jpg): drawn as the picture the AI
+  /// reads, the file kept with it (see design_files.dart).
+  Future<void> _pickFile() async {
+    if (c.references.length >= 3) {
+      showToast(context, 'Up to 3 reference images. Remove one first.');
+      return;
+    }
+    final picked = await pickDesignFile(context);
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final ref = await designReference(context, c, picked.name, picked.bytes);
+      if (ref == null || !mounted) return;
+      c.update(() {
+        c.references.add(ref.picture);
+        c.uploads.add(ref.picture);
+        c.referenceFiles[ref.picture] = ref.file;
+      });
+    } on ApiException catch (e) {
+      if (mounted) showToast(context, e.message);
+    } on Object {
+      if (mounted) {
+        showToast(
+          context,
+          '${picked.name} could not be read. Please save it as PDF, SVG or PNG.',
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 
@@ -240,7 +330,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
 
   /// Generate: the sport from the tile (or the brief), the garment from the
   /// brief or a quick chip (asked only when the brief names none).
-  void _generate([String? garmentChoice, String product = '']) {
+  void _generate([
+    String? garmentChoice,
+    String product = '',
+    bool custom = false,
+  ]) {
     final text = _text.text.trim();
     if (text.isEmpty && c.references.isEmpty) {
       showToast(context, 'Describe your kit or add a reference image.');
@@ -264,6 +358,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
         )) {
       brief = '$category: $brief';
     }
+    // A garment typed in "Custom…" (client 2026-11-02) is named in the brief,
+    // so the AI draws it (the 3D kit uses its nearest garment).
+    if (custom && !brief.toLowerCase().contains(product.toLowerCase())) {
+      brief = '$product: $brief';
+    }
     FocusScope.of(context).unfocus();
     setState(() {
       _askGarment = false;
@@ -275,8 +374,20 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
       c.aiGarment = garment;
       if (tile != null) c.sport = tile.sport;
       c.garment = garment;
-      // The chip's own name ("Netball dress", task 9.99) names the kit.
+      // The chip's own name ("Netball dress", task 9.99) names the kit, and
+      // its own setting comes with it (a Hooded Tracksuit has the hood, as in
+      // Design Your Own; the AI's design does not set it).
       c.productName = garmentChoice == garment ? product : '';
+      final own = c.productName.isEmpty
+          ? null
+          : sportNamed(c.sport)?.tiles
+                .where((t) => t.name == product && t.garment == garment)
+                .firstOrNull;
+      // Without a style of its own: the plain (collar) track jacket, also
+      // after a hooded chip earlier in this session (QA U).
+      c.trackStyle = own?.trackStyle ?? 'collar';
+      c.neck = null;
+      c.fit = null;
     });
     c.go(AppScreen.generating);
   }
@@ -365,6 +476,22 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                                     name.isEmpty ? g : name,
                                     onTap: () => _generate(g, name),
                                   ),
+                                // "Custom…": a garment typed; the 3D kit uses
+                                // the nearest one we have.
+                                ActionChipPill(
+                                  customLabel,
+                                  key: const Key('ai-custom-garment'),
+                                  onTap: () async {
+                                    final name = await askCustomName(
+                                      context,
+                                      title: 'Type your garment',
+                                      uses: (n) =>
+                                          '3D preview uses ${nearestGarment(n).toLowerCase()}',
+                                    );
+                                    if (name == null || !mounted) return;
+                                    _generate(nearestGarment(name), name, true);
+                                  },
+                                ),
                               ],
                             ),
                           ),
@@ -393,7 +520,11 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
                               ],
                             ),
                           ),
-                        const SizedBox(height: 18),
+                        const SizedBox(height: 12),
+                        // Recent designs: the latest briefs and projects,
+                        // reopened with no new AI call.
+                        RecentDesignsStrip(c),
+                        const SizedBox(height: 14),
                         AiSportRow(
                           selected: _tile,
                           onSelect: (id) => setState(() {
@@ -416,165 +547,258 @@ class _AiDesignerScreenState extends State<AiDesignerScreen> {
   /// The prompt bar: (+), the brief, the picture button and Generate; the
   /// attached pictures sit above the text. (No voice input: the app has no
   /// speech package.)
-  Widget _bar(AiQuickSport? chosen) => Container(
-    padding: const EdgeInsets.all(6),
+  /// An attached design file: its picture, name and type (PDF · page 2 of 5),
+  /// and remove (client 2026-11-02, 295.jpg).
+  Widget _fileChip(ReferenceFile file, int i) => Container(
+    height: 48,
+    constraints: const BoxConstraints(maxWidth: 190),
+    padding: const EdgeInsets.fromLTRB(4, 4, 2, 4),
     decoration: BoxDecoration(
-      color: const Color(0xd9061019),
-      borderRadius: BorderRadius.circular(c.references.isEmpty ? 30 : 22),
-      border: Border.all(color: Palette.cyan.withValues(alpha: .8), width: 1.4),
-      boxShadow: [
-        BoxShadow(color: Palette.cyan.withValues(alpha: .22), blurRadius: 18),
-      ],
+      color: const Color(0xff0a141e),
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: const Color(0x2bffffff)),
     ),
-    child: Column(
+    child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (c.references.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
-            child: Row(
-              children: [
-                for (var i = 0; i < c.references.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(9),
-                            child: artImage(bytes: c.references[i]),
-                          ),
-                          Positioned(
-                            top: 2,
-                            right: 2,
-                            child: Semantics(
-                              button: true,
-                              label: 'Remove picture ${i + 1}',
-                              child: GestureDetector(
-                                onTap: () =>
-                                    c.update(() => c.references.removeAt(i)),
-                                child: const CircleAvatar(
-                                  radius: 9,
-                                  backgroundColor: Colors.black87,
-                                  child: Icon(Icons.close, size: 12),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(7),
+          child: ColoredBox(
+            color: const Color(0xffdfe6ec),
+            child: SizedBox(
+              width: 38,
+              height: 38,
+              child: artImage(bytes: c.references[i]),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                file.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                file.pages > 1
+                    ? '${file.label} · page ${file.page} of ${file.pages}'
+                    : file.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: .6,
+                  color: Palette.cyan,
+                ),
+              ),
+            ],
+          ),
+        ),
+        IconButton(
+          tooltip: 'Remove ${file.name}',
+          visualDensity: VisualDensity.compact,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+          onPressed: () => c.update(() => c.references.removeAt(i)),
+          icon: const Icon(Icons.close, size: 15),
+        ),
+      ],
+    ),
+  );
+
+  /// Its outline is a glass rim with a cyan glow and white reflections; the
+  /// inside stays dark (client 487).
+  Widget _bar(AiQuickSport? chosen) => GlassRim(
+    radius: c.references.isEmpty ? 30 : 22,
+    width: 4.5,
+    child: Container(
+      padding: const EdgeInsets.all(7),
+      decoration: BoxDecoration(
+        color: const Color(0xd9061019),
+        borderRadius: BorderRadius.circular(c.references.isEmpty ? 30 : 22),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (c.references.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 2, 6, 6),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < c.references.length; i++)
+                    if (c.referenceFiles[c.references[i]] case final file?)
+                      _fileChip(file, i)
+                    else
+                      SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(9),
+                              child: artImage(bytes: c.references[i]),
+                            ),
+                            Positioned(
+                              top: 2,
+                              right: 2,
+                              child: Semantics(
+                                button: true,
+                                label: 'Remove picture ${i + 1}',
+                                child: GestureDetector(
+                                  onTap: () =>
+                                      c.update(() => c.references.removeAt(i)),
+                                  child: const CircleAvatar(
+                                    radius: 9,
+                                    backgroundColor: Colors.black87,
+                                    child: Icon(Icons.close, size: 12),
+                                  ),
                                 ),
                               ),
                             ),
+                          ],
+                        ),
+                      ),
+                ],
+              ),
+            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // The + and send buttons: round glass bubbles (client 487).
+              Padding(
+                padding: const EdgeInsets.all(2),
+                child: GlassRim(
+                  radius: 21,
+                  width: 2,
+                  glow: .45,
+                  child: IconButton(
+                    tooltip: 'Attach and suggestions',
+                    onPressed: _busy ? null : _openPlus,
+                    style: IconButton.styleFrom(
+                      backgroundColor: const Color(0xff0e1b27),
+                      fixedSize: const Size(42, 42),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: const Icon(Icons.add, size: 22),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: TextField(
+                  controller: _text,
+                  minLines: 1,
+                  maxLines: 5,
+                  enabled: !_busy,
+                  textCapitalization: TextCapitalization.sentences,
+                  onChanged: (_) => setState(() {}),
+                  inputFormatters: [
+                    BriefLimit(() {
+                      if (mounted) {
+                        showToast(
+                          context,
+                          'Your brief was shortened to ${formatCount(maxBrief)} characters.',
+                        );
+                      }
+                    }),
+                  ],
+                  // Pictures pasted from the keyboard's clipboard join the
+                  // references, as with the picture button.
+                  contentInsertionConfiguration: ContentInsertionConfiguration(
+                    allowedMimeTypes: const [
+                      'image/png',
+                      'image/jpeg',
+                      'image/webp',
+                    ],
+                    onContentInserted: _insertPicture,
+                  ),
+                  style: const TextStyle(fontSize: 14.5),
+                  decoration: InputDecoration(
+                    hintText: chosen == null
+                        ? 'Describe your design...'
+                        : 'Describe your ${chosen.label} design...',
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    filled: false,
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 12,
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Upload a reference image',
+                onPressed: _busy ? null : _pickAny,
+                icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
+              ),
+              _busy
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                  : Padding(
+                      padding: const EdgeInsets.all(2),
+                      child: GlassRim(
+                        radius: 22,
+                        width: 2,
+                        glow: .6,
+                        child: IconButton.filled(
+                          tooltip: 'Generate designs',
+                          onPressed: () => _generate(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: Palette.cyan,
+                            foregroundColor: Colors.black,
+                            fixedSize: const Size(44, 44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                        ],
+                          icon: const Icon(
+                            Icons.arrow_upward_rounded,
+                            size: 22,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-              ],
-            ),
+            ],
           ),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            IconButton(
-              tooltip: 'Attach and suggestions',
-              onPressed: _busy ? null : _openPlus,
-              style: IconButton.styleFrom(
-                backgroundColor: const Color(0xff0e1b27),
-                side: const BorderSide(color: Color(0x33ffffff)),
-                fixedSize: const Size(42, 42),
-              ),
-              icon: const Icon(Icons.add, size: 22),
-            ),
-            const SizedBox(width: 4),
-            Expanded(
-              child: TextField(
-                controller: _text,
-                minLines: 1,
-                maxLines: 5,
-                enabled: !_busy,
-                textCapitalization: TextCapitalization.sentences,
-                onChanged: (_) => setState(() {}),
-                inputFormatters: [
-                  BriefLimit(() {
-                    if (mounted) {
-                      showToast(
-                        context,
-                        'Your brief was shortened to ${formatCount(maxBrief)} characters.',
-                      );
-                    }
-                  }),
-                ],
-                // Pictures pasted from the keyboard's clipboard join the
-                // references, as with the picture button.
-                contentInsertionConfiguration: ContentInsertionConfiguration(
-                  allowedMimeTypes: const [
-                    'image/png',
-                    'image/jpeg',
-                    'image/webp',
-                  ],
-                  onContentInserted: _insertPicture,
-                ),
-                style: const TextStyle(fontSize: 14.5),
-                decoration: InputDecoration(
-                  hintText: chosen == null
-                      ? 'Describe your design...'
-                      : 'Describe your ${chosen.label} design...',
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  filled: false,
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 12,
+          // Over 3,500 characters: a small counter (the limit in amber).
+          if (_text.text.length > maxBrief - 500)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(0, 0, 56, 4),
+                child: Text(
+                  '${formatCount(_text.text.length)} / ${formatCount(maxBrief)}',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: _text.text.length >= maxBrief
+                        ? const Color(0xffffc46b)
+                        : Palette.muted,
                   ),
                 ),
               ),
             ),
-            IconButton(
-              tooltip: 'Upload a reference image',
-              onPressed: _busy ? null : () => _pickImage(ImageSource.gallery),
-              icon: const Icon(Icons.add_photo_alternate_outlined, size: 22),
-            ),
-            _busy
-                ? const Padding(
-                    padding: EdgeInsets.all(12),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    ),
-                  )
-                : IconButton.filled(
-                    tooltip: 'Generate designs',
-                    onPressed: () => _generate(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: Palette.cyan,
-                      foregroundColor: Colors.black,
-                      fixedSize: const Size(44, 44),
-                    ),
-                    icon: const Icon(Icons.arrow_upward_rounded, size: 22),
-                  ),
-          ],
-        ),
-        // Over 3,500 characters: a small counter (the limit in amber).
-        if (_text.text.length > maxBrief - 500)
-          Align(
-            alignment: Alignment.centerRight,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(0, 0, 56, 4),
-              child: Text(
-                '${formatCount(_text.text.length)} / ${formatCount(maxBrief)}',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  color: _text.text.length >= maxBrief
-                      ? const Color(0xffffc46b)
-                      : Palette.muted,
-                ),
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     ),
   );
 }
@@ -716,116 +940,131 @@ class _AiGeneratingScreenState extends State<AiGeneratingScreen>
       ),
       ('Preparing 3D garment', _step >= 3 && _progress >= 1),
     ];
-    return Column(
-      children: [
-        TopBar(onBack: c.back),
-        const ScreenTitle('Creating your design…', size: 24),
-        const SizedBox(height: 6),
-        const Text(
-          'Analysing your request and generating concepts.',
-          style: TextStyle(color: Palette.muted, fontSize: 12),
-        ),
-        Expanded(child: Center(child: const EmblemLoader(size: 240))),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 26),
-          child: Column(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: SizedBox(
-                  height: 5,
-                  child: Stack(
-                    children: [
-                      const Positioned.fill(
-                        child: ColoredBox(color: Palette.surface2),
-                      ),
-                      FractionallySizedBox(
-                        alignment: Alignment.centerLeft,
-                        widthFactor: _progress.clamp(0, 1),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xff00e0e4),
-                                Color(0xff04c6f3),
-                                Color(0xff7560ff),
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: ('Creating your design').toUpperCase(),
+      compact: true,
+      bubbleKey: const ValueKey('generating-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('generating-bubble-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          const ScreenTitle('Creating your design…', size: 24),
+          const SizedBox(height: 6),
+          const Text(
+            'Analysing your request and generating concepts.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          ),
+          Expanded(child: Center(child: const EmblemLoader(size: 240))),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: SizedBox(
+                    height: 5,
+                    child: Stack(
+                      children: [
+                        const Positioned.fill(
+                          child: ColoredBox(color: Palette.surface2),
+                        ),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: _progress.clamp(0, 1),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xff00e0e4),
+                                  Color(0xff04c6f3),
+                                  Color(0xff7560ff),
+                                ],
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Palette.cyan.withValues(alpha: .7),
+                                  blurRadius: 8,
+                                ),
                               ],
                             ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Palette.cyan.withValues(alpha: .7),
-                                blurRadius: 8,
-                              ),
-                            ],
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 16),
-              for (final (label, done) in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 7),
-                  child: Row(
-                    children: [
-                      done
-                          ? const Icon(
-                              Icons.check_circle_rounded,
-                              color: Palette.cyan,
-                              size: 21,
-                            )
-                          : const SizedBox(
-                              width: 21,
-                              height: 21,
-                              child: Padding(
-                                padding: EdgeInsets.all(3),
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
+                const SizedBox(height: 16),
+                for (final (label, done) in rows)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 7),
+                    child: Row(
+                      children: [
+                        done
+                            ? const Icon(
+                                Icons.check_circle_rounded,
+                                color: Palette.cyan,
+                                size: 21,
+                              )
+                            : const SizedBox(
+                                width: 21,
+                                height: 21,
+                                child: Padding(
+                                  padding: EdgeInsets.all(3),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
                                 ),
                               ),
+                        const SizedBox(width: 12),
+                        Flexible(
+                          child: Text(
+                            label,
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: done ? Palette.text : Palette.muted,
                             ),
-                      const SizedBox(width: 12),
-                      Flexible(
-                        child: Text(
-                          label,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: done ? Palette.text : Palette.muted,
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0x33E92137),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0x88E92137)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          _error!,
-                          style: const TextStyle(fontSize: 11.5),
+                if (_error != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 6, 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0x33E92137),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0x88E92137)),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _error!,
+                            style: const TextStyle(fontSize: 11.5),
+                          ),
                         ),
-                      ),
-                      TextButton(onPressed: _start, child: const Text('Retry')),
-                    ],
+                        TextButton(
+                          onPressed: _start,
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                ],
+                const SizedBox(height: 26),
               ],
-              const SizedBox(height: 26),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -931,6 +1170,7 @@ class _ReferencesToKit extends StatelessWidget {
 /// create ends the run, so late pictures are dropped.
 void startResults(AppController c) {
   final run = ++c.resultsRun;
+  c.newAiSession();
   final primary = Concept(
     DesignSpec(
       designName: 'Your design',
@@ -966,13 +1206,24 @@ void startResults(AppController c) {
 
 Future<void> _planOptions(AppController c, int run) async {
   try {
-    final specs = await c.ai.planConcepts(
+    // A busy moment (rate limit, time-out) must not leave just "1 / 1"
+    // (client 2026-11-04, 390.jpg): the plan is asked up to three times.
+    Future<List<DesignSpec>> plan() => c.ai.planConcepts(
       brief: c.brief,
       references: c.references,
       mode: c.briefMode,
       sport: c.aiSport,
       garment: c.aiGarment,
     );
+    List<DesignSpec>? specs;
+    for (var attempt = 0; specs == null; attempt++) {
+      try {
+        specs = await plan();
+      } catch (_) {
+        if (attempt >= 2 || run != c.resultsRun) rethrow;
+        await Future<void>.delayed(Duration(seconds: 4 * (attempt + 1)));
+      }
+    }
     if (run != c.resultsRun || specs.isEmpty) return;
     String hex(Color x) =>
         '#${x.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}';
@@ -992,7 +1243,7 @@ Future<void> _planOptions(AppController c, int run) async {
     ];
     c.update(() {
       // The primary keeps its picture and takes the plan's 3D kit spec.
-      c.concepts.first.spec = specs.first;
+      c.concepts.first.spec = specs!.first;
       c.concepts = [...c.concepts.take(1), ...options];
     });
     for (final o in options) {
@@ -1019,6 +1270,10 @@ Future<void> renderDesign(
     o.view = v;
     o.error = null;
   });
+  final scene = c.aiScene == 'custom' && c.aiSceneImage == null
+      ? 'auto'
+      : c.aiScene;
+  c.aiMadeScene = scene;
   try {
     final image = await c.ai.designMockup(
       brief: c.brief,
@@ -1028,6 +1283,8 @@ Future<void> renderDesign(
       direction: o.direction,
       quality: quality,
       view: v,
+      scene: scene,
+      sceneImage: c.aiSceneImage,
     );
     if (run != c.resultsRun) return;
     o.image = image;
@@ -1036,7 +1293,11 @@ Future<void> renderDesign(
   } on AiException catch (e) {
     if (run == c.resultsRun) o.error = e.message;
   } finally {
-    if (run == c.resultsRun) c.update(() => o.busy = false);
+    if (run == c.resultsRun) {
+      c.update(() => o.busy = false);
+      // Recent designs: saved once all the designs are in.
+      c.saveAiSessionSoon();
+    }
   }
 }
 
@@ -1137,6 +1398,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
     if (edited == null) return;
     c.update(() => concept.image = edited);
+    c.saveAiSessionSoon();
     if (mounted) showToast(context, 'Design picture updated.');
   }
 
@@ -1157,33 +1419,19 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     if (mounted) showToast(context, message);
   }
 
-  /// "Open in 3D Designer" (MAKE IT 3D): the primary drawn flat, front and
-  /// back, by the same AI, then on the 3D kit through the design-picture
-  /// check. Sample designs (no AI) open as editable kits.
+  /// "Open in 3D Designer" (task 9.116): the primary picture read first (one
+  /// cheap AI call) for the nearest 3D garment we have and its own colours,
+  /// pattern, symbol and lettering (netball: the position letters), opened
+  /// on that garment. A singlet, jersey, tee or polo then takes the picture
+  /// itself: the same AI draws it flat, front and back, and the design-picture
+  /// check puts it on as drawn. Never a refusal: the closest garment, with a
+  /// note saying so; any step that fails leaves the kit in the picture's
+  /// colours. Sample designs (no AI) open as editable kits.
   Future<void> _openIn3d() async {
     final index = _sel;
     final primary = c.concepts[index];
     final image = primary.image;
     if (image == null) return _open(index);
-    // A design picture goes on a singlet, jersey, tee or polo (with or
-    // without the pocket) only: a hoodie takes the design's colours, pattern
-    // and wordmark, with the first attached logo as its crest.
-    final onItself = c.aiGarment ?? c.garment;
-    if (isHoodie(onItself) || isVarsity(onItself) || isTrack(onItself)) {
-      _open(index);
-      if (c.logoImage == null && c.references.isNotEmpty) {
-        c.update(() => c.logoImage = c.references.first);
-      }
-      showToast(
-        context,
-        isTrack(onItself)
-            ? trackDesignNote
-            : isVarsity(onItself)
-            ? varsityDesignNote
-            : hoodieDesignNote,
-      );
-      return;
-    }
     // Kept for when this screen has gone (Back to create while drawing).
     final messenger = ScaffoldMessenger.of(context);
     void say(String text) => messenger.showSnackBar(
@@ -1193,7 +1441,71 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         backgroundColor: Palette.surface2,
       ),
     );
+    final run = c.resultsRun;
+    final asked = c.aiGarment ?? c.garment;
+    DesignReading? reading;
+    if (AiService.enabled) {
+      c.update(() => c.readingBusy = true);
+      try {
+        reading = await c.ai.readDesign(
+          image,
+          sport: primary.spec.sport,
+          garment: asked,
+        );
+      } on Object {
+        reading = null;
+      } finally {
+        c.update(() => c.readingBusy = false);
+      }
+      if (c.resultsRun != run || c.screen != AppScreen.concepts) return;
+    }
+    // Not read (no AI, or the reading failed): the design's own spec on the
+    // garment asked for, as before.
+    final garment = reading?.garment ?? asked;
+    var closest = '';
+    if (reading != null) {
+      final box = reading.crest;
+      final logo =
+          c.logoImage ??
+          (c.references.isNotEmpty ? c.references.first : null) ??
+          (box == null ? null : await cropCrest(image, box));
+      final printBox = reading.print;
+      final print = printBox == null ? null : await cropPrint(image, printBox);
+      if (c.resultsRun != run || c.screen != AppScreen.concepts) return;
+      final missing = closestModel(c.brief);
+      closest = missing != null
+          ? '${closestNote(missing)} '
+          : reading.exact
+          ? ''
+          : 'Shown on our ${garment.toLowerCase()}: the closest 3D garment '
+                'to your ${reading.seen.isEmpty ? 'design' : reading.seen}. ';
+      c.artwork.add(image);
+      c.openReading(index, reading, logo: logo, print: print);
+      if (print == null) _printFor(reading.motif);
+    }
+    // A design picture goes on a singlet, jersey, tee or polo (with or
+    // without the pocket) only: other garments take the design's colours,
+    // pattern, symbol and lettering.
+    if (!DesignReading.drawn.contains(garment) &&
+        (reading != null ||
+            isHoodie(garment) ||
+            isVarsity(garment) ||
+            isTrack(garment))) {
+      if (reading == null) return _openOnGarment(index, garment);
+      say(
+        '$closest${closest.isEmpty ? 'Your ${garment.toLowerCase()} takes' : 'It takes'} '
+        'your design’s colours, pattern, symbol and lettering.',
+      );
+      return;
+    }
     if (!c.signedIn) {
+      if (reading != null) {
+        say(
+          '${closest}Sign in to put the picture itself on the 3D kit: the '
+          'print sheet is kept with your saved assets.',
+        );
+        return;
+      }
       say(
         'Sign in to make it 3D: the print sheet is kept with your saved '
         'assets.',
@@ -1204,14 +1516,27 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     c.mockupImage = image;
     final Uint8List sheet;
     try {
-      sheet = await c.mockupPrintSheet(frontOnly: primary.view == 'front');
+      sheet = await c.mockupPrintSheet(
+        frontOnly: primary.view == 'front',
+        garment: reading?.garment,
+      );
     } on AiException catch (e) {
-      if (c.screen == AppScreen.concepts) say('Make it 3D: ${e.message}');
+      if (reading != null) {
+        say(
+          '${closest}The flat print sheet could not be drawn (${e.message}), '
+          'so the kit takes your design’s colours, pattern, symbol and '
+          'lettering.',
+        );
+      } else if (c.screen == AppScreen.concepts) {
+        say('Make it 3D: ${e.message}');
+      }
       return;
     }
-    // Back to the brief (or a new Generate) meanwhile: the user stays where
-    // they went; the print sheet is kept in Artwork.
-    if (c.screen != AppScreen.concepts) {
+    // Back to the brief, a new Generate or another design opened meanwhile:
+    // the user stays where they went; the print sheet is kept in Artwork.
+    if (reading == null
+        ? c.screen != AppScreen.concepts
+        : c.screen != AppScreen.studio || c.selectedConcept != index) {
       say('Your print sheet is ready in Assets › Artwork.');
       return;
     }
@@ -1220,15 +1545,59 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
     try {
-      final done = await c.importDesignPicture('ai-print-sheet.jpg', sheet);
-      if (done != null) say(done);
+      // A sheet moved apart (AiService.separateHalves) is a PNG.
+      final done = await c.importDesignPicture(
+        sheet.length > 4 && sheet[0] == 0x89
+            ? 'ai-print-sheet.png'
+            : 'ai-print-sheet.jpg',
+        sheet,
+        known: reading != null,
+      );
+      if (done != null) say('$closest$done');
     } on Object catch (e) {
       say(
-        e is ApiException
+        reading != null
+            ? '${closest}The picture itself could not go on the 3D kit '
+                  '(${e is ApiException ? e.message : 'it was not read'}), so '
+                  'the kit takes your design’s colours, pattern, symbol '
+                  'and lettering.'
+            : e is ApiException
             ? e.message
             : 'The print sheet could not go on the 3D kit.',
       );
     }
+  }
+
+  /// The design's spec on [garment] (the picture could not be read): a
+  /// hoodie or jacket takes the first attached logo as its crest.
+  void _openOnGarment(int index, String garment) {
+    _open(index);
+    if (c.logoImage == null && c.references.isNotEmpty) {
+      c.update(() => c.logoImage = c.references.first);
+    }
+    if (isHoodie(garment) || isVarsity(garment) || isTrack(garment)) {
+      showToast(
+        context,
+        isTrack(garment)
+            ? trackDesignNote
+            : isVarsity(garment)
+            ? varsityDesignNote
+            : hoodieDesignNote,
+      );
+    }
+  }
+
+  /// The 3D kit's print pattern from the picture's motif, in the background
+  /// (a design picture put on meanwhile stays as drawn, without it).
+  void _printFor(String motif) {
+    if (!AiService.enabled || motif.isEmpty) return;
+    final spec = c.spec;
+    c.ai.generatePattern(motif).then((tile) {
+      c.aiPatterns.add(tile);
+      if (identical(c.spec, spec) && c.layout?['kind'] != 'drawing') {
+        c.update(() => c.patternTile = tile);
+      }
+    }, onError: (_) {});
   }
 
   void _backToCreate() {
@@ -1290,6 +1659,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
       final bytes = base64Decode(answer.substring(answer.indexOf(',') + 1));
       _previous[o] = image;
       c.update(() => o.image = bytes);
+      c.saveAiSessionSoon();
       _change.clear();
     } on ApiException catch (e) {
       if (run == c.resultsRun) {
@@ -1336,9 +1706,25 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               if (before != null) {
                 _previous[o] = null;
                 c.update(() => o.image = before);
+                c.saveAiSessionSoon();
               }
             case 'studio':
               _open(index);
+            case 'player':
+              final s = o.spec;
+              openPlayerShot(
+                context,
+                c,
+                PlayerKit(
+                  pictures: [?o.image],
+                  sport: c.sport,
+                  garment: s.garment,
+                  name: s.designName,
+                  // The AI picture shows the true colours: no colour list.
+                  logoText: s.logoText,
+                  backName: s.logoText,
+                ),
+              );
             default:
               if (action.startsWith('picture-')) {
                 _ReferencesToKit(
@@ -1372,6 +1758,12 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               enabled: !o.busy,
               child: const Text('Undo last refine'),
             ),
+          if (ai && o.image != null)
+            PopupMenuItem(
+              value: 'player',
+              enabled: !o.busy,
+              child: const Text('See it on a player'),
+            ),
           const PopupMenuItem(
             value: 'studio',
             child: Text('Customise in 3D Studio'),
@@ -1390,18 +1782,14 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
   }
 
-  Widget _picture(Concept? o, {required bool big}) {
+  Widget _picture(Concept? o, {required bool big, BoxFit? fit}) {
     if (o == null) {
       // Waiting for the plan while a Generate runs; otherwise nothing yet.
-      return Center(
-        child: c.concepts.isEmpty || c.planError != null
-            ? const Icon(Icons.image_outlined, color: Palette.muted)
-            : const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-      );
+      return c.concepts.isEmpty || c.planError != null
+          ? const Center(
+              child: Icon(Icons.image_outlined, color: Palette.muted),
+            )
+          : _loader(big: big);
     }
     final hasPicture = o.image != null || o.asset != null;
     return Stack(
@@ -1411,30 +1799,16 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
           artImage(
             bytes: o.image,
             asset: o.asset,
-            fit: big ? BoxFit.contain : BoxFit.cover,
+            fit: fit ?? (big ? BoxFit.contain : BoxFit.cover),
           )
         else if (o.busy)
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (big)
-                const EmblemLoader(size: 110)
-              else
-                const SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              if (big) ...[
-                const SizedBox(height: 8),
-                Text(
-                  o.pending == 'high'
-                      ? 'Rendering your HD design… about a minute'
-                      : 'Rendering your design… about 40 seconds',
-                  style: const TextStyle(fontSize: 12, color: Palette.muted),
-                ),
-              ],
-            ],
+          _loader(
+            big: big,
+            text: !big
+                ? null
+                : o.pending == 'high'
+                ? 'Rendering your HD design… about a minute'
+                : 'Rendering your design… about 40 seconds',
           )
         else if (!big)
           const Center(
@@ -1468,32 +1842,58 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         if (hasPicture && o.busy)
           ColoredBox(
             color: const Color(0x8802060b),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(strokeWidth: 2),
-                  if (big) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      o.pending == 'refine'
-                          ? 'Refining this design… about a minute'
-                          : o.pending == 'high' && o.quality != 'high'
-                          ? 'Rendering in HD… about a minute'
-                          : 'Regenerating…',
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: Palette.cyan,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+            child: _loader(
+              big: big,
+              color: Palette.cyan,
+              text: !big
+                  ? null
+                  : o.pending == 'refine'
+                  ? 'Refining this design… about a minute'
+                  : o.pending == 'high' && o.quality != 'high'
+                  ? 'Rendering in HD… about a minute'
+                  : 'Regenerating…',
             ),
           ),
       ],
     );
   }
+
+  /// The spinning 3DEEZI emblem as big as its place allows, centred, with
+  /// [text] under it (client 2026-11-16, 566.png: "Loading is too small,
+  /// should be big"; the cards' loaders were a dot).
+  Widget _loader({
+    required bool big,
+    String? text,
+    Color color = Palette.muted,
+  }) => LayoutBuilder(
+    builder: (context, box) {
+      final w = box.maxWidth.isFinite ? box.maxWidth : 300.0;
+      final h = box.maxHeight.isFinite ? box.maxHeight : 300.0;
+      final side = math.min(w, h - (text == null ? 0 : 70));
+      final size = big
+          ? (side * .62).clamp(110.0, 300.0)
+          : (side * .74).clamp(24.0, 120.0);
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            EmblemLoader(size: size),
+            if (text != null) ...[
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  text,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: color),
+                ),
+              ),
+            ],
+          ],
+        ),
+      );
+    },
+  );
 
   /// Full screen: the selected picture alone, pinch to zoom; closing returns
   /// to the same design.
@@ -1505,9 +1905,10 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     ),
   );
 
-  /// One floating thumbnail: a translucent dark frame with a thin cyan
-  /// border and the design's number; tap to show it large.
-  Widget _thumb(int index, double size) {
+  /// One card of another design: a translucent dark frame with a thin cyan
+  /// border and the design's number, the picture whole over its blurred
+  /// backdrop; tap to show it large.
+  Widget _thumb(int index) {
     final o = index < c.concepts.length ? c.concepts[index] : null;
     final ready =
         o != null &&
@@ -1515,6 +1916,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
             o.asset != null ||
             o.error != null ||
             o.direction == null);
+    final hasPicture = o != null && (o.image != null || o.asset != null);
     return Semantics(
       button: true,
       label: 'Design ${index + 1}: show this design',
@@ -1522,8 +1924,6 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         key: ValueKey('thumb-$index'),
         onTap: ready ? () => _select(index) : null,
         child: Container(
-          width: size,
-          height: size,
           padding: const EdgeInsets.all(3),
           decoration: BoxDecoration(
             color: const Color(0x9902060b),
@@ -1539,13 +1939,20 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               fit: StackFit.expand,
               children: [
                 const ColoredBox(color: Color(0xff02070d)),
-                _picture(o, big: false),
+                if (hasPicture) ...[
+                  ImageFiltered(
+                    imageFilter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                    child: artImage(bytes: o.image, asset: o.asset),
+                  ),
+                  const ColoredBox(color: Color(0x88000000)),
+                ],
+                _picture(o, big: false, fit: BoxFit.contain),
                 Positioned(
-                  top: 3,
-                  left: 3,
+                  top: 4,
+                  left: 4,
                   child: Container(
-                    width: 20,
-                    height: 20,
+                    width: 22,
+                    height: 22,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
@@ -1556,7 +1963,7 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
                       '${index + 1}',
                       style: const TextStyle(
                         color: Palette.cyan,
-                        fontSize: 11,
+                        fontSize: 11.5,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -1570,148 +1977,326 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
     );
   }
 
-  /// The large design with its backdrop, ⋯ and full screen, and the
-  /// thumbnails of the others (page elements only: never in a download).
-  Widget _viewer(Concept? primary, int sel, int total) => LayoutBuilder(
-    builder: (context, box) {
-      final hasPicture = primary?.image != null || primary?.asset != null;
-      final ratio =
-          (primary?.image == null ? null : pictureRatio(primary!.image!)) ??
-          (primary?.image == null && primary?.asset != null
-              // The bundled sample pictures (demo mode) are landscape.
-              ? 1.5
-              : primary?.view == 'front'
-              ? 1.0
-              : 2 / 3);
-      final others = [
-        if (primary != null)
-          for (var i = 0; i < total; i++)
-            if (i != sel) i,
-      ];
-      final l = resultsLayout(
-        box.maxWidth,
-        box.maxHeight,
-        ratio,
-        box.maxHeight < 170 ? 0 : others.length,
-        picture: hasPicture,
-      );
-      final over = l.mode == ResultsMode.over;
-      return Center(
-        child: SizedBox(
-          key: const ValueKey('design-viewer'),
-          width: l.vw,
-          height: l.vh,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(over ? 14 : 0),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      const ColoredBox(color: Color(0xff02070d)),
-                      if (hasPicture) ...[
-                        ImageFiltered(
-                          imageFilter: ui.ImageFilter.blur(
-                            sigmaX: 22,
-                            sigmaY: 22,
-                          ),
-                          child: artImage(
-                            bytes: primary!.image,
-                            asset: primary.asset,
-                          ),
-                        ),
-                        const ColoredBox(color: Color(0x99000000)),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: l.top,
-                width: l.iw,
-                height: l.ih,
-                child: ClipRRect(
-                  key: ValueKey('design-$sel-picture'),
-                  borderRadius: BorderRadius.circular(over ? 14 : 0),
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: KeyedSubtree(
-                      key: ValueKey('design-$sel-${identityHashCode(primary)}'),
-                      child: _picture(primary, big: true),
-                    ),
-                  ),
-                ),
-              ),
-              if (primary != null)
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Row(
-                    children: [
-                      _menu(sel),
-                      if (hasPicture) ...[
-                        const SizedBox(width: 8),
-                        _RoundButton(
-                          child: IconButton(
-                            tooltip: 'Full screen',
-                            padding: EdgeInsets.zero,
-                            onPressed: () => _fullScreen(primary),
-                            icon: const Icon(
-                              Icons.fullscreen_rounded,
-                              color: Colors.white,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              if (l.tw > 0 && others.isNotEmpty)
-                Positioned(
-                  right: 12,
-                  bottom: 6,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Row(
-                        children: [
-                          for (final (n, i) in others.indexed) ...[
-                            if (n > 0) SizedBox(width: l.gap),
-                            _thumb(i, l.tw),
-                          ],
-                        ],
-                      ),
-                      const SizedBox(height: 3),
-                      // Kept inside the picture's right padding (QA 2026-10-22: "Tap to switc").
-                      const Padding(
-                        padding: EdgeInsets.only(right: 4),
-                        child: Text(
-                          'Tap to switch',
-                          key: ValueKey('tap-to-switch'),
-                          softWrap: false,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Color(0xffe6eef5),
-                            shadows: [
-                              Shadow(blurRadius: 3, offset: Offset(0, 1)),
-                              Shadow(blurRadius: 8),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            ],
+  /// The other designs as bigger cards (client 2026-10-30, 240.jpg): stacked
+  /// in a column beside the large design on wide screens, in a row under it
+  /// on phones. Page elements only: never in a download.
+  Widget _others(List<int> others, {required bool wide}) {
+    if (others.isEmpty) return const SizedBox.shrink();
+    if (!wide) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+        child: LayoutBuilder(
+          builder: (context, box) => SizedBox(
+            key: const ValueKey('design-others'),
+            height: (box.maxWidth * .24).clamp(78.0, 120.0),
+            child: Row(
+              children: [
+                for (final (n, i) in others.indexed) ...[
+                  if (n > 0) const SizedBox(width: 8),
+                  Expanded(child: _thumb(i)),
+                ],
+              ],
+            ),
           ),
         ),
       );
-    },
-  );
+    }
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 22.0, hint = 44.0;
+        final h = math.max(
+          0.0,
+          math.min(
+            300.0,
+            (box.maxHeight - hint - gap * (others.length - 1)) / others.length,
+          ),
+        );
+        return Column(
+          key: const ValueKey('design-others'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(
+              height: hint,
+              child: Column(
+                children: [
+                  Text(
+                    'OTHER OPTIONS',
+                    key: ValueKey('other-options'),
+                    softWrap: false,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: Color(0xfff2f8fd),
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    'Tap to preview',
+                    key: ValueKey('tap-to-switch'),
+                    textAlign: TextAlign.center,
+                    softWrap: false,
+                    style: TextStyle(fontSize: 12, color: Color(0xffc9d6e2)),
+                  ),
+                ],
+              ),
+            ),
+            for (final (n, i) in others.indexed) ...[
+              if (n > 0) const SizedBox(height: gap),
+              SizedBox(height: h, child: _thumb(i)),
+            ],
+          ],
+        );
+      },
+    );
+  }
+
+  /// BACKGROUND chips (client picture 362): Auto / Studio / Stadium / Custom.
+  /// The background is part of the AI picture, so a new one on shown designs
+  /// asks first ("Redraw": new AI pictures, the same for all four by default).
+  Widget _sceneRow() {
+    const scenes = {
+      'auto': 'Auto',
+      'studio': 'Studio',
+      'stadium': 'Stadium',
+      'custom': 'Custom',
+    };
+    final shown = c.concepts.any((o) => o.image != null);
+    final changed =
+        shown &&
+        c.aiScene != c.aiMadeScene &&
+        !(c.aiScene == 'custom' && c.aiSceneImage == null);
+    return Padding(
+      key: const ValueKey('scene-row'),
+      padding: const EdgeInsets.fromLTRB(14, 2, 14, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text(
+                  'BACKGROUND',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: Color(0xffe6eef5),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                for (final e in scenes.entries) ...[
+                  ChoiceChip(
+                    key: ValueKey('scene-${e.key}'),
+                    label: Text(e.value),
+                    selected: c.aiScene == e.key,
+                    showCheckmark: false,
+                    visualDensity: VisualDensity.compact,
+                    selectedColor: Palette.cyan,
+                    labelStyle: TextStyle(
+                      fontSize: 12.5,
+                      color: c.aiScene == e.key
+                          ? const Color(0xff021219)
+                          : const Color(0xffeef6fc),
+                    ),
+                    avatar: e.key == 'custom' && c.aiSceneImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: Image.memory(
+                              c.aiSceneImage!,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : null,
+                    onSelected: (_) => _pickScene(e.key),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+              ],
+            ),
+          ),
+          if (changed)
+            Row(
+              key: const ValueKey('scene-apply'),
+              children: [
+                Checkbox(
+                  value: c.aiSameScene,
+                  visualDensity: VisualDensity.compact,
+                  onChanged: (v) => c.update(() => c.aiSameScene = v ?? true),
+                ),
+                Expanded(
+                  child: Text(
+                    'Use the same setting for all ${c.concepts.length} options',
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _applyScene,
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('Redraw'),
+                ),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickScene(String id) async {
+    if (id == 'custom') {
+      final file = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1536,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      c.update(() {
+        c.aiSceneImage = bytes;
+        c.aiScene = 'custom';
+      });
+      return;
+    }
+    c.update(() => c.aiScene = id);
+  }
+
+  /// "Redraw": the shown design (or all four) made again with the new
+  /// background; new AI pictures, only on the client's tap.
+  void _applyScene() {
+    final list = c.concepts;
+    final targets = c.aiSameScene ? list : [if (list.isNotEmpty) list[_sel]];
+    for (final o in targets) {
+      if (o.direction != null && !o.busy) {
+        unawaited(renderDesign(c, o, o.quality ?? 'medium'));
+      }
+    }
+  }
+
+  /// The large design's width / height: its own, or its view's while it is
+  /// rendered.
+  double _ratio(Concept? primary) =>
+      (primary?.image == null ? null : pictureRatio(primary!.image!)) ??
+      (primary?.image == null && primary?.asset != null
+          // The bundled sample pictures (demo mode) are landscape.
+          ? 1.5
+          : primary?.view == 'front'
+          ? 1.0
+          : 2 / 3);
+
+  /// The large design open on the page (client 2026-11-02, 303.jpg: no frame,
+  /// no blurred copy at its sides), as big as the space it has allows, at its
+  /// own proportions (never stretched; on a phone as wide as the screen, see
+  /// [resultsLayout]), with a soft fade at its edges, pinch / double-tap zoom
+  /// and ⋯ and full screen on its top right corner.
+  Widget _viewer(Concept? primary, int sel, {required bool wide}) =>
+      LayoutBuilder(
+        builder: (context, box) {
+          final hasPicture = primary?.image != null || primary?.asset != null;
+          final l = resultsLayout(
+            box.maxWidth,
+            box.maxHeight,
+            _ratio(primary),
+            picture: hasPicture,
+            fillWidth: !wide,
+          );
+          final fade = (math.min(box.maxWidth, box.maxHeight) * .022).clamp(
+            10.0,
+            24.0,
+          );
+          Widget picture = ClipRect(
+            key: ValueKey('design-$sel-picture'),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 240),
+              child: KeyedSubtree(
+                key: ValueKey('design-$sel-${identityHashCode(primary)}'),
+                child: _picture(primary, big: true),
+              ),
+            ),
+          );
+          // The picture's own edges fade where they show; on a phone it spans
+          // the width (no side fade) and a tall one is cut at the frame's top
+          // and bottom, which fade instead.
+          final sides = l.iw < box.maxWidth - 1;
+          final cut = l.ih > box.maxHeight + 1;
+          if (hasPicture && l.iw > fade * 2 && l.ih > fade * 2) {
+            if (sides) {
+              picture = _EdgeFade(
+                fade: fade,
+                axis: Axis.horizontal,
+                child: picture,
+              );
+            }
+            if (!cut) {
+              picture = _EdgeFade(
+                fade: fade,
+                axis: Axis.vertical,
+                child: picture,
+              );
+            }
+          }
+          Widget art = Stack(
+            clipBehavior: Clip.hardEdge,
+            children: [
+              Positioned(
+                left: l.left,
+                top: l.top,
+                width: l.iw,
+                height: l.ih,
+                child: picture,
+              ),
+            ],
+          );
+          if (hasPicture) {
+            // Pinch / double-tap zoom (client 2026-11-16, 567.png); another
+            // design, picture or background starts unzoomed.
+            art = _ZoomArea(
+              key: ValueKey(
+                'zoom-$sel-${identityHashCode(primary)}-'
+                '${identityHashCode(primary?.image)}-${c.aiScene}',
+              ),
+              child: art,
+            );
+            if (cut) {
+              art = _EdgeFade(fade: fade, axis: Axis.vertical, child: art);
+            }
+          }
+          return SizedBox(
+            key: const ValueKey('design-viewer'),
+            width: box.maxWidth,
+            height: box.maxHeight,
+            child: Stack(
+              children: [
+                Positioned.fill(child: art),
+                if (primary != null)
+                  Positioned(
+                    top: math.max(0.0, l.top) + 8,
+                    right: math.max(0.0, box.maxWidth - l.left - l.iw) + 8,
+                    child: Row(
+                      children: [
+                        _menu(sel),
+                        if (hasPicture) ...[
+                          const SizedBox(width: 8),
+                          _RoundButton(
+                            child: IconButton(
+                              tooltip: 'Full screen',
+                              padding: EdgeInsets.zero,
+                              onPressed: () => _fullScreen(primary),
+                              icon: const Icon(
+                                Icons.fullscreen_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      );
 
   void _collapse() {
     _changeFocus.unfocus();
@@ -1853,6 +2438,16 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
         list.length == 1 && c.planError == null && list.first.direction != null
         ? 4
         : list.length;
+    final others = [
+      if (primary != null)
+        for (var i = 0; i < total; i++)
+          if (i != sel) i,
+    ];
+    final width = MediaQuery.sizeOf(context).width;
+    // Wide screens: the other designs in a column at the right (240.jpg).
+    final wide = width >= 720;
+    final side = (width * .17).clamp(150.0, 250.0);
+    final ratio = _ratio(primary);
     return Column(
       children: [
         TopBar(
@@ -1884,81 +2479,275 @@ class _ConceptsScreenState extends State<ConceptsScreen> {
               ),
           ],
         ),
-        Expanded(child: _viewer(primary, sel, total)),
-        TapRegion(
-          onTapOutside: (_) => _collapse(),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (!_refineOpen) ...[
-                  Row(
-                    children: [
-                      Expanded(
-                        child: GradientButton(
-                          label: c.sheetBusy
-                              ? 'Drawing the print sheet…'
-                              : 'Open in 3D Designer',
-                          icon: Icons.view_in_ar_outlined,
-                          onPressed:
-                              primary == null || c.sheetBusy || !hasPicture
-                              ? null
-                              : _openIn3d,
+        if (AiService.enabled || c.concepts.any((o) => o.direction != null))
+          _sceneRow(),
+        Expanded(
+          child: wide
+              ? LayoutBuilder(
+                  // Wide (client 2026-11-02, 303.jpg): the picture at its full
+                  // height with the cards right beside it, the two centred
+                  // and the controls under both (at least 640 wide).
+                  builder: (context, box) {
+                    final group = math.min(
+                      box.maxWidth - 32,
+                      math.max(
+                        _minGroup,
+                        (box.maxHeight - 4 - _wideControls) * ratio +
+                            _sideGap +
+                            side,
+                      ),
+                    );
+                    return Center(
+                      child: SizedBox(
+                        width: group,
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: LayoutBuilder(
+                                  builder: (context, row) => Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      SizedBox(
+                                        width: math.max(
+                                          0.0,
+                                          math.min(
+                                            row.maxHeight * ratio,
+                                            group - _sideGap - side,
+                                          ),
+                                        ),
+                                        child: _viewer(
+                                          primary,
+                                          sel,
+                                          wide: true,
+                                        ),
+                                      ),
+                                      const SizedBox(width: _sideGap),
+                                      SizedBox(
+                                        width: side,
+                                        child: _others(others, wide: true),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            _controls(primary, sel, hasPicture, wide: true),
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 58,
-                        height: 52,
-                        child: OutlinedButton(
-                          key: const ValueKey('download-design'),
-                          onPressed: hasPicture ? () => _download(sel) : null,
-                          style: OutlinedButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            foregroundColor: Palette.cyan,
-                            side: BorderSide(
-                              color: Palette.cyan.withValues(alpha: .8),
-                              width: 1.5,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(13),
-                            ),
-                          ),
-                          child: Tooltip(
-                            message: 'Download design ${sel + 1}',
-                            child: const Icon(Icons.download_rounded, size: 24),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                // Clear of the 3DEEZI ASSIST button beside it.
-                Padding(
-                  padding: const EdgeInsets.only(right: 60),
-                  child: _refineBar(hasPicture && !(primary?.busy ?? true)),
-                ),
-                if (c.planError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'More designs: ${c.planError}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Palette.muted,
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+                    );
+                  },
+                )
+              : _viewer(primary, sel, wide: false),
         ),
+        if (!wide) ...[
+          _others(others, wide: false),
+          _controls(primary, sel, hasPicture, wide: false),
+        ],
       ],
     );
   }
+
+  /// Open in 3D Designer and the download, then the slim refine bar (wide:
+  /// under the large design and the cards, as wide as the two).
+  Widget _controls(
+    Concept? primary,
+    int sel,
+    bool hasPicture, {
+    required bool wide,
+  }) => TapRegion(
+    onTapOutside: (_) => _collapse(),
+    child: Padding(
+      padding: wide
+          ? const EdgeInsets.fromLTRB(0, 10, 0, 10)
+          : const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (!_refineOpen) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: GradientButton(
+                    label: c.readingBusy
+                        ? 'Reading your design…'
+                        : c.sheetBusy
+                        ? 'Drawing the print sheet…'
+                        : 'Open in 3D Designer',
+                    icon: Icons.view_in_ar_outlined,
+                    onPressed:
+                        primary == null ||
+                            c.sheetBusy ||
+                            c.readingBusy ||
+                            !hasPicture
+                        ? null
+                        : _openIn3d,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                SizedBox(
+                  width: 58,
+                  height: 52,
+                  child: OutlinedButton(
+                    key: const ValueKey('download-design'),
+                    onPressed: hasPicture ? () => _download(sel) : null,
+                    style: OutlinedButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      foregroundColor: Palette.cyan,
+                      side: BorderSide(
+                        color: Palette.cyan.withValues(alpha: .8),
+                        width: 1.5,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                    child: Tooltip(
+                      message: 'Download design ${sel + 1}',
+                      child: const Icon(Icons.download_rounded, size: 24),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+          ],
+          // Clear of the 3DEEZI ASSIST button beside it.
+          Padding(
+            padding: const EdgeInsets.only(right: 60),
+            child: _refineBar(hasPicture && !(primary?.busy ?? true)),
+          ),
+          // A shirt we have no 3D model of (images/416): which garment the
+          // 3D preview uses.
+          if (closestModel(c.brief) case final m?)
+            Padding(
+              key: const ValueKey('closest-note'),
+              padding: const EdgeInsets.only(top: 6, right: 60),
+              child: Text(
+                closestNote(m),
+                style: const TextStyle(fontSize: 12, color: Palette.cyan),
+              ),
+            ),
+          if (c.planError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                'More designs: ${c.planError}',
+                style: const TextStyle(fontSize: 12, color: Palette.muted),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// The gap between the large design and the column of the other designs.
+const _sideGap = 20.0;
+
+/// Wide screens: about how tall the controls under the large design are, and
+/// the narrowest the large design, the cards and the controls go together.
+const _wideControls = 130.0;
+const _minGroup = 640.0;
+
+/// Pinch to zoom and drag to pan, double-tap to zoom in where tapped and
+/// double-tap again to zoom back out (client 2026-11-16, 567.png: "should be
+/// able to zoom in"). A new key starts unzoomed.
+class _ZoomArea extends StatefulWidget {
+  const _ZoomArea({super.key, required this.child});
+  final Widget child;
+  @override
+  State<_ZoomArea> createState() => _ZoomAreaState();
+}
+
+class _ZoomAreaState extends State<_ZoomArea>
+    with SingleTickerProviderStateMixin {
+  final _t = TransformationController();
+  late final AnimationController _a = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 240),
+  )..addListener(() => _t.value = _to?.value ?? _t.value);
+  Animation<Matrix4>? _to;
+  Offset _at = Offset.zero;
+
+  @override
+  void dispose() {
+    _a.dispose();
+    _t.dispose();
+    super.dispose();
+  }
+
+  void _doubleTap() {
+    const k = 2.5;
+    final zoomed = _t.value.getMaxScaleOnAxis() > 1.01;
+    // Zoom in keeping the tapped point where it is.
+    final end = zoomed
+        ? Matrix4.identity()
+        : (Matrix4.identity()
+            ..setEntry(0, 0, k)
+            ..setEntry(1, 1, k)
+            ..setEntry(0, 3, _at.dx * (1 - k))
+            ..setEntry(1, 3, _at.dy * (1 - k)));
+    _to = Matrix4Tween(
+      begin: _t.value,
+      end: end,
+    ).animate(CurvedAnimation(parent: _a, curve: Curves.easeOutCubic));
+    _a.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onDoubleTapDown: (d) => _at = d.localPosition,
+    onDoubleTap: _doubleTap,
+    child: InteractiveViewer(
+      transformationController: _t,
+      minScale: 1,
+      maxScale: 6,
+      onInteractionStart: (_) => _a.stop(),
+      child: widget.child,
+    ),
+  );
+}
+
+/// A soft fade to transparent at both ends of [axis], [fade] long, so the
+/// open picture does not look cut off.
+class _EdgeFade extends StatelessWidget {
+  const _EdgeFade({
+    required this.fade,
+    required this.axis,
+    required this.child,
+  });
+
+  final double fade;
+  final Axis axis;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => ShaderMask(
+    blendMode: BlendMode.dstIn,
+    shaderCallback: (r) {
+      final horizontal = axis == Axis.horizontal;
+      final length = horizontal ? r.width : r.height;
+      final f = length > 0 ? (fade / length).clamp(0.0, .5) : 0.0;
+      return LinearGradient(
+        begin: horizontal ? Alignment.centerLeft : Alignment.topCenter,
+        end: horizontal ? Alignment.centerRight : Alignment.bottomCenter,
+        colors: const [
+          Color(0x00000000),
+          Color(0xff000000),
+          Color(0xff000000),
+          Color(0x00000000),
+        ],
+        stops: [0, f, 1 - f, 1],
+      ).createShader(r);
+    },
+    child: child,
+  );
 }
 
 /// A small round translucent button on the picture (⋯, full screen).
@@ -1989,10 +2778,8 @@ class _FullScreenPicture extends StatelessWidget {
     body: Stack(
       children: [
         Positioned.fill(
-          child: InteractiveViewer(
+          child: _ZoomArea(
             key: const ValueKey('full-screen-zoom'),
-            minScale: 1,
-            maxScale: 6,
             child: Center(
               child: artImage(
                 bytes: o.image,
@@ -2023,77 +2810,40 @@ class _FullScreenPicture extends StatelessWidget {
   );
 }
 
-enum ResultsMode { below, over, fill }
-
-/// Where the large design and its thumbnails go in a [w]×[h] area, for a
-/// picture of aspect [ar] (width / height) and [n] thumbnails (the website's
-/// viewerLayout): `below` when the picture is as wide as the area and leaves
-/// room under it, so the thumbnails sit under it over its blurred backdrop
-/// and the viewer still fills the area; `over` when it fills the height (the
-/// thumbnails float inside its bottom-right corner); `fill` with no picture.
-({
-  ResultsMode mode,
-  double vw,
-  double vh,
-  double iw,
-  double ih,
-  double top,
-  double tw,
-  double gap,
-})
-resultsLayout(double w, double h, double ar, int n, {bool picture = true}) {
-  final iw = math.max(0.0, math.min(w, h * ar));
+/// Where the large design goes in its [w]×[h] frame, for a picture of aspect
+/// [ar] (width / height): as big as it fits, centred, never cropped or
+/// stretched (the website's viewerLayout); with no picture, the whole frame.
+///
+/// [fillWidth] (phones, client 2026-11-16 565.png: "cut off on left and right
+/// side, should be full screen"): the picture spans the whole width; a tall
+/// picture loses at most [_maxCut] of its height (sky and floor, more of the
+/// floor) so the garments stay whole.
+({double iw, double ih, double left, double top}) resultsLayout(
+  double w,
+  double h,
+  double ar, {
+  bool picture = true,
+  bool fillWidth = false,
+}) {
+  if (!picture) return (iw: w, ih: h, left: 0.0, top: 0.0);
+  var iw = math.max(0.0, math.min(w, h * ar));
+  if (fillWidth && ar > 0 && w > 0) {
+    iw = math.min(w, h / (1 - _maxCut) * ar);
+  }
   final ih = ar > 0 ? iw / ar : 0.0;
-  final gap = w < 520 ? 6.0 : 10.0;
-  // About 20% of the picture per thumbnail, smaller when three must fit.
-  final tw = n == 0
-      ? 0.0
-      : math
-            .max(
-              56.0,
-              math.min(
-                math.min(iw * .2, 150.0),
-                (iw * .66 - (n - 1) * gap) / n,
-              ),
-            )
-            .roundToDouble();
-  final cluster = n == 0 ? 0.0 : tw + 24;
-  if (!picture) {
-    return (
-      mode: ResultsMode.fill,
-      vw: w,
-      vh: h,
-      iw: w,
-      ih: h,
-      top: 0.0,
-      tw: tw,
-      gap: gap,
-    );
-  }
-  if (n > 0 && h - ih >= cluster + 12) {
-    final top = math.max(0.0, ((h - cluster - 12 - ih) / 2).roundToDouble());
-    return (
-      mode: ResultsMode.below,
-      vw: iw,
-      vh: h,
-      iw: iw,
-      ih: ih,
-      top: top,
-      tw: tw,
-      gap: gap,
-    );
-  }
   return (
-    mode: ResultsMode.over,
-    vw: iw,
-    vh: ih,
     iw: iw,
     ih: ih,
-    top: 0.0,
-    tw: tw,
-    gap: gap,
+    left: ((w - iw) / 2).roundToDouble(),
+    // A cut picture loses more floor than sky: the garments sit above the
+    // middle of the AI's presentations.
+    top: ((h - ih) * (ih > h ? _topShare : .5)).roundToDouble(),
   );
 }
+
+/// The most of a tall picture's height a phone may cut to fill the width,
+/// and the share of the cut taken from the top.
+const _maxCut = .4, _topShare = .35;
 
 /// A picture's width / height from its PNG or JPEG header (null: unknown).
 double? pictureRatio(Uint8List b) {
@@ -2140,3 +2890,91 @@ const trackDesignNote =
 const hoodieDesignNote =
     'Hoodies take your design’s colours and logo; full print designs on '
     'hoodies are coming.';
+
+/// The club symbol cut from an AI picture ([box] in fractions of it, with a
+/// little margin), as a small PNG for the 3D kit's chest (task 9.116).
+Future<Uint8List?> cropCrest(Uint8List picture, Rect box) async {
+  try {
+    final codec = await ui.instantiateImageCodec(picture);
+    final image = (await codec.getNextFrame()).image;
+    final w = image.width.toDouble(), h = image.height.toDouble();
+    const pad = 0.12;
+    final src = Rect.fromLTRB(
+      math.max(0, (box.left - box.width * pad) * w),
+      math.max(0, (box.top - box.height * pad) * h),
+      math.min(w, (box.right + box.width * pad) * w),
+      math.min(h, (box.bottom + box.height * pad) * h),
+    );
+    if (src.width < 8 || src.height < 8) return null;
+    final k = math.min(1.0, 320 / math.max(src.width, src.height));
+    final out = Size(
+      (src.width * k).roundToDouble(),
+      (src.height * k).roundToDouble(),
+    );
+    final recorder = ui.PictureRecorder();
+    Canvas(recorder).drawImageRect(
+      image,
+      src,
+      Offset.zero & out,
+      Paint()..filterQuality = FilterQuality.high,
+    );
+    final crest = await recorder.endRecording().toImage(
+      out.width.toInt(),
+      out.height.toInt(),
+    );
+    final data = await crest.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
+  } on Object {
+    return null;
+  }
+}
+
+/// The viewer's mark for a full-colour print patch (viewer texture.js
+/// PRINT_MARK): two exact pixels at its top left.
+const printMark = [
+  [3, 222, 177],
+  [17, 61, 233],
+];
+
+/// A patch of the AI picture's own print ([box] in fractions of it, a little
+/// inside its edges), as a marked PNG the 3D kit lays all over the body
+/// (task 9.126).
+Future<Uint8List?> cropPrint(Uint8List picture, Rect box) async {
+  try {
+    final codec = await ui.instantiateImageCodec(picture);
+    final image = (await codec.getNextFrame()).image;
+    final w = image.width.toDouble(), h = image.height.toDouble();
+    const inset = 0.08;
+    final src = Rect.fromLTWH(
+      (box.left + box.width * inset) * w,
+      (box.top + box.height * inset) * h,
+      box.width * (1 - 2 * inset) * w,
+      box.height * (1 - 2 * inset) * h,
+    );
+    if (src.width < 24 || src.height < 24) return null;
+    final k = math.min(1.0, 512 / math.max(src.width, src.height));
+    final ow = (src.width * k).round(), oh = (src.height * k).round();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder)
+      ..drawImageRect(
+        image,
+        src,
+        Rect.fromLTWH(0, 0, ow.toDouble(), oh.toDouble()),
+        Paint()..filterQuality = FilterQuality.high,
+      );
+    for (var i = 0; i < printMark.length; i++) {
+      final [r, g, b] = printMark[i];
+      canvas.drawRect(
+        Rect.fromLTWH(i.toDouble(), 0, 1, 1),
+        Paint()
+          ..color = Color.fromARGB(255, r, g, b)
+          ..isAntiAlias = false,
+      );
+    }
+    final out = await recorder.endRecording().toImage(ow, oh);
+    final data = await out.toByteData(format: ui.ImageByteFormat.png);
+    return data?.buffer.asUint8List();
+  } on Object {
+    return null;
+  }
+}

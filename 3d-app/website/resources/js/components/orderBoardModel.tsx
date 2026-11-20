@@ -4,6 +4,7 @@
  * pills, garment pictures, dates.
  */
 import { useId, useState, type ReactNode } from 'react';
+import { formatMoney } from '../money';
 
 export type StageKey = 'received' | 'design' | 'production' | 'shipped' | 'delivered';
 export type Tone = 'blue' | 'amber' | 'violet' | 'green' | 'red' | 'grey';
@@ -55,7 +56,8 @@ export interface OrderDetail extends BoardOrder {
   total: string | null; currency: string; files: OrderFile[]; proof: OrderFile | null; proofs: OrderFile[];
   stages_reached: Partial<Record<StageKey | 'cancelled', string>>; updates: OrderUpdate[];
 }
-export interface DraftSummary { id: number; kind: string; title: string | null; updated_at: string }
+/** `name`: the team name, else what the draft holds ("Rugby League Jersey · 25", OrderDraft::summary()). */
+export interface DraftSummary { id: number; kind: string; title: string | null; name: string | null; created_at: string; updated_at: string }
 export interface BoardData { view: 'current' | 'completed'; columns: Record<StageKey, BoardOrder[]>; cancelled: BoardOrder[]; drafts: DraftSummary[]; counts: { current: number; completed: number } | null }
 
 /* ------------------------------------------------------------------------------------------- reading the API */
@@ -223,18 +225,39 @@ export function readBoard(raw: unknown, view: 'current' | 'completed'): BoardDat
   const counts = obj(b.counts);
   return {
     view, columns, cancelled: readOrders(b.cancelled),
-    drafts: arr(b.drafts).map(obj).filter((d): d is Raw => !!d && d.id !== undefined).map(d => ({ id: num(d.id), kind: str(d.kind, 'form'), title: strOrNull(d.title), updated_at: str(d.updated_at) })),
+    drafts: arr(b.drafts).map(obj).filter((d): d is Raw => !!d && d.id !== undefined).map(d => ({ id: num(d.id), kind: str(d.kind, 'form'), title: strOrNull(d.title), name: strOrNull(d.name), created_at: str(d.created_at ?? d.updated_at), updated_at: str(d.updated_at) })),
     counts: counts ? { current: num(counts.current), completed: num(counts.completed) } : null,
   };
 }
 
 /* ------------------------------------------------------------------------------------------- words and dates */
 
-const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket', jacket: 'Jacket', warmup: 'Warm-up top', pants: 'Track pants', socks: 'Socks', cap: 'Cap', fullkit: 'Full kit', other: 'Garment' };
+const GARMENT_NAMES: Record<string, string> = { jersey: 'Jersey', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', 'netball-dress': 'Netball dress', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket', jacket: 'Jacket', warmup: 'Warm-up top', pants: 'Track pants', socks: 'Socks', cap: 'Cap', fullkit: 'Full kit', other: 'Garment' };
 export const garmentName = (id: string) => GARMENT_NAMES[id] ?? (id ? id[0].toUpperCase() + id.slice(1) : 'Garment');
 /** "#3DZ-01048": the reference exactly as staff, emails and the admin board show it. */
 export const displayRef = (number: string) => `#${number}`;
+/** The order's own name, or '' when it has none: the server's "Order 3DZ-00010" fallback (team name optional) isn't a name. */
+export const ownOrderName = (number?: string | null, name?: string | null) => {
+  const n = (name ?? '').trim();
+  return !n || (number && n.toLowerCase() === `order ${number}`.toLowerCase()) ? '' : n;
+};
+/** "3DZ-00010 · Hawks" with a name, just "3DZ-00010" without (not "3DZ-00010 · Order 3DZ-00010"). */
+export const orderTitle = (number?: string | null, name?: string | null, ref: string = number ?? '') => [ref, ownOrderName(number, name)].filter(Boolean).join(' · ');
 export const plural = (n: number, word: string, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+/**
+ * What an order holds, by name: "Rugby League Jersey · 25", "Rugby League Jersey + 1 more · 40" (QA10 2026-11-11: order
+ * form orders without a team name only said "25 garments"). '' when no garment has a name.
+ */
+export function garmentsLine(garments: { name: string }[], quantity: number) {
+  const names = [...new Set(garments.map(g => g.name.trim()).filter(Boolean))];
+  if (!names.length) return '';
+  const name = names.length > 1 ? `${names[0]} + ${names.length - 1} more` : names[0];
+  return quantity > 0 ? `${name} · ${quantity}` : name;
+}
+/** All the garments with their quantities, for a tooltip: "Rugby League Jersey 25, Rugby League Shorts 15". */
+export const garmentsTitle = (garments: { name: string; quantity: number }[]) => garments.map(g => (g.quantity ? `${g.name} ${g.quantity}` : g.name)).join(', ');
+/** What an order counts: "marquee" for a marquee order (Signage & Marquees), else "garment" ("2 marquees", "12 garments"). */
+export const unitWord = (garments: { garment: string }[]) => (garments.length > 0 && garments.every(g => g.garment === 'marquee') ? 'marquee' : 'garment');
 
 const valid = (iso: string | null | undefined) => { if (!iso) return null; const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : d; };
 /** "20 Oct" (this year) or "20 Oct 2025". */
@@ -249,8 +272,8 @@ export function dateTime(iso: string | null | undefined) {
   if (!d) return '';
   return `${d.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })} at ${d.toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit' }).replace(/\s?([AP]M)$/i, (_, m: string) => ` ${m.toLowerCase()}`)}`;
 }
-/** "AUD $1,870.00", as the invoices show it (payments-api.md §6). */
-export const money = (amount: string | null, currency = 'AUD') => amount === null || amount === '' || Number.isNaN(Number(amount)) ? null : `${currency} ${new Intl.NumberFormat('en-AU', { style: 'currency', currency, currencyDisplay: 'narrowSymbol' }).format(Number(amount))}`;
+/** "A$1,870.00", the site's one price style (money.ts); null without an amount. */
+export const money = (amount: string | null, currency = 'AUD') => amount === null || amount === '' || Number.isNaN(Number(amount)) ? null : formatMoney(amount, currency);
 export function fileSize(bytes: number | null) {
   if (bytes === null) return '';
   if (bytes < 1024) return `${bytes} B`;
@@ -300,7 +323,7 @@ const SHAPES: Record<string, { body: string; lines?: string }> = {
   other: { body: 'M28 30 60 14 92 30V92L60 108 28 92Z', lines: 'M28 30 60 46 92 30M60 46V108' },
   form: { body: 'M30 8H74L94 28V112H30Z', lines: 'M74 8V28H94M42 50H82M42 64H82M42 78H70M42 92H62' },
 };
-const SHAPE_OF: Record<string, string> = { jersey: 'tee', tee: 'tee', training: 'tee', fullkit: 'tee', polo: 'polo', pocketpolo: 'polo', singlet: 'singlet', hoodie: 'hoodie', ziphoodie: 'hoodie', varsity: 'jacket', trackjacket: 'jacket', jacket: 'jacket', warmup: 'jacket', shorts: 'shorts', pants: 'pants', socks: 'socks', cap: 'cap', form: 'form' };
+const SHAPE_OF: Record<string, string> = { jersey: 'tee', tee: 'tee', training: 'tee', fullkit: 'tee', polo: 'polo', pocketpolo: 'polo', singlet: 'singlet', 'netball-dress': 'singlet', hoodie: 'hoodie', ziphoodie: 'hoodie', varsity: 'jacket', trackjacket: 'jacket', jacket: 'jacket', warmup: 'jacket', shorts: 'shorts', pants: 'pants', socks: 'socks', cap: 'cap', form: 'form' };
 
 /** A drawn garment in the 3DEEZI colours, for an order row without a saved design picture. */
 export function GarmentIcon({ garment }: { garment: string }) {

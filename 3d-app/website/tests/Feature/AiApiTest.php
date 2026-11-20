@@ -75,16 +75,17 @@ class AiApiTest extends TestCase
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/responses')
             && str_contains(json_encode($r->data(), JSON_UNESCAPED_SLASHES), 'data:image/png;base64,')
             && str_contains(json_encode($r->data()), 'art_direction'));
-        // The render follows the direction: bold sublimation, logo centrepiece, name and number, dark presentation, high fidelity.
+        // The render follows the direction: bold sublimation, the logo as the chest crest, name and number, the 3DEEZI word mark under the back collar, dark presentation, high fidelity.
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits')
             && substr_count($r->body(), 'name="image[]"') === 2
             && str_contains($r->body(), '- Front: Black body, the mascot logo large on the chest')
             && str_contains($r->body(), 'fully sublimated all-over design')
             && str_contains($r->body(), 'Never a plain template with flat colour blocks')
-            && str_contains($r->body(), 'large centrepiece on the front, reproduced faithfully')
+            && str_contains($r->body(), 'the club\'s symbol goes on the chest at a normal crest size')
+            && str_contains($r->body(), 'Never put a large 3DEEZI logo')
             && str_contains($r->body(), 'large player number')
             && str_contains($r->body(), 'dramatic dark setting')
-            && str_contains($r->body(), 'only for the small neck label')
+            && str_contains($r->body(), 'The last attached image is the 3DEEZI word mark: use it only small at the top of the back, just under the collar, and nowhere else')
             && str_contains($r->body(), 'name="input_fidelity"')
             // Colours: dark body for a bold brief with a logo, readable white numbers, no skin tones.
             && str_contains($r->body(), 'prefer a dark body (black or deep navy)')
@@ -154,8 +155,8 @@ class AiApiTest extends TestCase
             && str_contains(json_encode($r->data()), 'never from skin tones'));
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/images/edits')
             && substr_count($r->body(), 'name="image[]"') === 2
-            && str_contains($r->body(), 'large chest centrepiece')
-            && str_contains($r->body(), 'neck label'));
+            && str_contains($r->body(), 'the crest on the chest, at a normal crest size')
+            && str_contains($r->body(), 'never put 3DEEZI on the front'));
     }
 
     public function test_concepts_use_openai_when_configured_and_analyse_references(): void

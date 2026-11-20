@@ -4,9 +4,11 @@ import { ArrowRight, ClipboardPaste, LoaderCircle, Package, Plus, Trash2, Triang
 import { api, type Project, type User } from '../api';
 import { SIZES, SizeFields, statusLabel, type BackNames, type Order, type Player } from './Admin';
 import { sizeGroups, siteSize } from '../orderSizes';
+import { moneyOr } from '../money';
 import '../../css/orders.css';
 
-const money = (v: string | null, currency = 'AUD') => v === null ? 'Quote pending' : new Intl.NumberFormat('en-AU', { style: 'currency', currency }).format(Number(v));
+/** "A$1,870.00", the site's one price style (money.ts); "Quote pending" without an amount. */
+const money = (v: string | null, currency = 'AUD') => moneyOr(v, currency, 'Quote pending');
 
 /** "My orders": the customer's orders and their progress. */
 export function MyOrdersPage() {

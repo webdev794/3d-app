@@ -32,6 +32,8 @@ class OrderController extends Controller
             ->with(self::WITH)
             ->when($request->query('status'), fn ($q, $status) => $q->where('status', $status))
             ->when($request->query('user_id'), fn ($q, $id) => $q->where('user_id', $id))
+            // Made by (preferred suppliers): a supplier's id, or 3deezi (with the orders placed before the choice existed).
+            ->when($request->query('supplier'), fn ($q, $supplier) => \App\Models\Supplier::filter($q, $supplier))
             ->when($search !== '', fn ($q) => $q->where(fn ($q) => $q
                 ->where('number', 'like', "%{$search}%")
                 ->orWhere('contact_name', 'like', "%{$search}%")
@@ -77,6 +79,7 @@ class OrderController extends Controller
         $this->checkProject($data);
         $order = new Order($data);
         $order->source = 'admin';
+        \App\Models\Supplier::assign($order, $data['supplier_id'] ?? null, true);
         if (! empty($data['project_id'])) {
             $order->keepKit(Project::find($data['project_id']));
         }
@@ -92,6 +95,10 @@ class OrderController extends Controller
         $this->checkProject($data + ['user_id' => $order->user_id]);
         $approval = array_key_exists('approval', $data) && $data['approval'] !== $order->approval ? $data['approval'] : null;
         $order->fill($data);
+        // Made by: staff may pass the order to any supplier.
+        if (array_key_exists('supplier_id', $data)) {
+            \App\Models\Supplier::assign($order, $data['supplier_id'], true);
+        }
         // Another kit on the order: keep that one as it is now.
         if ($order->isDirty('project_id')) {
             $order->keepKit($order->project_id ? Project::find($order->project_id) : null);

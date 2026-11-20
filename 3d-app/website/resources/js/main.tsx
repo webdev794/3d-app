@@ -3,8 +3,13 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { baseUrl, setToken } from './api';
+// ?look=1|2 on any page: the 3D look preview for this device (viewerLook.ts), read before the address changes.
+import './viewerLook';
 import '../css/app.css';
 import '../css/showroom.css';
+// Glass bubbles on Home, Create, Orders, Team, Subscriptions, My projects and Signage (only inside .glass-ui); last, so
+// it is drawn over those pages' own button styles.
+import '../css/glass.css';
 
 // The 3DEEZI app opens the order pages signed in: its sign-in token comes in the address's #app-token= (browsers never
 // send the part after # to a server). It is kept like a normal sign-in and removed from the address at once.

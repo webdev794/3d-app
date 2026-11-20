@@ -19,9 +19,9 @@ interface Message { role: 'user' | 'assistant'; content: string; error?: boolean
 const storeKey = '3deezi.assist';
 const greeting = "Hi! I'm 3DEEZI ASSIST.\nWhat would you like help with?";
 /** Pages a reply may link to (the server allows the same list). */
-const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms', '/team', '/team/requests'];
+const pages = ['/', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms', '/team', '/team/requests', '/suppliers', '/suppliers/apply', '/signage', '/signage/marquee'];
 
-const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/order-now': 'the Orders page', '/orders': 'My orders', '/orders/new': 'the Create Order Form', '/orders/upload': 'Upload Your Order', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard', '/about': 'About 3DEEZI', '/support': 'Support', '/privacy': 'the Privacy Policy', '/terms': 'the Terms of Use', '/team': '3DEEZI TEAM', '/team/requests': 'My design requests' };
+const pageNames: Record<string, string> = { '/': 'the home page', '/create/ai': 'AI Powered Sportswear', '/create/sport': 'Design Your Own', '/convert': 'Convert', '/projects': 'Projects', '/approved': 'Approved', '/assets': 'Assets', '/dashboard': 'the Dashboard', '/downloads': 'Downloads', '/order-now': 'the Orders page', '/orders': 'My orders', '/orders/new': 'the Create Order Form', '/orders/upload': 'Upload Your Order', '/pricing': 'Plans', '/studio': 'the 3D Studio', '/artboard': 'the Artboard', '/about': 'About 3DEEZI', '/support': 'Support', '/privacy': 'the Privacy Policy', '/terms': 'the Terms of Use', '/team': '3DEEZI TEAM', '/team/requests': 'My design requests', '/suppliers': 'Preferred suppliers', '/suppliers/apply': 'Become a preferred supplier', '/signage': 'Signage & Marquees', '/signage/marquee': 'the Marquee Studio' };
 /** Commands run on the Artboard (in its frame) or on the Studio page; the rest open a page. */
 const artboardActions = ['grid', 'snap', 'rulers', 'snapTo', 'tool', 'select', 'arrange', 'align', 'mirror', 'group', 'duplicate', 'connect', 'varline', 'page', 'gradient', 'palette', 'textStyle', 'move', 'rotate', 'scale', 'size', 'fill', 'outline', 'menu', 'effect', 'add', 'zoom', 'pageSize', 'units', 'tab', 'help'];
 const studioActions = ['view', 'panel', 'garment', 'board', 'export', 'design', 'studioAi'];
@@ -50,8 +50,32 @@ function load(): { open: boolean; messages: Message[] } {
   catch { return { open: false, messages: [] }; }
 }
 
+/** What the button must not rest on (Assist avoid). */
+const CONTROLS = 'a[href], button, input:not([type=hidden]), select, textarea, summary, [role=button], [role=tab], [role=radio], [role=checkbox], [role=switch], [role=link]';
+const noAvoid = { round: false, lift: 0, size: 0 };
+
 /** The homepage design shows the chat open (2026-10-15): it opens by itself there on computer screens. */
 const opensOn = (page: string) => page === '/' && window.matchMedia('(min-width: 1200px)').matches;
+
+/** The chat's size on the homepage's computer screens, as in the design: 341 px wide at 1600 px (Home.tsx sets it). */
+export const homeAssistScale = () => Math.min(1.2, Math.max(.8, document.documentElement.clientWidth / 1600 * 341 / 344));
+
+/**
+ * Whether the open chat would leave the homepage's four ways to create uncovered (2026-11-11: at 1440 x 900 it sat over
+ * 3DEEZI TEAM, so a click on the card typed into the chat). The chat stands on its button in the bottom-right corner:
+ * 344 px wide, up to 620 px tall, both scaled. On most screens the cards reach under it, so it starts as its button.
+ */
+function roomBesideCards(root: HTMLElement | null) {
+  if (!root) return false;
+  const corner = root.getBoundingClientRect(), k = homeAssistScale();
+  if (!corner.width) return false;
+  const bottom = corner.bottom - (root.offsetHeight + 16) * k, top = bottom - Math.min(620 * k, window.innerHeight - 130), left = corner.right - 344 * k;
+  const cards = [...document.querySelectorAll('.creation-paths .path-card')];
+  return cards.length > 0 && !cards.some(card => {
+    const b = card.getBoundingClientRect();
+    return b.width > 0 && b.right > left - 8 && b.left < corner.right && b.bottom > top && b.top < bottom;
+  });
+}
 
 /** Opens the chat from a page's own button (e.g. the Support page's "Open 3DEEZI ASSIST"). */
 export const openAssist = () => { window.dispatchEvent(new Event('assist-open')); };
@@ -69,18 +93,16 @@ export default function Assist() {
   // Opened by itself on the homepage and not used yet: it leaves the keyboard focus on the page, and
   // closes again when the visitor goes to another page.
   const auto = useRef(false);
-  const [state, setState] = useState(() => {
-    const saved = load();
-    if (saved.open || !opensOn(location.pathname)) return saved;
-    auto.current = true;
-    return { ...saved, open: true };
-  });
+  const [state, setState] = useState(load);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const { open, messages } = state;
   const tool = /^\/(studio|artboard|admin)/.test(location.pathname);
+  // The water-bubble look (glass.css) only on the pages with the glass buttons: Home, Create, Orders, 3DEEZI Team,
+  // Subscriptions, My projects and Signage (never the Studio, Artboard or Marquee Studio).
+  const bubble = /^\/(create\/(sport|ai)|order-now|team(\/requests)?|pricing|projects|approved|signage)?\/?$/.test(location.pathname);
   // Phones: on the homepage's first screen the button waits until the visitor scrolls (it would cover
   // the jersey, as in the mobile design); it is there from the first scroll on.
   const [waiting, setWaiting] = useState(false);
@@ -146,9 +168,11 @@ export default function Assist() {
         if (f.folded) {
           f.folded = false;
           setFolded(false);
-          if (!isOpen.current && window.matchMedia('(min-width: 1200px)').matches) { quiet.current = true; setState(s => ({ ...s, open: true })); }
+          if (!isOpen.current && window.matchMedia('(min-width: 1200px)').matches && (!auto.current || roomBesideCards(root.current))) { quiet.current = true; setState(s => ({ ...s, open: true })); }
         }
       }
+      // Opened by itself where there was room, then the window narrowed: back to its button, clear of the cards.
+      if (auto.current && isOpen.current && !f.folded && !roomBesideCards(root.current)) setState(s => ({ ...s, open: false }));
     };
     const soon = () => { if (!frame) frame = requestAnimationFrame(update); };
     update();
@@ -162,16 +186,94 @@ export default function Assist() {
     return () => { window.removeEventListener('scroll', soon); window.removeEventListener('resize', soon); grow.disconnect(); cancelAnimationFrame(frame); };
   }, [location.pathname]);
 
+  // Never resting on one of the page's buttons or fields (2026-10-23: Pro Studio's trial button on /pricing at
+  // 1440 x 900, the order form's own assist bar, the Support page's questions): once the page is still (no scrolling
+  // for a moment), a button that would cover one turns into its round icon, raised just above it when the icon would
+  // still be in the way (at most a third of the window up). Big link cards don't count: covering a corner of one
+  // doesn't block it. Not while the chat is open or the button sits in the footer, and not in the Studio or the
+  // Artboard, where it has its own place beside their tools.
+  const [avoid, setAvoid] = useState(noAvoid);
+  const avoidNow = useRef(avoid);
+  avoidNow.current = avoid;
+  const settleSoon = useRef(() => {});
+  useEffect(() => {
+    let timer = 0;
+    /** The full button's size, measured while it shows (the round icon is as wide as it is tall). */
+    let pill: { w: number; h: number } | null = null;
+    const reset = () => { pill = null; const a = avoidNow.current; if (a.round || a.lift) setAvoid(noAvoid); };
+    reset();
+    if (/^\/(studio|artboard)/.test(location.pathname)) { settleSoon.current = () => {}; return; }
+    const settle = () => {
+      timer = 0;
+      const l = launcher.current, home = root.current, a = avoidNow.current;
+      if (!l || !home || docked.current || isOpen.current || document.querySelector('dialog[open]')) { if (a.round || a.lift) setAvoid(noAvoid); return; }
+      const r = l.getBoundingClientRect(), look = getComputedStyle(l);
+      if (!r.width || look.visibility === 'hidden') return;
+      if (a.round && !pill) { setAvoid(noAvoid); later(); return; }
+      if (!a.round) pill = { w: r.width, h: r.height };
+      if (!pill) return;
+      const { w, h } = pill, gap = 2, most = Math.min(window.innerHeight / 3, 300);
+      // Where the button hangs from: the bottom right corner of its place (only the button itself is raised).
+      const corner = home.getBoundingClientRect(), right = corner.right, bottom = corner.bottom;
+      const near: { el: HTMLElement; b: DOMRect }[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>(CONTROLS)) {
+        if (el === l || l.contains(el) || home.contains(el)) continue;
+        const b = el.getBoundingClientRect();
+        if (!b.width || !b.height || b.height > 100) continue;
+        if (b.right <= right - w - gap || b.left >= right + gap || b.bottom <= bottom - h - most - gap || b.top >= bottom + gap) continue;
+        const s = getComputedStyle(el);
+        if (s.visibility === 'hidden' || Number(s.opacity) === 0 || s.pointerEvents === 'none') continue;
+        near.push({ el, b });
+      }
+      const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), hi);
+      /**
+       * The controls a button of this size and lift would cover, where they really show (not scrolled out of their
+       * list). Touching an edge doesn't count: the overlap must be at least 6 px each way.
+       */
+      const hits = (bw: number, bh: number, lift: number) => near.filter(({ el, b }) => {
+        const x0 = right - bw, x1 = right, y0 = bottom - lift - bh, y1 = bottom - lift;
+        if (Math.min(b.right, x1) - Math.max(b.left, x0) < 6 || Math.min(b.bottom, y1) - Math.max(b.top, y0) < 6) return false;
+        const x = clamp((Math.max(b.left, x0) + Math.min(b.right, x1)) / 2, b.left + 1, b.right - 1), y = clamp((Math.max(b.top, y0) + Math.min(b.bottom, y1)) / 2, b.top + 1, b.bottom - 1);
+        return document.elementsFromPoint(x, y).some(e => e === el || el.contains(e));
+      }).map(({ b }) => b);
+      const covered = (bw: number, bh: number) => hits(bw, bh, 0).reduce((sum, b) => sum + Math.max(0, Math.min(b.right, right) - Math.max(b.left, right - bw)) * Math.max(0, Math.min(b.bottom, bottom) - Math.max(b.top, bottom - bh)), 0);
+      let next = noAvoid;
+      if (hits(w, h, 0).length) {
+        next = { round: true, lift: 0, size: h };
+        for (let lift = 0, i = 0; i < 8; i++) {
+          const over = hits(h, h, lift);
+          if (!over.length) { next = { round: true, lift, size: h }; break; }
+          lift = Math.ceil(bottom - Math.min(...over.map(b => b.top)) + 8);
+          // No free place close by: the round icon where it is, unless the full button covers less.
+          if (lift > most) { if (covered(h, h) > covered(w, h)) next = noAvoid; break; }
+        }
+      }
+      if (next.round !== a.round || next.lift !== a.lift || next.size !== a.size) setAvoid(next);
+    };
+    const later = () => { window.clearTimeout(timer); timer = window.setTimeout(settle, 220); };
+    // A new window size: the full button again (and measured again) before deciding.
+    const resized = () => { reset(); later(); };
+    settleSoon.current = later;
+    later();
+    const grow = new ResizeObserver(later);
+    grow.observe(document.body);
+    window.addEventListener('scroll', later, { passive: true });
+    window.addEventListener('resize', resized);
+    return () => { window.clearTimeout(timer); grow.disconnect(); window.removeEventListener('scroll', later); window.removeEventListener('resize', resized); settleSoon.current = () => {}; };
+  }, [location.pathname]);
+  // Opened, closed, or moved into or out of the footer: decide again.
+  useEffect(() => { if (open && (avoidNow.current.round || avoidNow.current.lift)) setAvoid(noAvoid); settleSoon.current(); }, [open, dock]);
+
   useEffect(() => { try { sessionStorage.setItem(storeKey, JSON.stringify({ open: open && !auto.current, messages: messages.slice(-40) })); } catch { /* Private mode: the chat still works. */ } }, [open, messages]);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight, behavior: 'smooth' }); }, [messages, busy, open]);
   useEffect(() => { if (open && !auto.current && !quiet.current) input.current?.focus({ preventScroll: true }); quiet.current = false; }, [open]);
   // The homepage keeps a column for the chat beside its creation cards unless the visitor closed it (home.css).
   useLayoutEffect(() => { document.documentElement.toggleAttribute('data-assist-closed', !open && !folded); }, [open, folded]);
-  // Every visit to the homepage opens the chat; leaving it closes a chat that opened by itself, unused. (Before the
-  // page is painted, so the homepage's cards appear with the chat's column straight away.)
+  // Every visit to the homepage opens the chat where it covers none of the ways to create (only very wide screens);
+  // leaving it closes a chat that opened by itself, unused. (Before the page is painted, so it doesn't appear and go.)
   useLayoutEffect(() => {
     if (opensOn(location.pathname)) {
-      if (!state.open) { auto.current = true; setState(s => ({ ...s, open: true })); }
+      if (!state.open && roomBesideCards(root.current)) { auto.current = true; setState(s => ({ ...s, open: true })); }
     } else if (auto.current) {
       auto.current = false;
       setState(s => ({ ...s, open: false }));
@@ -306,7 +408,7 @@ export default function Assist() {
   const button = <button ref={launcher} className="assist-launcher" onClick={toggle} aria-expanded={open} aria-controls="assist-panel" title={open ? 'Hide 3DEEZI ASSIST' : 'Ask 3DEEZI ASSIST'}>
     <Sparkle size={tool ? 24 : 26} /><span>3DEEZI ASSIST</span>
   </button>;
-  return <div ref={root} className={`assist ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''}`}>
+  return <div ref={root} className={`assist ${bubble ? 'assist-water' : ''} ${tool ? 'assist-tool' : ''} ${artboard ? 'assist-artboard' : ''} ${studio ? 'assist-studio' : ''} ${open ? 'is-open' : ''} ${dock ? 'is-docked' : ''} ${waiting && !open && !dock ? 'is-waiting' : ''} ${avoid.round ? 'avoid-round' : ''} ${avoid.lift ? 'avoid-raised' : ''}`} style={{ '--assist-round': `${avoid.size}px`, '--assist-avoid': `${avoid.lift}px` } as React.CSSProperties}>
     {open && <section className="assist-panel" id="assist-panel" role="dialog" aria-label="3DEEZI ASSIST help chat">
       <header className="assist-head">
         <Sparkle size={30} />

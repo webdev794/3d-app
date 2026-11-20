@@ -23,8 +23,10 @@ const store = { get: (key: string): string[] => { try { return JSON.parse(localS
  * Hue ring around a saturation/brightness disc, a brightness slider, an eye
  * dropper (where the browser has one), hex entry, saved and recent colours.
  * `onChange` fires while dragging; `onCommit` once a pick is finished.
+ * `onDone` adds a Done button beside the recent colours (the Studio's compact phone panel, 173.jpg; hidden on
+ * computers by studio-tools.css), which closes the panel.
  */
-export default function ColorWheel({ value, onChange, onCommit }: { value: string; onChange: (hex: string) => void; onCommit?: (hex: string) => void }) {
+export default function ColorWheel({ value, onChange, onCommit, onDone }: { value: string; onChange: (hex: string) => void; onCommit?: (hex: string) => void; onDone?: () => void }) {
   const [hsv, setHsv] = useState<Hsv>(() => hexToHsv(value));
   const [hex, setHex] = useState(value.toUpperCase());
   const [saved, setSaved] = useState(() => store.get('3deezi.colours.saved'));
@@ -78,6 +80,7 @@ export default function ColorWheel({ value, onChange, onCommit }: { value: strin
         <span className="wheel-handle ring-handle" style={{ ...ring, background: hsvToHex({ h: hsv.h, s: 1, v: 1 }) }} />
         <span className="wheel-handle disc-handle" style={{ ...disc, background: hex }} />
       </div>
+      <span className="brightness-label" aria-hidden="true">Brightness<b>{Math.round(hsv.v * 100)}%</b></span>
       <input className="brightness" type="range" min={0} max={1} step={0.01} value={hsv.v} aria-label="Brightness" onChange={e => emit({ ...hsv, v: Number(e.target.value) })} onPointerUp={end} onKeyUp={() => remember(live.current)} style={{ '--top': hsvToHex({ ...hsv, v: 1 }) } as React.CSSProperties} />
     </div>
     <div className="hex-row">
@@ -85,7 +88,8 @@ export default function ColorWheel({ value, onChange, onCommit }: { value: strin
       <label className="hex-field"><span>HEX</span><input value={hex} maxLength={7} onChange={e => typed(e.target.value)} onBlur={() => remember(live.current)} aria-label="Hex colour" /><button type="button" className="icon-button" aria-label="Copy hex" onClick={() => navigator.clipboard?.writeText(hex)}><Copy size={14} /></button></label>
       <button type="button" className="button button-secondary save-colour" title="Save colour" aria-label="Save colour" onClick={() => setSaved(old => { const next = [hex, ...old.filter(c => c !== hex)].slice(0, 12); store.set('3deezi.colours.saved', next); return next; })}><Plus size={16} /></button>
     </div>
-    {recent.length > 0 && <><h4>RECENT COLOURS</h4><div className="colour-dots">{recent.map(c => <button key={c} type="button" style={{ background: c }} aria-label={`Use ${c}`} onClick={() => choose(c)} />)}</div></>}
-    {saved.length > 0 && <><h4>SAVED COLOURS</h4><div className="colour-dots">{saved.map(c => <button key={c} type="button" style={{ background: c }} aria-label={`Use saved ${c}`} onClick={() => choose(c)} />)}</div></>}
+    {recent.length > 0 && <><h4 className="recent-title">RECENT COLOURS</h4><div className="colour-dots recent-dots">{recent.map(c => <button key={c} type="button" style={{ background: c }} aria-label={`Use ${c}`} onClick={() => choose(c)} />)}</div></>}
+    {onDone && <button type="button" className="button button-gradient wheel-done" onClick={onDone}>Done</button>}
+    {saved.length > 0 && <><h4 className="saved-title">SAVED COLOURS</h4><div className="colour-dots saved-dots">{saved.map(c => <button key={c} type="button" style={{ background: c }} aria-label={`Use saved ${c}`} onClick={() => choose(c)} />)}</div></>}
   </div>;
 }

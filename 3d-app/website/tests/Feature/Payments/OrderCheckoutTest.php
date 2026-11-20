@@ -167,6 +167,43 @@ class OrderCheckoutTest extends TestCase
         $this->getJson('/api/v1/invoices/INV-1001')->assertOk()->assertJsonPath('data.order.source', 'order');
     }
 
+    public function test_a_pick_up_order_offers_the_customers_own_address_for_billing(): void
+    {
+        [$customer, $invoice, $order] = $this->paidLater();
+        Sanctum::actingAs($customer);
+        // An earlier order delivered to the customer, then this one picked up (nothing is delivered).
+        \App\Models\Order::query()->create(['user_id' => $customer->id, 'status' => 'delivered', 'contact_name' => 'Fabian', 'phone' => '0412 345 678', 'shipping_address' => "5 Oak Ave\nParramatta NSW 2150\nAustralia"]);
+        $order->forceFill(['shipping_address' => \App\Support\OrderDelivery::PICKUP_TEXT])->save();
+
+        $data = $this->getJson("/api/v1/orders/{$order->number}/checkout")->assertOk()->json('data');
+        $this->assertSame('pickup', $data['order']['delivery']);
+        $this->assertSame(['same' => true, 'hint' => ['street' => '5 Oak Ave', 'suburb' => 'Parramatta', 'state' => 'NSW', 'postcode' => '2150', 'country' => 'Australia']], $data['billing']);
+
+        // A billing address given on another invoice comes first; once saved here, no hint.
+        $other = $invoice->replicate(['number', 'sequence']);
+        $other->forceFill(['sequence' => 999, 'number' => 'INV-0999', 'snapshot' => ['billing' => ['same' => false, 'fields' => ['street' => '9 Bill St', 'suburb' => 'Penrith', 'state' => 'NSW', 'postcode' => '2750', 'country' => 'Australia']]]])->save();
+        $this->getJson("/api/v1/orders/{$order->number}/checkout?invoice=INV-1001")->assertJsonPath('data.billing.hint.street', '9 Bill St');
+        $this->putJson('/api/v1/invoices/INV-1001/billing', ['same' => false, 'address' => ['street' => '1 New St', 'suburb' => 'Ryde', 'state' => 'NSW', 'postcode' => '2112', 'country' => 'Australia']])->assertOk();
+        $billing = $this->getJson("/api/v1/orders/{$order->number}/checkout?invoice=INV-1001")->json('data.billing');
+        $this->assertSame([false, '1 New St'], [$billing['same'], $billing['fields']['street']]);
+        $this->assertArrayNotHasKey('hint', $billing);
+    }
+
+    public function test_an_order_without_a_name_is_shown_by_its_number_alone(): void
+    {
+        $this->assertTrue(\App\Models\Order::isFallbackName('Order 3DZ-00010', '3DZ-00010'));
+        $this->assertTrue(\App\Models\Order::isFallbackName('', '3DZ-00010'));
+        $this->assertFalse(\App\Models\Order::isFallbackName('Hawks', '3DZ-00010'));
+        $order = \App\Models\Order::query()->create(['user_id' => $this->customer()->id, 'status' => 'received', 'contact_name' => 'Fabian', 'phone' => '0412 345 678', 'shipping_address' => 'x']);
+        $order->refresh();
+        // The name stays as before for search, the kit page and invoices; only the "(name)" in emails is left out.
+        $this->assertSame(['Order '.$order->number, null], [$order->displayName(), $order->ownName()]);
+        $update = $order->record('message', ['message' => 'Hello', 'visibility' => 'customer']);
+        $mail = (new \App\Notifications\OrderUpdateNotification($order, $update))->toMail($order->user);
+        $this->assertStringNotContainsString('(Order ', implode(' ', $mail->introLines));
+        $this->assertStringContainsString($order->number.'.', implode(' ', $mail->introLines));
+    }
+
     public function test_an_order_without_an_invoice_or_with_a_price_pending_has_nothing_to_pay(): void
     {
         $customer = $this->customer();

@@ -230,7 +230,7 @@ export function createHandles({ canvas, enabled, hint, hintEl, style }) {
     if (!enabled() || canvas.getActiveObject() !== o || o.isEditing) return;
     // Fingers give no double-click: two quick taps on a text type in it.
     if (d.touch && typable(o) && !o.group && prev?.o === o && now - prev.at < 450 && Math.hypot(p.x - prev.x, p.y - prev.y) < 24) { lastClick = null; startTyping(o, opt.e); return; }
-    if (!d.already || !o.hasControls || o.locked || o.connSpec) return;
+    if (!d.already || !o.hasControls || o.locked || o.connSpec || o.nodePick) return;
     if (typable(o)) o.selected = false; // the click switches the handles (Fabric would start typing)
     if (xf?.o === o) off(); else on(o);
   });

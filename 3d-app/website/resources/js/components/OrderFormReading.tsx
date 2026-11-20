@@ -28,7 +28,7 @@ function Reading({ file, reading, onError }: { file: OrderFile; reading: Suggest
     <header>
       <Sparkles size={17} />
       <div><strong>{reading.source === 'ai' ? 'Order form read by 3DEEZI AI' : 'Order form as read on upload'}</strong>
-        <small>{file.name}{reading.read_at ? ` · ${new Date(reading.read_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ''} · {total} garment{total === 1 ? '' : 's'}{reading.players ? ` · ${reading.players} players` : ''}</small></div>
+        <small>{file.name}{reading.read_at ? ` · ${new Date(reading.read_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}` : ''} · {total} garment{total === 1 ? '' : 's'}{reading.players ? ` · ${reading.players} player${reading.players === 1 ? '' : 's'}` : ''}</small></div>
       <button type="button" className="ofr-add" onClick={() => void orderApi.download(file).catch(e => onError?.((e as Error).message))} aria-label={`Download the original ${file.name}`}><Download size={14} /> Original file</button>
       <button type="button" className="ofr-icon" aria-expanded={open} aria-label={open ? 'Hide the reading' : 'Show the reading'} onClick={() => setOpen(v => !v)}>{open ? <ChevronUp size={17} /> : <ChevronDown size={17} />}</button>
     </header>

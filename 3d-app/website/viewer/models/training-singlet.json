@@ -1,0 +1,39 @@
+{
+  "about": "Training singlets (every singlet tile with the singletTile look, and Netball > Training singlet): Tripo model training-singlet.glb, booklet card 106702. Each tile keeps its EXISTING look + the model flag (coordinator 2026-11-16); look is only the check design. Our marks only (MODELQ3 2026-11-16).",
+  "glb": "../../../tripo/training-singlet.glb",
+  "converter": "top",
+  "part": "singlet",
+  "flag": "trainingSinglet",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "singlet",
+    "creaseDeg": 25,
+    "pit": 0.5
+  },
+  "look": {
+    "main": "#27282a",
+    "secondary": "#16b4f0",
+    "accent": "#16b4f0",
+    "patternColor": "#16b4f0",
+    "number": "",
+    "zoneColors": {
+      "trainingSinglet": "#16b4f0"
+    },
+    "marks": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ40D70Y700P60"
+    ]
+  },
+  "baseLook": "bladesSides"
+}

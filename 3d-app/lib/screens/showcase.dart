@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../ai_service.dart';
 import '../app_controller.dart';
 import '../export_service.dart';
+import '../widgets/bubble_page.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/ui.dart';
 import 'image_editor.dart';
@@ -100,165 +101,178 @@ class _ShowcaseScreenState extends State<ShowcaseScreen> {
     final shown = _selected >= 0 && _selected < c.showcases.length
         ? c.showcases[_selected]
         : null;
-    return Column(
-      children: [
-        TopBar(
-          onBack: c.back,
-          title: 'Showcase',
-          subtitle: 'Photoreal images of your design',
-        ),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-            children: [
-              AspectRatio(
-                aspectRatio: 1.5,
-                child: GlowCard(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (shown != null)
-                        artImage(bytes: shown)
-                      else if (_base != null)
-                        Opacity(
-                          opacity: .55,
-                          child: artImage(bytes: _base, fit: BoxFit.contain),
-                        )
-                      else
-                        const Center(
-                          child: Text(
-                            'Open your design in the 3D studio first.',
-                            style: TextStyle(color: Palette.muted),
-                          ),
-                        ),
-                      if (shown == null && !_busy && _base != null)
-                        const Center(
-                          child: Text(
-                            'Your 3D kit → photoreal showcase',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                      if (_busy)
-                        const Center(
-                          child: BusyBadge(
-                            'Creating your showcase… about 1 min',
-                          ),
-                        ),
-                      if (shown != null && !_busy)
-                        Positioned(
-                          top: 10,
-                          right: 10,
-                          child: EditImageChip(onTap: () => _edit(shown)),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              if (shown != null) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: SecondaryButton(
-                        label: 'Share',
-                        icon: Icons.ios_share_rounded,
-                        onPressed: () => _share(shown),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: SecondaryButton(
-                        label: 'Use as cover',
-                        icon: Icons.photo_outlined,
-                        onPressed: () {
-                          c.update(() => c.mockupFront = shown);
-                          showToast(
-                            context,
-                            'Used as the project cover image.',
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SectionLabel('Scene'),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final scene in AiService.showcaseScenes.keys)
-                    ActionChipPill(
-                      scene,
-                      selected: _scene == scene,
-                      onTap: _busy
-                          ? null
-                          : () => setState(() => _scene = scene),
-                    ),
-                ],
-              ),
-              const SectionLabel('View'),
-              Wrap(
-                spacing: 8,
-                children: [
-                  for (final (label, back) in const [
-                    ('Front', false),
-                    ('Back', true),
-                  ])
-                    ActionChipPill(
-                      label,
-                      selected: _back == back,
-                      onTap: _busy ? null : () => setState(() => _back = back),
-                    ),
-                ],
-              ),
-              if (c.showcases.isNotEmpty) ...[
-                const SectionLabel('This session', trailing: 'Saved to Assets'),
-                SizedBox(
-                  height: 76,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      for (var i = c.showcases.length - 1; i >= 0; i--)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 10),
-                          child: SizedBox(
-                            width: 114,
-                            child: GlowCard(
-                              radius: 10,
-                              glow: false,
-                              selected: i == _selected,
-                              onTap: () => setState(() => _selected = i),
-                              child: artImage(bytes: c.showcases[i]),
+    // The bubble look (user 2026-11-05).
+    return BubblePage(
+      c: c,
+      title: 'SHOWCASE',
+      compact: true,
+      bubbleKey: const ValueKey('showcase-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('showcase-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(2, 4, 2, 16),
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.5,
+                  child: GlowCard(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (shown != null)
+                          artImage(bytes: shown)
+                        else if (_base != null)
+                          Opacity(
+                            opacity: .55,
+                            child: artImage(bytes: _base, fit: BoxFit.contain),
+                          )
+                        else
+                          const Center(
+                            child: Text(
+                              'Open your design in the 3D studio first.',
+                              style: TextStyle(color: Palette.muted),
                             ),
                           ),
-                        ),
-                    ],
+                        if (shown == null && !_busy && _base != null)
+                          const Center(
+                            child: Text(
+                              'Your 3D kit → photoreal showcase',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        if (_busy)
+                          const Center(
+                            child: BusyBadge(
+                              'Creating your showcase… about 1 min',
+                            ),
+                          ),
+                        if (shown != null && !_busy)
+                          Positioned(
+                            top: 10,
+                            right: 10,
+                            child: EditImageChip(onTap: () => _edit(shown)),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
-              ],
-              if (!AiService.enabled) ...[
-                const SizedBox(height: 14),
-                const Text(
-                  'Showcase needs the OpenAI connection, which is not '
-                  'configured in this build.',
-                  style: TextStyle(color: Palette.muted, fontSize: 12),
+                if (shown != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SecondaryButton(
+                          label: 'Share',
+                          icon: Icons.ios_share_rounded,
+                          onPressed: () => _share(shown),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: SecondaryButton(
+                          label: 'Use as cover',
+                          icon: Icons.photo_outlined,
+                          onPressed: () {
+                            c.update(() => c.mockupFront = shown);
+                            showToast(
+                              context,
+                              'Used as the project cover image.',
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+                const SectionLabel('Scene'),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final scene in AiService.showcaseScenes.keys)
+                      ActionChipPill(
+                        scene,
+                        selected: _scene == scene,
+                        onTap: _busy
+                            ? null
+                            : () => setState(() => _scene = scene),
+                      ),
+                  ],
                 ),
+                const SectionLabel('View'),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    for (final (label, back) in const [
+                      ('Front', false),
+                      ('Back', true),
+                    ])
+                      ActionChipPill(
+                        label,
+                        selected: _back == back,
+                        onTap: _busy
+                            ? null
+                            : () => setState(() => _back = back),
+                      ),
+                  ],
+                ),
+                if (c.showcases.isNotEmpty) ...[
+                  const SectionLabel(
+                    'This session',
+                    trailing: 'Saved to Assets',
+                  ),
+                  SizedBox(
+                    height: 76,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      children: [
+                        for (var i = c.showcases.length - 1; i >= 0; i--)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: SizedBox(
+                              width: 114,
+                              child: GlowCard(
+                                radius: 10,
+                                glow: false,
+                                selected: i == _selected,
+                                onTap: () => setState(() => _selected = i),
+                                child: artImage(bytes: c.showcases[i]),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+                if (!AiService.enabled) ...[
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Showcase needs the OpenAI connection, which is not '
+                    'configured in this build.',
+                    style: TextStyle(color: Palette.muted, fontSize: 12),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-          child: GradientButton(
-            label: _busy ? 'GENERATING…' : 'GENERATE SHOWCASE',
-            icon: Icons.auto_awesome,
-            onPressed: _busy || !AiService.enabled || _base == null
-                ? null
-                : _generate,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
+            child: GradientButton(
+              label: _busy ? 'GENERATING…' : 'GENERATE SHOWCASE',
+              icon: Icons.auto_awesome,
+              onPressed: _busy || !AiService.enabled || _base == null
+                  ? null
+                  : _generate,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

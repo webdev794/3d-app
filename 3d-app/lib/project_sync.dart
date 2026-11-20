@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 import 'ai_service.dart';
 import 'app_controller.dart';
+import 'custom_choice.dart';
 import 'design_document.dart';
+import 'garment_style.dart';
 import 'sports_catalog.dart';
 
 /// Converts projects between the app and the website's database, which
@@ -24,7 +26,11 @@ class ProjectSync {
     final garment = garments[k.garment] ?? garments[p.garment] ?? 'jersey';
     return {
       'name': _clip(p.title, 120),
-      'sport': sports[p.sport] ?? 'rugby-league',
+      // A sport typed in "Custom…" (client 2026-11-02) is kept under Training,
+      // its name in design.sportName.
+      'sport':
+          sports[p.sport] ??
+          (customName(p.sport).isNotEmpty ? customSportId : 'rugby-league'),
       'garment': garment,
       'mode': p.mode == 'AI' ? 'ai' : 'dyo',
       'thumbnail': dataUrl(p.thumbnail),
@@ -33,11 +39,13 @@ class ProjectSync {
         'main': hex(k.mainColor),
         'secondary': hex(k.secondaryColor),
         'accent': hex(k.accentColor),
-        'pattern': studioPatterns.contains(k.pattern) ? k.pattern : 'Solid',
+        'pattern': savedPatterns.contains(k.pattern) ? k.pattern : 'Solid',
         'logoText': _clip(k.logoText, 40),
         'backName': _clip(k.backName, 40),
         'number': _clip(k.number, 3),
         'patternImage': dataUrl(k.patternTile),
+        if (k.patternScale != null) 'patternScale': k.patternScale,
+        if (k.patternBody != null) 'patternBody': k.patternBody,
         'logoImage': dataUrl(k.logoImage),
         'sponsorImage': dataUrl(k.sponsorImage),
         'layers': copyLayers(k.layers),
@@ -46,9 +54,28 @@ class ProjectSync {
         if (k.zoneColors.isNotEmpty) 'zoneColors': copyZones(k.zoneColors),
         // The track jacket's style (only on it: older servers refuse the field).
         if (k.garment == 'Track jacket') 'trackStyle': k.trackStyle,
+        // Garment style (only when set: older servers refuse the fields).
+        if (k.neck != null) 'neck': k.neck,
+        if (k.fit != null) 'fit': k.fit,
+        if (k.patternColor != null) 'patternColor': k.patternColor,
+        // Every pattern in patternColor (only when set: older servers refuse
+        // the field).
+        if (k.patternColorOwn == true) 'patternColorOwn': true,
+        // The parts edited on their own (task 9.134; only when set: older
+        // servers refuse the field).
+        if (k.parts.isNotEmpty) 'parts': copyParts(k.parts),
         // The sport's garment tile ("Netball dress"; only when set: older
         // servers refuse the field).
         if (k.productName.isNotEmpty) 'productName': _clip(k.productName, 60),
+        // A sport typed in "Custom…" (only when set: older servers refuse the
+        // field).
+        if (!sports.containsKey(p.sport) && customName(p.sport).isNotEmpty)
+          'sportName': customName(p.sport),
+        // Colours › Fabric type, where the website reads it too (only when
+        // not Standard: older servers refuse the field; app.fabric keeps it
+        // for older apps).
+        if (designFabrics.contains(k.fabric) && k.fabric != 'Standard')
+          'fabric': k.fabric,
         'gradient': copyGradient(k.gradient),
         // Only when set: servers older than 2026-10-21 refuse the field.
         if (k.gradients != null) 'gradients': copyGradient(k.gradients),
@@ -75,26 +102,35 @@ class ProjectSync {
 
   /// A project from `GET /projects`, made in the app or on the website.
   static Project fromServer(Map<String, dynamic> j) {
-    final d = (j['design'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final app = (d['app'] as Map?)?.cast<String, dynamic>() ?? const {};
-    final spec = app['spec'] as Map<String, dynamic>?;
+    // The server gives empty text back as null and an empty object as [];
+    // such fields fall back, so the project still loads (it must never
+    // vanish from the list).
+    Map<String, dynamic>? map(Object? v) =>
+        v is Map ? v.cast<String, dynamic>() : null;
+    String? text(Object? v) => v is String && v.isNotEmpty ? v : null;
+    final d = map(j['design']) ?? const {};
+    final app = map(d['app']) ?? const {};
+    final spec = map(app['spec']);
     final garment =
-        app['garment'] as String? ??
+        text(app['garment']) ??
         _label(garments, j['garment'] as String?, 'Jersey');
-    final remoteVersion = j['version'] as int? ?? 1;
+    final remoteVersion = (j['version'] as num?)?.toInt() ?? 1;
     return Project(
-      id: app['id'] as String? ?? 'r${j['id']}',
+      id: text(app['id']) ?? 'r${j['id']}',
       remoteId: j['id'] as int,
       remoteVersion: remoteVersion,
       persisted: false,
       approved: j['status'] == 'approved',
-      title: j['name'] as String? ?? 'Untitled',
+      title: text(j['name']) ?? 'Untitled',
       sport:
-          app['sport'] as String? ??
-          _label(sports, j['sport'] as String?, 'Rugby League'),
+          text(app['sport']) ??
+          (d['sportName'] is String &&
+                  customName(d['sportName'] as String).isNotEmpty
+              ? customName(d['sportName'] as String)
+              : _label(sports, j['sport'] as String?, 'Rugby League')),
       garment: garment,
       mode: j['mode'] == 'ai' ? 'AI' : 'DYO',
-      version: app['version'] as int? ?? remoteVersion,
+      version: (app['version'] as num?)?.toInt() ?? remoteVersion,
       updated:
           DateTime.tryParse('${j['updated_at']}')?.toLocal() ?? DateTime.now(),
       brief: d['prompt'] as String? ?? '',
@@ -106,21 +142,35 @@ class ProjectSync {
         mainColor: color(d['main']),
         secondaryColor: color(d['secondary']),
         accentColor: color(d['accent']),
-        pattern: studioPatterns.contains(d['pattern'])
+        pattern: savedPatterns.contains(d['pattern'])
             ? d['pattern'] as String
             : 'Solid',
-        fabric: app['fabric'] as String? ?? 'Standard',
+        // The website's design.fabric first, then the app's own (older saves).
+        fabric: designFabrics.contains(d['fabric'])
+            ? d['fabric'] as String
+            : designFabrics.contains(app['fabric'])
+            ? app['fabric'] as String
+            : 'Standard',
         logoText: d['logoText'] as String? ?? '',
         backName: d['backName'] as String? ?? '',
         number: d['number'] as String? ?? '',
         patternTile: bytes(d['patternImage']),
+        patternScale: (d['patternScale'] as num?)?.toDouble(),
+        patternBody: (d['patternBody'] as num?)?.toDouble(),
         logoImage: bytes(d['logoImage']),
         sponsorImage: bytes(d['sponsorImage']),
-        spec: spec == null ? null : DesignSpec.fromJson(spec),
+        spec: spec == null ? null : DesignSpec.fromSaved(spec),
         layers: copyLayers(d['layers']),
         zones: copyZones(d['zones']),
         zoneColors: copyZones(d['zoneColors']),
         trackStyle: d['trackStyle'] == 'hood' ? 'hood' : 'collar',
+        neck: readNeck(d['neck']),
+        fit: readFit(d['fit']),
+        patternColor: d['patternColor'] is String
+            ? d['patternColor'] as String
+            : null,
+        patternColorOwn: d['patternColorOwn'] == true ? true : null,
+        parts: copyParts(d['parts']),
         productName: d['productName'] is String
             ? d['productName'] as String
             : '',

@@ -15,7 +15,7 @@ use Throwable;
 class SiteAssistant
 {
     /** Site pages the assistant may link to; any other link is dropped by the chat window too. */
-    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/team', '/team/requests', '/pricing', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
+    public const PAGES = ['/', '/#create-options', '/create/ai', '/create/sport', '/convert', '/projects', '/approved', '/assets', '/dashboard', '/downloads', '/order-now', '/orders', '/orders/new', '/orders/upload', '/team', '/team/requests', '/pricing', '/suppliers', '/suppliers/apply', '/signage', '/signage/marquee', '/studio', '/artboard', '/about', '/support', '/privacy', '/terms'];
 
     /**
      * Commands the chat window can run, with the values each accepts. Artboard commands open the
@@ -72,11 +72,11 @@ class SiteAssistant
         'help' => 'empty: opens Help > Tools and shortcuts',
         // 3D Studio
         'view' => 'front | back | side | 360: turns the 3D kit',
-        'panel' => 'ai | garment | colours | patterns | logos | text | numbers | presets | close: opens that Studio tool panel (logos is the Artwork panel)',
-        'garment' => 'jersey | shorts | tee | singlet | polo | pocketpolo (polo with pocket) | hoodie | ziphoodie (zip hoodie) | varsity (varsity / letterman jacket) | trackjacket (track suit jacket) | fullkit: switches the garment',
+        'panel' => 'ai | garment | style | colours | patterns | logos | text | numbers | presets | close: opens that Studio tool panel (logos is the Artwork panel)',
+        'garment' => 'jersey | nfljersey (American football jersey) | compression (compression top) | shooting-shirt (basketball shooting shirt) | socks (knee-high team socks) | cap (team cap) | five-panel-cap (5 panel cap) | beanie (knitted beanie) | bucket-hat (bucket hat) | skirt (netball / tennis skirt, hockey skort) | shorts | tee | singlet | netball-dress (netball dress) | polo | pocketpolo (polo with pocket) | hoodie | ziphoodie (zip hoodie) | varsity (varsity / letterman jacket) | trackjacket (track suit jacket) | fullkit: switches the garment',
         'board' => '2d | 3d: switches between the 2D print panels and the 3D view',
         'design' => '<setting>=<value>,… changes the kit in the Studio straight away (one undo step): number (digits), name (player name on the back), '
-            .'wordmark (chest text), main | secondary | accent | patternColor (colours as #rrggbb), pattern (None, Solid, Chevron, Stripes, Velocity, Hoops, Dots, Diagonal, Tribal, Camo); '
+            .'wordmark (chest text), main | secondary | accent | patternColor (colours as #rrggbb), pattern (None, Solid, Chevron, Stripes, Velocity, Blades, Swirl, Hoops, Dots, Diagonal, Tribal, Camo); '
             .'e.g. number=29,name=SMITH',
         'studioAi' => 'the request in the words of the visitor, for the Studio AI (as typed in its "Ask 3DEEZI" bar): for any other change to the look of the kit '
             .'(styles, themes, a custom print, "make it look like …"); it needs the visitor signed in and uses an AI credit',
@@ -92,7 +92,7 @@ class SiteAssistant
 
     /** The phone app differs from the website in the Studio's layout; the Artboard is the same page. */
     private const APP_NOTE = 'The visitor is using the 3DEEZI phone app (Android or iOS). Its Artboard is the same as on the website. '
-        .'Its 3D Studio is laid out for phones: tool tabs along the bottom (Colours, Patterns, Logos, Text, Garment), Artwork and Presets buttons, '
+        .'Its 3D Studio is laid out for phones: tool tabs along the bottom (Colours, Patterns, Logos, Text, Garment, Style), Artwork and Presets buttons, '
         .'Front, Side and Back view buttons (no 360° view), a 2D panels button, an Artboard button and the "Ask 3DEEZI to change anything" bar for AI changes. '
         .'Its Export screen (reached through Save) has 3D mockup, Front & back, high resolution, social image, Design Sheet (PDF) and design pack: in the app, '
         .'export pdf, png and front-back work; there is no separate artboard or json export (use the Artboard menu or the design pack). '
@@ -203,8 +203,8 @@ class SiteAssistant
             'tab' => '/^(colour|props|layers|assets)$/',
             'help' => fn ($v) => true,
             'view' => '/^(front|back|side|360)$/',
-            'panel' => '/^(ai|garment|colours|patterns|logos|text|numbers|presets|close)$/',
-            'garment' => '/^(jersey|shorts|tee|singlet|polo|pocketpolo|hoodie|ziphoodie|varsity|trackjacket|fullkit)$/',
+            'panel' => '/^(ai|garment|style|colours|patterns|logos|text|numbers|presets|close)$/',
+            'garment' => '/^(jersey|nfljersey|compression|shooting-shirt|socks|cap|five-panel-cap|beanie|bucket-hat|skirt|shorts|tee|singlet|netball-dress|polo|pocketpolo|hoodie|ziphoodie|varsity|trackjacket|fullkit)$/',
             'board' => '/^(2d|3d)$/',
         ];
         $out = [];
@@ -253,7 +253,10 @@ class SiteAssistant
           the screen, under the menus: tool and effect settings and their Apply buttons), tabs Colour / Properties / Layers /
           Assets (right side), colour palette and status bar (bottom). 3D Studio (website): tool rail (left), the tool's panel
           (next to it), 3D view (middle), Preset designs (right), garments (far right), Ask 3DEEZI bar (bottom), project name,
-          Artboard, 2D panels, Save, Export and More (top bar).
+          Artboard, 2D panels, Save, Export and More (top bar). On phones the 3D Studio shows the 3D view on top with the
+          project name on it (top left), and under it the tool row and the Ask 3DEEZI bar; a tool's panel opens under the 3D
+          view in place of the tool row (close it with the X or Done to pick another tool); Undo, Redo, Save, Export and More
+          are in the top bar; in the 2D panels the "3D view" button under the board goes back to the 3D kit.
         - Artboard toolbox: give a tool's button number counted from the top on the left and its section (see the toolbox
           layout), and the flyout it is in (click the button again or right-click it to open the flyout). On phones and
           narrow windows the toolbox runs along the bottom: count from the left instead (the page report says which).

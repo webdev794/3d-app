@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' as ui;
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -7,11 +8,57 @@ import 'package:flutter/services.dart';
 
 import '../app_controller.dart';
 import '../design_document.dart';
+import '../own_patterns.dart';
 import '../gradient_presets.dart';
 import '../project_sync.dart';
 import 'flow_ui.dart';
 import 'showroom.dart' show ColorWheel;
 import 'ui.dart';
+
+/// "1 panel", "6 panels": a print layout's panels on the kit.
+String _panels(int n) => '$n panel${n == 1 ? '' : 's'}';
+
+/// Patterns › the garment's areas (area key, label), as the website's Studio
+/// (patternAreas): only the areas the 3D viewer paints on that garment
+/// (viewer zones.js). Shorts have no shoulders or sleeves, and a singlet no
+/// sleeves (its outline ends at x 0.254, the sleeve area starts at 0.27: a
+/// pattern there painted nothing); the full kit's jersey has both.
+/// The Patterns areas the 3D kit can show (the viewer's designApplied `areas`,
+/// PATTERNDND): on a model split into pieces only the areas with a matching
+/// part; null shows them all.
+List<String>? viewerPieceAreas;
+
+List<(String, String)> patternAreas(String garment, {String? trackStyle}) {
+  final all = _patternAreas(garment, trackStyle: trackStyle);
+  final shown = viewerPieceAreas;
+  return shown == null ? all : [for (final a in all) if (shown.contains(a.$1)) a];
+}
+
+List<(String, String)> _patternAreas(String garment, {String? trackStyle}) {
+  // The socks, the cap and the bucket hat: the viewer paints a pattern on the
+  // whole garment only (zones.js: one area).
+  if (garment == 'Socks' ||
+      garment == 'Cap' ||
+      garment == '5 panel cap' ||
+      garment == 'Beanie' ||
+      garment == 'Bucket hat') {
+    return const [('body', 'Body')];
+  }
+  final shorts = garment == 'Shorts', skirt = garment == 'Skirt';
+  return [
+    ('body', shorts || skirt ? 'Body' : garmentZones['body']!),
+    if (!shorts && !skirt) ('yoke', garmentZones['yoke']!),
+    if (!shorts && !skirt && garment != 'Singlet' && garment != 'Netball dress')
+      ('sleeves', garmentZones['sleeves']!),
+    ('sides', garmentZones['sides']!),
+    ('hem', shorts ? 'Leg hems' : garmentZones['hem']!),
+    if (garment == 'Polo with pocket') ('pocket', garmentZones['pocket']!),
+    // A hoodie's pocket is its kangaroo pocket.
+    if (isHoodie(garment)) ...[('pocket', 'Kangaroo pocket'), ('hood', 'Hood')],
+    // The track jacket's stand-up collar, or its hood.
+    if (isTrack(garment)) ('hood', trackStyle == 'hood' ? 'Hood' : 'Collar'),
+  ];
+}
 
 /// Tools edit the same document as the web studio and the live 2D board.
 class StudioArtworkTool extends StatefulWidget {
@@ -271,8 +318,8 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               Expanded(
                 child: Text(
                   '${layout['name']} · '
-                  '${(layout['roles'] as List).where((role) => role != 'none').length}'
-                  ' panels on the kit',
+                  '${_panels((layout['roles'] as List).where((role) => role != 'none').length)}'
+                  ' on the kit',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12.5),
@@ -312,7 +359,10 @@ class _StudioArtworkToolState extends State<StudioArtworkTool> {
               icon: Icons.undo,
               onPressed: () {
                 c.putLayoutBack('print');
-                showToast(context, '${back.layout['name']} is back on the 3D kit.');
+                showToast(
+                  context,
+                  '${back.layout['name']} is back on the 3D kit.',
+                );
               },
             ),
             const SizedBox(height: 6),
@@ -568,13 +618,22 @@ class _StudioGradientToolState extends State<StudioGradientTool> {
                 side: const BorderSide(color: Palette.cyan, width: 1.5),
                 backgroundColor: Palette.cyan.withValues(alpha: .06),
                 padding: const EdgeInsets.symmetric(vertical: 13),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
               onPressed: () => showGradientPresets(context, c, slot),
               child: const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('CHOOSE GRADIENT', style: TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.4, fontSize: 12)),
+                  Text(
+                    'CHOOSE GRADIENT',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                      fontSize: 12,
+                    ),
+                  ),
                   Icon(Icons.chevron_right, size: 18),
                 ],
               ),
@@ -595,11 +654,22 @@ class _StudioGradientToolState extends State<StudioGradientTool> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(label, style: const TextStyle(color: Palette.muted, fontSize: 11)),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Palette.muted,
+                            fontSize: 11,
+                          ),
+                        ),
                         const SizedBox(height: 6),
                         GestureDetector(
                           key: ValueKey('gradient-$label'),
-                          onTap: () => showGradientPresets(context, c, slot, editStop: i == 0 ? 0 : stops.length - 1),
+                          onTap: () => showGradientPresets(
+                            context,
+                            c,
+                            slot,
+                            editStop: i == 0 ? 0 : stops.length - 1,
+                          ),
                           child: Container(
                             height: 40,
                             decoration: BoxDecoration(
@@ -627,12 +697,20 @@ class _StudioGradientToolState extends State<StudioGradientTool> {
                 ),
                 child: Text(
                   '${stops.length} COLOURS',
-                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w700, letterSpacing: 1.4, color: Colors.white),
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.4,
+                    color: Colors.white,
+                  ),
                 ),
               ),
             ],
             const SizedBox(height: 8),
-            Text('Angle · ${angle.round()}°', style: const TextStyle(color: Palette.muted, fontSize: 11)),
+            Text(
+              'Angle · ${angle.round()}°',
+              style: const TextStyle(color: Palette.muted, fontSize: 11),
+            ),
             Slider(
               key: const ValueKey('gradient-angle'),
               value: angle.clamp(0, 360).toDouble(),
@@ -646,7 +724,10 @@ class _StudioGradientToolState extends State<StudioGradientTool> {
               key: const ValueKey('gradient-off'),
               onPressed: () => c.edit(() => setZoneGradient(c, slot, null)),
               icon: const Icon(Icons.close, size: 15),
-              label: const Text('Turn gradient off · solid colour', style: TextStyle(fontSize: 12)),
+              label: const Text(
+                'Turn gradient off · solid colour',
+                style: TextStyle(fontSize: 12),
+              ),
               style: TextButton.styleFrom(foregroundColor: Palette.muted),
             ),
           ],
@@ -658,18 +739,30 @@ class _StudioGradientToolState extends State<StudioGradientTool> {
 
 /// GRADIENT PRESETS as a compact bottom sheet: the presets, then CREATE CUSTOM GRADIENT (stops, colour wheel and
 /// hex). Every choice is one undo step and shows on the 3D kit at once; closing (X, a tap outside, Back) keeps it.
-Future<void> showGradientPresets(BuildContext context, AppController c, int slot, {int? editStop}) =>
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black26,
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * .62, maxWidth: 560),
-      builder: (_) => GradientPresetsSheet(c: c, slot: slot, editStop: editStop),
-    );
+Future<void> showGradientPresets(
+  BuildContext context,
+  AppController c,
+  int slot, {
+  int? editStop,
+}) => showModalBottomSheet<void>(
+  context: context,
+  isScrollControlled: true,
+  backgroundColor: Colors.transparent,
+  barrierColor: Colors.black26,
+  constraints: BoxConstraints(
+    maxHeight: MediaQuery.sizeOf(context).height * .62,
+    maxWidth: 560,
+  ),
+  builder: (_) => GradientPresetsSheet(c: c, slot: slot, editStop: editStop),
+);
 
 class GradientPresetsSheet extends StatefulWidget {
-  const GradientPresetsSheet({super.key, required this.c, required this.slot, this.editStop});
+  const GradientPresetsSheet({
+    super.key,
+    required this.c,
+    required this.slot,
+    this.editStop,
+  });
   final AppController c;
   final int slot;
   final int? editStop;
@@ -686,7 +779,8 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
   Map<String, dynamic>? get _g => zoneGradient(c, widget.slot);
   num get _angle => (_g?['angle'] as num?) ?? 0;
 
-  void _apply(Map<String, dynamic>? g) => c.edit(() => setZoneGradient(c, widget.slot, g));
+  void _apply(Map<String, dynamic>? g) =>
+      c.edit(() => setZoneGradient(c, widget.slot, g));
   void _live(Map<String, dynamic> g) {
     if (_dragging) {
       c.update(() => setZoneGradient(c, widget.slot, g));
@@ -704,7 +798,12 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
     if (_g == null) {
       final base = widget.slot == 0 ? c.mainColor : c.secondaryColor;
       final other = widget.slot == 0 ? c.secondaryColor : c.mainColor;
-      _apply(makeGradient([GradientStop(ProjectSync.hex(base), 0), GradientStop(ProjectSync.hex(other), 1)], 0));
+      _apply(
+        makeGradient([
+          GradientStop(ProjectSync.hex(base), 0),
+          GradientStop(ProjectSync.hex(other), 1),
+        ], 0),
+      );
     }
   }
 
@@ -712,10 +811,18 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
     if (stops.length >= 6) return;
     var at = 0;
     for (var i = 1; i < stops.length; i++) {
-      if (stops[i].at - stops[i - 1].at > stops[at + 1].at - stops[at].at) at = i - 1;
+      if (stops[i].at - stops[i - 1].at > stops[at + 1].at - stops[at].at)
+        at = i - 1;
     }
     final mixed = Color.lerp(stops[at].color, stops[at + 1].color, .5)!;
-    final next = [...stops]..insert(at + 1, GradientStop(ProjectSync.hex(mixed), (stops[at].at + stops[at + 1].at) / 2));
+    final next = [...stops]
+      ..insert(
+        at + 1,
+        GradientStop(
+          ProjectSync.hex(mixed),
+          (stops[at].at + stops[at + 1].at) / 2,
+        ),
+      );
     _apply(makeGradient(next, _angle));
     setState(() => _stop = at + 1);
   }
@@ -736,10 +843,22 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
       final zone = const ['PRIMARY', 'SECONDARY', 'ACCENT'][widget.slot];
       return Container(
         decoration: BoxDecoration(
-          gradient: const LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Color(0xf70a1824), Color(0xfa050e18)]),
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xf70a1824), Color(0xfa050e18)],
+          ),
           borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
-          border: Border.all(color: Palette.cyan.withValues(alpha: .45), width: 1.2),
-          boxShadow: [BoxShadow(color: Palette.cyan.withValues(alpha: .16), blurRadius: 20)],
+          border: Border.all(
+            color: Palette.cyan.withValues(alpha: .45),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Palette.cyan.withValues(alpha: .16),
+              blurRadius: 20,
+            ),
+          ],
         ),
         child: SafeArea(
           top: false,
@@ -750,7 +869,15 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Center(
-                  child: Container(width: 42, height: 4, margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: const Color(0xff3b5a69), borderRadius: BorderRadius.circular(2))),
+                  child: Container(
+                    width: 42,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xff3b5a69),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
                 ),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -759,9 +886,23 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('GRADIENT PRESETS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, letterSpacing: 1.8, fontSize: 14)),
+                          const Text(
+                            'GRADIENT PRESETS',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.8,
+                              fontSize: 14,
+                            ),
+                          ),
                           const SizedBox(height: 4),
-                          Text('Apply to selected colour zone · $zone', style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
+                          Text(
+                            'Apply to selected colour zone · $zone',
+                            style: const TextStyle(
+                              color: Palette.muted,
+                              fontSize: 11.5,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -769,7 +910,11 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                       key: const ValueKey('gradient-close'),
                       tooltip: 'Close',
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close, color: Palette.text, size: 20),
+                      icon: const Icon(
+                        Icons.close,
+                        color: Palette.text,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
@@ -795,7 +940,15 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                 ),
                 if (_custom && stops.isNotEmpty) ...[
                   const Divider(color: Palette.border, height: 22),
-                  const Text('CUSTOM GRADIENT', style: TextStyle(color: Palette.cyan, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 1.6)),
+                  const Text(
+                    'CUSTOM GRADIENT',
+                    style: TextStyle(
+                      color: Palette.cyan,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.6,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   LayoutBuilder(
                     builder: (context, box) => SizedBox(
@@ -807,7 +960,11 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                             left: 11,
                             right: 11,
                             child: DecoratedBox(
-                              decoration: BoxDecoration(gradient: flutterGradient(stops), borderRadius: BorderRadius.circular(7), border: Border.all(color: Palette.border)),
+                              decoration: BoxDecoration(
+                                gradient: flutterGradient(stops),
+                                borderRadius: BorderRadius.circular(7),
+                                border: Border.all(color: Palette.border),
+                              ),
                             ),
                           ),
                           for (final (i, s) in stops.indexed)
@@ -823,8 +980,22 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                                   decoration: BoxDecoration(
                                     color: s.color,
                                     shape: BoxShape.circle,
-                                    border: Border.all(color: i == stop ? Palette.cyan : Colors.white, width: i == stop ? 3 : 2),
-                                    boxShadow: i == stop ? [BoxShadow(color: Palette.cyan.withValues(alpha: .7), blurRadius: 8)] : null,
+                                    border: Border.all(
+                                      color: i == stop
+                                          ? Palette.cyan
+                                          : Colors.white,
+                                      width: i == stop ? 3 : 2,
+                                    ),
+                                    boxShadow: i == stop
+                                        ? [
+                                            BoxShadow(
+                                              color: Palette.cyan.withValues(
+                                                alpha: .7,
+                                              ),
+                                              blurRadius: 8,
+                                            ),
+                                          ]
+                                        : null,
                                   ),
                                 ),
                               ),
@@ -836,18 +1007,36 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                   const SizedBox(height: 6),
                   Row(
                     children: [
-                      Expanded(child: Text('Stop ${stop + 1} of ${stops.length} · ${(stops[stop].at * 100).round()}%', style: const TextStyle(color: Palette.muted, fontSize: 11))),
+                      Expanded(
+                        child: Text(
+                          'Stop ${stop + 1} of ${stops.length} · ${(stops[stop].at * 100).round()}%',
+                          style: const TextStyle(
+                            color: Palette.muted,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ),
                       TextButton.icon(
                         key: const ValueKey('gradient-add-stop'),
-                        onPressed: stops.length >= 6 ? null : () => _addStop(stops),
+                        onPressed: stops.length >= 6
+                            ? null
+                            : () => _addStop(stops),
                         icon: const Icon(Icons.add, size: 15),
-                        label: const Text('Add stop', style: TextStyle(fontSize: 11)),
+                        label: const Text(
+                          'Add stop',
+                          style: TextStyle(fontSize: 11),
+                        ),
                       ),
                       TextButton.icon(
                         key: const ValueKey('gradient-remove-stop'),
-                        onPressed: stops.length <= 2 ? null : () => _removeStop(stops, stop),
+                        onPressed: stops.length <= 2
+                            ? null
+                            : () => _removeStop(stops, stop),
                         icon: const Icon(Icons.remove, size: 15),
-                        label: const Text('Remove', style: TextStyle(fontSize: 11)),
+                        label: const Text(
+                          'Remove',
+                          style: TextStyle(fontSize: 11),
+                        ),
                       ),
                     ],
                   ),
@@ -855,8 +1044,16 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                     value: stops[stop].at,
                     activeColor: Palette.cyan,
                     onChanged: (v) {
-                      final lo = stop > 0 ? stops[stop - 1].at + .01 : 0.0, hi = stop < stops.length - 1 ? stops[stop + 1].at - .01 : 1.0;
-                      final next = [for (final (i, s) in stops.indexed) i == stop ? GradientStop(s.hex, v.clamp(lo, hi).toDouble()) : s];
+                      final lo = stop > 0 ? stops[stop - 1].at + .01 : 0.0,
+                          hi = stop < stops.length - 1
+                              ? stops[stop + 1].at - .01
+                              : 1.0;
+                      final next = [
+                        for (final (i, s) in stops.indexed)
+                          i == stop
+                              ? GradientStop(s.hex, v.clamp(lo, hi).toDouble())
+                              : s,
+                      ];
                       _live(makeGradient(next, _angle));
                     },
                     onChangeEnd: (_) => _dragging = false,
@@ -864,7 +1061,14 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                   ColorWheel(
                     key: ValueKey('gradient-wheel-$stop'),
                     color: stops[stop].color,
-                    onChanged: (color) => _live(makeGradient([for (final (i, s) in stops.indexed) i == stop ? GradientStop(ProjectSync.hex(color), s.at) : s], _angle)),
+                    onChanged: (color) => _live(
+                      makeGradient([
+                        for (final (i, s) in stops.indexed)
+                          i == stop
+                              ? GradientStop(ProjectSync.hex(color), s.at)
+                              : s,
+                      ], _angle),
+                    ),
                     onDone: (_) => _dragging = false,
                   ),
                 ],
@@ -872,9 +1076,18 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                 Center(
                   child: TextButton.icon(
                     key: const ValueKey('gradient-custom'),
-                    onPressed: () => _custom ? setState(() => _custom = false) : _startCustom(),
+                    onPressed: () => _custom
+                        ? setState(() => _custom = false)
+                        : _startCustom(),
                     icon: const Icon(Icons.add_circle_outline, size: 18),
-                    label: Text(_custom ? 'DONE EDITING' : 'CREATE CUSTOM GRADIENT', style: const TextStyle(fontWeight: FontWeight.w800, letterSpacing: 1.3, fontSize: 12)),
+                    label: Text(
+                      _custom ? 'DONE EDITING' : 'CREATE CUSTOM GRADIENT',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1.3,
+                        fontSize: 12,
+                      ),
+                    ),
                     style: TextButton.styleFrom(foregroundColor: Palette.cyan),
                   ),
                 ),
@@ -886,10 +1099,21 @@ class _GradientPresetsSheetState extends State<GradientPresetsSheet> {
                         setState(() => _custom = false);
                         _apply(null);
                       },
-                      child: const Text('Turn gradient off · solid colour', style: TextStyle(color: Palette.muted, fontSize: 11, decoration: TextDecoration.underline)),
+                      child: const Text(
+                        'Turn gradient off · solid colour',
+                        style: TextStyle(
+                          color: Palette.muted,
+                          fontSize: 11,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                   ),
-                const Text('Select a preset to preview on your garment', textAlign: TextAlign.center, style: TextStyle(color: Color(0xff71899a), fontSize: 11)),
+                const Text(
+                  'Select a preset to preview on your garment',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Color(0xff71899a), fontSize: 11),
+                ),
               ],
             ),
           ),
@@ -919,8 +1143,18 @@ class _PresetSwatch extends StatelessWidget {
                   decoration: BoxDecoration(
                     gradient: flutterGradient(p.stops),
                     borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: selected ? Palette.cyan : Colors.white24, width: selected ? 2 : 1.2),
-                    boxShadow: selected ? [BoxShadow(color: Palette.cyan.withValues(alpha: .45), blurRadius: 10)] : null,
+                    border: Border.all(
+                      color: selected ? Palette.cyan : Colors.white24,
+                      width: selected ? 2 : 1.2,
+                    ),
+                    boxShadow: selected
+                        ? [
+                            BoxShadow(
+                              color: Palette.cyan.withValues(alpha: .45),
+                              blurRadius: 10,
+                            ),
+                          ]
+                        : null,
                   ),
                 ),
               ),
@@ -931,8 +1165,21 @@ class _PresetSwatch extends StatelessWidget {
                   child: Container(
                     width: 19,
                     height: 19,
-                    decoration: BoxDecoration(color: Palette.cyan, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Palette.cyan.withValues(alpha: .7), blurRadius: 6)]),
-                    child: const Icon(Icons.check, size: 13, color: Color(0xff03141c)),
+                    decoration: BoxDecoration(
+                      color: Palette.cyan,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Palette.cyan.withValues(alpha: .7),
+                          blurRadius: 6,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 13,
+                      color: Color(0xff03141c),
+                    ),
                   ),
                 ),
             ],
@@ -943,7 +1190,12 @@ class _PresetSwatch extends StatelessWidget {
           p.name,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700, letterSpacing: .4, color: selected ? Colors.white : const Color(0xffc9dbe4)),
+          style: TextStyle(
+            fontSize: 8.5,
+            fontWeight: FontWeight.w700,
+            letterSpacing: .4,
+            color: selected ? Colors.white : const Color(0xffc9dbe4),
+          ),
         ),
       ],
     ),
@@ -959,45 +1211,43 @@ class StudioZoneTool extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const SectionLabel('Patterns by garment area'),
-      for (final zone in garmentZones.entries)
-        if ((c.garment != 'Shorts' || !['sleeves', 'yoke'].contains(zone.key)) &&
-            (zone.key != 'pocket' || c.garment == 'Polo with pocket' || isHoodie(c.garment)) &&
-            (zone.key != 'hood' || isHoodie(c.garment) || isTrack(c.garment)))
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: DropdownButtonFormField<String>(
-              key: ValueKey('${zone.key}-${c.zones[zone.key]}'),
-              initialValue: c.zones[zone.key] ?? '',
-              // A hoodie's pocket is its kangaroo pocket (as the website's Studio).
-              decoration: InputDecoration(
-                labelText: zone.key == 'pocket' && isHoodie(c.garment)
-                    ? 'Kangaroo pocket'
-                    : zone.key == 'hood' && isTrack(c.garment) && c.trackStyle != 'hood'
-                    ? 'Collar'
-                    : zone.value,
+      for (final (area, label) in patternAreas(
+        c.garment,
+        trackStyle: c.trackStyle,
+      ))
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: DropdownButtonFormField<String>(
+            key: ValueKey('$area-${c.zones[area].hashCode}'),
+            initialValue: c.zones[area] ?? '',
+            // Fits the narrow panel under the 3D on a 360 px phone.
+            isExpanded: true,
+            decoration: InputDecoration(labelText: label),
+            items: [
+              const DropdownMenuItem(
+                value: '',
+                child: Text('Use whole garment'),
               ),
-              items: [
-                const DropdownMenuItem(
-                  value: '',
-                  child: Text('Use whole garment'),
+              const DropdownMenuItem(value: 'None', child: Text('No pattern')),
+              for (final pattern in studioPatterns)
+                DropdownMenuItem(value: pattern, child: Text(pattern)),
+              // One of My patterns put on this area (own_patterns.dart).
+              if (isPatternPicture(c.zones[area]))
+                DropdownMenuItem(
+                  value: c.zones[area],
+                  child: const Text('My pattern'),
                 ),
-                const DropdownMenuItem(
-                  value: 'None',
-                  child: Text('No pattern'),
-                ),
-                for (final pattern in studioPatterns)
-                  DropdownMenuItem(value: pattern, child: Text(pattern)),
-              ],
-              onChanged: (value) => c.edit(() {
-                c.zones = {...c.zones};
-                if (value == null || value.isEmpty) {
-                  c.zones.remove(zone.key);
-                } else {
-                  c.zones[zone.key] = value;
-                }
-              }),
-            ),
+            ],
+            onChanged: (value) => c.edit(() {
+              c.zones = {...c.zones};
+              if (value == null || value.isEmpty) {
+                c.zones.remove(area);
+              } else {
+                c.zones[area] = value;
+              }
+            }),
           ),
+        ),
       // The track jacket's style: its stand-up collar or a hood (as the website's TRACK JACKET STYLE).
       if (isTrack(c.garment)) ...[
         const SectionLabel('Track jacket style'),
@@ -1015,36 +1265,87 @@ class StudioZoneTool extends StatelessWidget {
         ),
       ],
       // Hoodies, the varsity and track jackets: each area's own colour, from the kit's colours (or back to them).
-      if (isHoodie(c.garment) || isVarsity(c.garment) || isTrack(c.garment)) ...[
-        SectionLabel(isTrack(c.garment) ? 'Track jacket area colours' : isVarsity(c.garment) ? 'Varsity area colours' : 'Hoodie area colours'),
-        for (final area in (isTrack(c.garment)
-                ? {...trackAreas, if (c.trackStyle == 'hood') 'collar': 'Hood'}
-                : isVarsity(c.garment)
-                ? varsityAreas
-                : hoodieAreas)
-            .entries)
+      if (isHoodie(c.garment) ||
+          isVarsity(c.garment) ||
+          isTrack(c.garment) ||
+          isBballShorts(c.garment, c.zoneColors) ||
+          isNetballBib(c.garment, c.zoneColors) ||
+          isBballSinglet(c.garment, c.zoneColors) ||
+          isNetballDress(c.garment)) ...[
+        SectionLabel(
+          isNetballDress(c.garment)
+              ? 'Netball dress area colours'
+              : isBballShorts(c.garment, c.zoneColors)
+              ? 'Basketball shorts area colours'
+              : isNetballBib(c.garment, c.zoneColors)
+              ? 'Netball bib area colours'
+              : isBballSinglet(c.garment, c.zoneColors)
+              ? 'Basketball singlet area colours'
+              : isTrack(c.garment)
+              ? 'Track jacket area colours'
+              : isVarsity(c.garment)
+              ? 'Varsity area colours'
+              : 'Hoodie area colours',
+        ),
+        for (final area
+            in (isTrack(c.garment)
+                    ? {
+                        ...trackAreas,
+                        if (c.trackStyle == 'hood') 'collar': 'Hood',
+                      }
+                    : isVarsity(c.garment)
+                    ? varsityAreas
+                    : isBballShorts(c.garment, c.zoneColors)
+                    ? bballAreas
+                    : isNetballBib(c.garment, c.zoneColors)
+                    ? bibAreas
+                    : isBballSinglet(c.garment, c.zoneColors)
+                    ? bballSingletAreas
+                    : isNetballDress(c.garment)
+                    ? dressAreas
+                    : hoodieAreas)
+                .entries)
           if (area.key != 'zip' || c.garment == 'Zip hoodie')
             Row(
               key: ValueKey('area-${area.key}'),
               children: [
-                Expanded(child: Text(area.value, style: const TextStyle(fontSize: 12))),
-                for (final color in {c.mainColor, c.secondaryColor, c.accentColor, Colors.white, Colors.black})
+                Expanded(
+                  child: Text(area.value, style: const TextStyle(fontSize: 12)),
+                ),
+                for (final color in {
+                  c.mainColor,
+                  c.secondaryColor,
+                  c.accentColor,
+                  Colors.white,
+                  Colors.black,
+                })
                   IconButton(
                     visualDensity: VisualDensity.compact,
                     tooltip: '${area.value}: ${ProjectSync.hex(color)}',
                     icon: Icon(
-                      c.zoneColors[area.key] == ProjectSync.hex(color) ? Icons.check_circle : Icons.circle,
+                      c.zoneColors[area.key] == ProjectSync.hex(color)
+                          ? Icons.check_circle
+                          : Icons.circle,
                       color: color,
                       size: 20,
                     ),
-                    onPressed: () => c.edit(() => c.zoneColors = {...c.zoneColors, area.key: ProjectSync.hex(color)}),
+                    onPressed: () => c.edit(
+                      () => c.zoneColors = {
+                        ...c.zoneColors,
+                        area.key: ProjectSync.hex(color),
+                      },
+                    ),
                   ),
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: '${area.value}: back to the kit colours',
                   icon: const Icon(Icons.restart_alt, size: 18),
                   onPressed: c.zoneColors.containsKey(area.key)
-                      ? () => c.edit(() => c.zoneColors = {...c.zoneColors}..remove(area.key))
+                      ? () => c.edit(
+                          () =>
+                              c.zoneColors = {...c.zoneColors}
+                                ..remove(area.key),
+                        )
                       : null,
                 ),
               ],
@@ -1064,9 +1365,270 @@ class StudioPresetsTool extends StatefulWidget {
 /// "Preset designs": ready-made looks (All), the user's saved kits (My
 /// designs) and starred presets (Favourites), as on the website.
 class _StudioPresetsToolState extends State<StudioPresetsTool> {
-  late final _presets = rootBundle
+  /// The bundled presets (pictures in assets/images/presets): the 3DEEZI
+  /// presets offline, and which ones have a bundled picture.
+  late final _bundled = rootBundle
       .loadString('assets/presets.json')
       .then((text) => jsonDecode(text) as List);
+
+  /// The 3DEEZI presets from the server (task 9.148), else the bundled ones.
+  late final Future<List> _presets = _loadTeam();
+
+  /// MY PRESETS: the signed-in user's private presets (null: not loaded).
+  List<Map<String, dynamic>>? _mine;
+  Set<String> _bundledIds = {};
+  bool _saving = false;
+  bool _offline = false;
+
+  /// A 3D still at most [size] px wide (the website's 360 px preview).
+  static Future<Uint8List?> _shrink(Uint8List? png, int size) async {
+    if (png == null) return null;
+    final codec = await ui.instantiateImageCodec(png, targetWidth: size);
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData(format: ui.ImageByteFormat.png);
+    frame.image.dispose();
+    return data?.buffer.asUint8List() ?? png;
+  }
+
+  Future<List> _loadTeam() async {
+    final bundled = await _bundled;
+    _bundledIds = {for (final p in bundled.cast<Map>()) '${p['id']}'};
+    try {
+      if (c.api.configured) {
+        final remote = await c.api.presets().timeout(
+          const Duration(seconds: 10),
+        );
+        if (remote.isNotEmpty) return remote;
+      }
+    } on Object {
+      // Offline or slow: the bundled presets, with a note.
+      _offline = true;
+    }
+    return bundled;
+  }
+
+  Future<void> _loadMine() async {
+    if (!c.signedIn) return;
+    try {
+      final mine = await c.api.myPresets().timeout(const Duration(seconds: 10));
+      if (mounted) setState(() => _mine = mine);
+    } on Object {
+      if (mounted) setState(() => _mine = const []);
+    }
+  }
+
+  Future<String?> _askName(String title, String initial) {
+    final field = TextEditingController(text: initial);
+    return showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: TextField(
+          controller: field,
+          autofocus: true,
+          maxLength: 120,
+          decoration: const InputDecoration(hintText: 'Preset name'),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, field.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    ).whenComplete(field.dispose);
+  }
+
+  /// "Save as my preset": the current design, a 3D still and a name; only
+  /// this user sees it.
+  Future<void> _saveMine() async {
+    final name = await _askName('Save as my preset', '');
+    if (name == null || name.isEmpty || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      Uint8List? still;
+      try {
+        still = await _shrink(await c.captureMockup?.call('Front'), 360);
+      } on Object {
+        // Saved without a still.
+      }
+      final design = ProjectSync.toServer(
+        Project(
+          title: name,
+          sport: c.sport,
+          garment: c.garment,
+          mode: c.mode,
+          kit: c.kit,
+          updated: DateTime.now(),
+        ),
+      )['design'];
+      final saved = await c.api.savePreset({
+        'name': name,
+        'design': design,
+        'thumbnail': ProjectSync.dataUrl(still),
+      });
+      if (!mounted) return;
+      setState(() => _mine = [saved, ...?_mine]);
+      showToast(context, '$name saved in My presets.');
+    } on Object catch (e) {
+      if (mounted) showToast(context, '$e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _renameMine(Map<String, dynamic> preset) async {
+    final name = await _askName('Rename preset', '${preset['name']}');
+    if (name == null || name.isEmpty || name == preset['name']) return;
+    try {
+      final saved = await c.api.renamePreset(preset['key'] as int, name);
+      if (mounted) {
+        setState(
+          () => _mine = [
+            for (final p in _mine ?? <Map<String, dynamic>>[])
+              p['key'] == saved['key'] ? saved : p,
+          ],
+        );
+      }
+    } on Object catch (e) {
+      if (mounted) showToast(context, '$e');
+    }
+  }
+
+  Future<void> _deleteMine(Map<String, dynamic> preset) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete preset?'),
+        content: Text('Delete "${preset['name']}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await c.api.deletePreset(preset['key'] as int);
+      if (!mounted) return;
+      setState(
+        () => _mine = [
+          for (final p in _mine ?? <Map<String, dynamic>>[])
+            if (p['key'] != preset['key']) p,
+        ],
+      );
+      showToast(context, '${preset['name']} deleted.');
+    } on Object catch (e) {
+      if (mounted) showToast(context, '$e');
+    }
+  }
+
+  /// A preset's picture: the bundled one, the saved still, or its colours.
+  Widget _presetImage(Map preset) {
+    final id = '${preset['id']}';
+    final thumb = preset['thumbnail'];
+    if (_bundledIds.contains(id)) {
+      return Image.asset('assets/images/presets/$id.webp', fit: BoxFit.cover);
+    }
+    if (thumb is String && thumb.startsWith('data:')) {
+      try {
+        return Image.memory(
+          base64Decode(thumb.substring(thumb.indexOf(',') + 1)),
+          fit: BoxFit.cover,
+        );
+      } on Object {
+        // The colours below.
+      }
+    } else if (thumb is String && thumb.startsWith('http')) {
+      return Image.network(
+        thumb,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _swatch(preset),
+      );
+    }
+    return _swatch(preset);
+  }
+
+  Widget _swatch(Map preset) {
+    final d = (preset['design'] as Map?) ?? const {};
+    Color col(Object? v) => Color(
+      int.tryParse('ff${'$v'.replaceAll('#', '')}', radix: 16) ?? 0xff10202c,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [col(d['main']), col(d['secondary'])]),
+      ),
+    );
+  }
+
+  Widget _presetCard(Map preset, {bool mine = false}) {
+    final card = _card(
+      image: _presetImage(preset),
+      title: '${preset['name']}',
+      subtitle: mine
+          ? 'My preset'
+          : (preset['design'] as Map)['layout'] != null
+          ? 'Design picture'
+          : (preset['design'] as Map)['pattern'] as String? ?? '',
+      favouriteId: '${preset['id']}',
+      onTap: () => _apply(
+        '${preset['name']}',
+        (preset['design'] as Map).cast<String, dynamic>(),
+      ),
+    );
+    if (!mine) return card;
+    final p = preset.cast<String, dynamic>();
+    return Stack(
+      children: [
+        Positioned.fill(child: card),
+        Positioned(
+          right: 2,
+          top: 2,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Rename ${preset['name']}',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xcc05101a),
+                ),
+                onPressed: () => _renameMine(p),
+                icon: const Icon(Icons.edit_outlined, size: 16),
+              ),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                tooltip: 'Delete ${preset['name']}',
+                style: IconButton.styleFrom(
+                  backgroundColor: const Color(0xcc05101a),
+                ),
+                onPressed: () => _deleteMine(p),
+                icon: const Icon(Icons.delete_outline_rounded, size: 16),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const _groupStyle = TextStyle(
+    fontSize: 10.5,
+    letterSpacing: 1.6,
+    fontWeight: FontWeight.w700,
+    color: Palette.cyan,
+  );
   static const _favouritesKey = '3deezi.favouritePresets';
   int _tab = 0;
   String _query = '';
@@ -1077,6 +1639,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   @override
   void initState() {
     super.initState();
+    _loadMine();
     SharedPreferences.getInstance()
         .then((p) {
           if (mounted) {
@@ -1271,6 +1834,20 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
           ],
         ),
         const SizedBox(height: 10),
+        if (c.signedIn)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: ActionChipPill(
+              _saving ? 'Saving…' : 'Save as my preset',
+              onTap: _saving ? null : _saveMine,
+            ),
+          )
+        else
+          const Text(
+            'Sign in to save your own presets.',
+            style: TextStyle(color: Palette.muted, fontSize: 12),
+          ),
+        const SizedBox(height: 10),
         TextField(
           onChanged: (v) => setState(() => _query = v),
           decoration: const InputDecoration(
@@ -1333,15 +1910,49 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                 return const Text('Presets could not be loaded.');
               if (!snapshot.hasData)
                 return const Center(child: CircularProgressIndicator());
-              final shown = [
-                for (final preset in snapshot.data!.cast<Map>())
-                  if ((_tab == 0 || _favourites.contains(preset['id'])) &&
-                      '${preset['name']} ${preset['description']}'
-                          .toLowerCase()
-                          .contains(q))
-                    preset,
+              bool shows(Map preset) =>
+                  (_tab == 0 || _favourites.contains(preset['id'])) &&
+                  '${preset['name']} ${preset['description']}'
+                      .toLowerCase()
+                      .contains(q);
+              // A sport's own presets (the Rugby League design pictures,
+              // PRESETRL 2026-11-19) only on that sport (and, with a garment,
+              // on it or the sport's full kit), in their own group first.
+              final sportId = ProjectSync.sports[c.sport];
+              final garmentId = ProjectSync.garments[c.garment];
+              bool fitsKit(Map p) {
+                final g = p['garment'];
+                return g == null ||
+                    g == garmentId ||
+                    (garmentId == 'fullkit' && g == 'jersey');
+              }
+
+              final all = snapshot.data!.cast<Map>();
+              final sportShown = [
+                for (final p in all)
+                  if (p['sport'] != null &&
+                      p['sport'] == sportId &&
+                      fitsKit(p) &&
+                      shows(p))
+                    p,
               ];
-              if (shown.isEmpty) {
+              final shown = [
+                for (final p in all)
+                  if (p['sport'] == null && shows(p)) p,
+              ];
+              final note = _offline
+                  ? const Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Text(
+                        'The server did not answer: showing the built-in presets.',
+                        style: TextStyle(color: Palette.muted, fontSize: 11),
+                      ),
+                    )
+                  : null;
+              final shownMine = (_mine ?? const <Map<String, dynamic>>[])
+                  .where(shows)
+                  .toList();
+              if (shown.isEmpty && shownMine.isEmpty && sportShown.isEmpty) {
                 return Text(
                   _tab == 2
                       ? 'Tap the star on any design to keep it here.'
@@ -1349,24 +1960,38 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                   style: const TextStyle(color: Palette.muted),
                 );
               }
-              return _grid([
-                if (_tab == 0) ..._own(),
-                for (final preset in shown)
-                  _card(
-                    image: Image.asset(
-                      'assets/images/presets/${preset['id']}.webp',
-                      fit: BoxFit.cover,
+              // My presets first (with YOUR DESIGN), then the 3DEEZI presets.
+              final own = _tab == 0 ? _own() : const <Widget>[];
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ?note,
+                  if (shownMine.isNotEmpty) ...[
+                    const Text('MY PRESETS', style: _groupStyle),
+                    const SizedBox(height: 8),
+                  ],
+                  if (own.isNotEmpty || shownMine.isNotEmpty)
+                    _grid([
+                      ...own,
+                      for (final p in shownMine) _presetCard(p, mine: true),
+                    ]),
+                  if (sportShown.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      '${c.sport.toUpperCase()} PRESETS',
+                      style: _groupStyle,
                     ),
-                    title: preset['name'] as String,
-                    subtitle:
-                        (preset['design'] as Map)['pattern'] as String? ?? '',
-                    favouriteId: preset['id'] as String,
-                    onTap: () => _apply(
-                      preset['name'] as String,
-                      (preset['design'] as Map).cast<String, dynamic>(),
-                    ),
-                  ),
-              ]);
+                    const SizedBox(height: 8),
+                    _grid([for (final p in sportShown) _presetCard(p)]),
+                  ],
+                  if (shown.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    const Text('3DEEZI PRESETS', style: _groupStyle),
+                    const SizedBox(height: 8),
+                    _grid([for (final p in shown) _presetCard(p)]),
+                  ],
+                ],
+              );
             },
           ),
       ],

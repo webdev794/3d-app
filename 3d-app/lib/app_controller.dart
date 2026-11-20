@@ -3,13 +3,19 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'ai_service.dart';
 import 'api_client.dart';
 import 'design_document.dart';
+import 'design_files.dart';
+import 'garment_style.dart';
+import 'own_patterns.dart';
 import 'project_store.dart';
 import 'project_sync.dart';
 import 'session_store.dart';
+import 'sports_catalog.dart';
+import 'model_flags.dart';
 
 /// The screens of the client's "Complete App Flow", in order.
 enum AppScreen {
@@ -29,9 +35,14 @@ enum AppScreen {
   assets,
   profile,
   showcase,
+  // The Studio's Mockup: studio product photos (screens/product_mockup.dart).
+  mockup,
   artboard,
   pricing,
   orders,
+  // The bottom bar's Orders tab (client picture 168.jpg): Create Order Form,
+  // Upload Your Order and My orders ([orders]).
+  orderHub,
 }
 
 /// Everything about the kit that Undo/Redo restores.
@@ -55,13 +66,24 @@ class KitState {
     this.zones = const {},
     this.zoneColors = const {},
     this.trackStyle = 'collar',
+    this.neck,
+    this.fit,
+    this.patternColor,
+    this.patternColorOwn,
+    this.parts = const {},
     this.productName = '',
     this.gradient,
     this.gradients,
     this.marks = const {},
     this.layout,
+    this.patternScale,
+    this.patternBody,
   });
   final String garment, pattern, fabric, logoText, backName, number;
+
+  /// The pattern picture's repeat in metres (Patterns › Pattern size; null:
+  /// the viewer's 0.3) and how far a stencil pattern covers the body (0-1).
+  final double? patternScale, patternBody;
   final Color mainColor, secondaryColor, accentColor;
   final Uint8List? patternTile, logoImage, sponsorImage;
   final DesignSpec? spec;
@@ -73,6 +95,23 @@ class KitState {
 
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   final String trackStyle;
+
+  /// Garment style (garment_style.dart): the neck ('round', 'v' or a rugby
+  /// collar) and a rugby jersey's fit; null = the garment's own.
+  final String? neck, fit;
+
+  /// The pattern's own colour ('#rrggbb', the website's PATTERN); null = a
+  /// blend of the primary and secondary.
+  final String? patternColor;
+
+  /// True once the pattern colour is picked (PATTERN tab or a tap on the
+  /// pattern): the viewer then paints every pattern in it (the website's
+  /// design.patternColorOwn). Null: palettes and presets.
+  final bool? patternColorOwn;
+
+  /// Parts edited on their own (task 9.134, design.parts: a sleeve's own
+  /// colour, fade and pattern; see part_editing.dart). Empty: as before.
+  final Map<String, dynamic> parts;
 
   /// The sport's garment tile it was chosen as ("Netball dress", task 9.99);
   /// empty for a plain 3D garment. [garment] stays the 3D garment.
@@ -132,7 +171,8 @@ class Project {
     this.approved = false,
   }) : id = id ?? 'p${DateTime.now().microsecondsSinceEpoch}';
 
-  /// Stable id; samples use "sample-N", user projects a timestamp.
+  /// Stable id: a timestamp (kits saved from the old bundled examples kept
+  /// their "sample-N" id).
   final String id;
 
   /// True once written to the device.
@@ -179,6 +219,19 @@ class AppController extends ChangeNotifier {
   String brief = '';
   final List<Uint8List> references = [];
 
+  /// The YOUR DESIGNS background (client picture 362): auto, studio, stadium
+  /// or custom (the client's own picture); part of the generated scene and
+  /// the same for all four designs. [aiMadeScene]: what the shown designs
+  /// were made with.
+  String aiScene = 'auto';
+  Uint8List? aiSceneImage;
+  bool aiSameScene = true;
+  String aiMadeScene = 'auto';
+
+  /// The design file a reference picture was drawn from, with its name and
+  /// type for the chip (client 2026-11-02: PDF, SVG, AI, EPS, PSD…).
+  final referenceFiles = Expando<ReferenceFile>('reference file');
+
   /// The sport and garment chosen on the AI Designer (a sports tile, the
   /// brief's own words or a garment chip), or null to let the AI pick.
   String? aiSport, aiGarment;
@@ -192,10 +245,203 @@ class AppController extends ChangeNotifier {
   /// 2026-10-21); any design can be made HD later from its menu.
   bool wantMockup = false, mockupBusy = false, sheetBusy = false;
 
+  /// Open in 3D Designer is reading the AI picture (task 9.116).
+  bool readingBusy = false;
+
   /// The AI designer's current Generate: a new brief or Back to create ends
   /// it, so late pictures from an older brief are dropped.
   int resultsRun = 0;
   String? planError;
+
+  // ---------- Recent designs (client 2026-10-30, like ChatGPT keeps your
+  // chats; the website's /ai/sessions): each brief's designs are saved to the
+  // account once they are in (only changed pictures are sent) and the last
+  // brief is kept on this device; the AI Designer start screen reopens them.
+  int? aiSessionId;
+  List<Uint8List> _aiSessionSent = const [];
+  int _aiSessionToken = 0;
+  Future<void> _aiSaving = Future.value();
+
+  /// A new brief: its designs become a new session.
+  void newAiSession() {
+    _aiSessionToken++;
+    aiSessionId = null;
+    _aiSessionSent = const [];
+  }
+
+  /// After a design arrives or changes (render, Make HD, refine, edit):
+  /// saved once none is still rendering (an unchanged list is not sent).
+  void saveAiSessionSoon() => unawaited(_saveAiSession());
+
+  static String _dataUrl(Uint8List b) {
+    final mime = b.length > 3 && b[0] == 0x89 && b[1] == 0x50
+        ? 'image/png'
+        : b.length > 11 && b[8] == 0x57 && b[9] == 0x45
+        ? 'image/webp'
+        : 'image/jpeg';
+    return 'data:$mime;base64,${base64Encode(b)}';
+  }
+
+  Future<void> _saveAiSession() async {
+    if (concepts.any((o) => o.busy)) return;
+    final list = [
+      for (final o in concepts)
+        if (o.image != null) o,
+    ];
+    if (list.isEmpty || brief.trim().isEmpty) return;
+    final token = _aiSessionToken;
+    final images = [for (final o in list) o.image!];
+    Map<String, dynamic> keep(Concept o) => {
+      'name': o.spec.designName,
+      'description': o.spec.summary,
+      if (o.quality == 'high' || o.quality == 'medium') 'quality': o.quality,
+      if (o.view == 'presentation' || o.view == 'front') 'view': o.view,
+      'direction': o.direction,
+      'spec': o.spec.toJson(),
+    };
+    final local = {
+      'prompt': brief,
+      'sport': aiSport ?? sport,
+      'garment': aiGarment ?? garment,
+      'at': DateTime.now().toUtc().toIso8601String(),
+      'options': [
+        for (final o in list) {...keep(o), 'image': _dataUrl(o.image!)},
+      ],
+    };
+    unawaited(const RecentDesignsStore().save(local));
+    if (!signedIn || !api.configured) return;
+    _aiSaving = _aiSaving.then((_) async {
+      if (token != _aiSessionToken) return;
+      final id = aiSessionId, sent = _aiSessionSent;
+      bool same(int i) => i < sent.length && identical(sent[i], images[i]);
+      if (id != null &&
+          sent.length == images.length &&
+          [for (var i = 0; i < images.length; i++) same(i)].every((x) => x)) {
+        return;
+      }
+      final body = {
+        'prompt': brief,
+        'sport': aiSport ?? sport,
+        'garment': aiGarment ?? garment,
+        'source': 'app',
+        // Design files attached to the brief: kept in Assets with their
+        // pictures (once), so the session keeps them.
+        if (await _designReferenceIds() case final ids when ids.isNotEmpty)
+          'reference_ids': ids,
+        'options': [
+          for (final (i, o) in list.indexed)
+            {
+              ...keep(o),
+              if (id == null || !same(i)) 'image': _dataUrl(o.image!),
+            },
+        ],
+      };
+      try {
+        final saved = id == null
+            ? await api.saveAiSession(body)
+            : await api.updateAiSession(id, body);
+        if (token != _aiSessionToken) return;
+        aiSessionId = (saved['id'] as num).toInt();
+        _aiSessionSent = images;
+      } on Object {
+        // Recent designs are a convenience: the designs on screen stay.
+      }
+    });
+  }
+
+  /// The attached design files saved to Assets with their pictures (each
+  /// once); a file that could not be sent is left out.
+  Future<List<int>> _designReferenceIds() async {
+    final ids = <int>[];
+    for (final picture in [...references]) {
+      final info = referenceFiles[picture];
+      final original = info?.original;
+      if (info == null || original == null) continue;
+      try {
+        info.assetId ??= await api.uploadDesignReference(
+          picture,
+          original,
+          name: info.name,
+        );
+        ids.add(info.assetId!);
+      } on Object {
+        // Recent designs are a convenience: the designs on screen stay.
+      }
+    }
+    return ids.take(4).toList();
+  }
+
+  /// A Recent designs card: YOUR DESIGNS again with that brief's designs
+  /// (from the account, or the last brief on this device), with no AI call.
+  /// False when none of its pictures could be read (nothing changes).
+  bool showAiSession(Map<String, dynamic> s, {int? id}) {
+    String? pick(List<String> names, Object? v) {
+      String key(Object? x) =>
+          '$x'.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+      return names.where((n) => key(n) == key(v)).firstOrNull;
+    }
+
+    Map<String, dynamic>? map(Object? v) =>
+        v is Map ? v.cast<String, dynamic>() : null;
+    final sportName = pick(designSports, s['sport']);
+    final garmentName = pick(aiDesignGarments, s['garment']);
+    final list = <Concept>[];
+    for (final o in (s['options'] as List? ?? const [])) {
+      try {
+        final m = map(o);
+        final url = m?['image'];
+        final comma = url is String ? url.indexOf(',') : -1;
+        if (m == null || url is! String || comma < 0) continue;
+        final bytes = base64Decode(url.substring(comma + 1));
+        final design = map(m['design']) ?? const {};
+        final from = map(m['spec']);
+        // The website keeps the spec as sent, except that empty text comes
+        // back as null (a 1-design brief's "renderPrompt": "", a kit with no
+        // team name): such a field falls back, so the design still opens
+        // (client 2026-11-10, 493.png: the card did nothing).
+        final spec = DesignSpec.fromSaved({
+          'designName': m['name'] ?? 'Design ${list.length + 1}',
+          'detected': garmentName ?? garment,
+          'summary': m['description'],
+          'mainColor': design['main'] ?? '#101d2a',
+          'secondaryColor': design['secondary'] ?? '#00c2cc',
+          'accentColor': design['accent'] ?? '#ffffff',
+          'pattern': design['pattern'],
+          'fabric': design['fabric'],
+          'logoText': design['logoText'],
+          'patternMotif': m['motif'],
+          'sport': sportName,
+          'garment': garmentName,
+          if (from != null)
+            for (final e in from.entries)
+              if (e.value != null) e.key: e.value,
+        });
+        list.add(
+          Concept(spec, direction: map(m['direction']))
+            ..image = bytes
+            ..quality = m['quality'] is String ? m['quality'] as String : null
+            ..view = m['view'] is String ? m['view'] as String : null,
+        );
+      } on Object {
+        continue;
+      }
+    }
+    if (list.isEmpty) return false;
+    resultsRun++;
+    newAiSession();
+    brief = '${s['prompt'] ?? ''}';
+    aiSport = sportName;
+    aiGarment = garmentName;
+    references.clear();
+    concepts = list;
+    selectedConcept = 0;
+    planError = null;
+    aiSessionId = id;
+    _aiSessionSent = id == null ? const [] : [for (final o in list) o.image!];
+    go(AppScreen.concepts);
+    return true;
+  }
+
   Uint8List? mockupImage;
   String? mockupError, mockupDirection;
 
@@ -226,6 +472,21 @@ class AppController extends ChangeNotifier {
   String pattern = 'Chevron', fabric = 'Standard';
   String logoText = 'MANTIS', backName = 'MANTIS', number = '23';
   Uint8List? patternTile, logoImage, sponsorImage;
+
+  /// See [KitState.patternScale] and [KitState.patternBody].
+  double? patternScale, patternBody;
+
+  /// Patterns › My patterns: the account's own pattern pictures (saved
+  /// assets of type "pattern", shared with the website), loaded on demand.
+  List<({int id, String name, Uint8List bytes})>? ownPatterns;
+
+  /// How an own pattern goes on where the kit has no pattern picture yet:
+  /// 'full' (its own colours) or 'kit' (a stencil in the kit's colours). Where
+  /// it has one, the new pattern takes that picture's mode (own_patterns.dart).
+  String ownPatternMode = 'full';
+
+  /// Redraws the screens after a change outside [edit] (own_patterns.dart).
+  void changed() => notifyListeners();
   DesignSpec? spec;
   List<Map<String, dynamic>> layers = [];
   Map<String, String> zones = {};
@@ -235,6 +496,43 @@ class AppController extends ChangeNotifier {
 
   /// The track jacket's style: 'collar' (its stand-up collar) or 'hood'.
   String trackStyle = 'collar';
+
+  /// Garment style › Neck style ('round', 'v' or a rugby collar) and a rugby
+  /// jersey's fit (garment_style.dart); null = the garment's own.
+  String? neck;
+  String? fit;
+
+  /// The pattern's own colour ('#rrggbb'); null = the primary/secondary blend.
+  String? patternColor;
+
+  /// See [KitState.patternColorOwn].
+  bool? patternColorOwn;
+
+  /// See [KitState.parts].
+  Map<String, dynamic> parts = {};
+
+  /// Set by the Studio while a tap on one part of the 3D kit opens its Part
+  /// panel (task 9.134): the viewer's 'partPick' message (partKey, part,
+  /// side, x, y). Null = part tapping is off.
+  void Function(Map<String, dynamic> pick)? partPick;
+
+  /// Part tapping turned on or off: the viewer is told.
+  void setPartPick(void Function(Map<String, dynamic> pick)? handler) {
+    partPick = handler;
+    notifyListeners();
+  }
+
+  /// Lights up a whole part on the 3D kit ({part: 'top' | 'shorts', key}),
+  /// a short flash; null clears it. Set by the 3D viewer.
+  void Function(Map<String, dynamic>? part)? glowPart;
+
+  /// Garment style's NECK DETAIL: a close-up of the 3D kit's neck (JPEG
+  /// bytes) once the design is on it; null without a top. Set by the viewer.
+  Future<Uint8List?> Function()? neckShot;
+
+  /// The pattern colour while [patternColor] is unset.
+  Color get defaultPatternColor =>
+      Color.lerp(mainColor, secondaryColor, 0.55) ?? secondaryColor;
   Map<String, dynamic>? gradient;
 
   /// Gradient fills of the secondary and pattern zones (see gradient_presets.dart); [gradient] is the primary's.
@@ -258,12 +556,71 @@ class AppController extends ChangeNotifier {
     int asset, {
     bool drawing,
     String? garment,
+    bool known,
   })?
   checkLayout;
+
+  /// The Studio's 3D view has started and answers requests (Artwork to 3D
+  /// waits for it before the print layout check).
+  bool viewerReady = false;
 
   /// The 3D view shows a screen of its own (the print layout check): what
   /// the app puts over the 3D view (view buttons, the chat button) hides.
   bool viewerModal = false;
+
+  /// A logo or words on the 3D kit are selected (the viewer's own menu is
+  /// open): the Studio's buttons over the 3D step aside so the menu and the
+  /// selected item both show.
+  bool objectOnKit = false;
+
+  /// "High quality jersey (preview)": the 3D jersey is the client's
+  /// professional CLO model (the viewer's ?hq=1). Off by default until the
+  /// client approves; remembered on this device. Only the jersey changes.
+  bool hqJersey = false;
+  static const hqJerseyKey = '3deezi.hqJersey';
+
+  /// Reads the device's own choices (the HQ jersey switch).
+  Future<void> restoreDevicePrefs() async {
+    try {
+      final on = (await SharedPreferences.getInstance()).getBool(hqJerseyKey);
+      if (on != null && on != hqJersey) update(() => hqJersey = on);
+    } catch (_) {}
+  }
+
+  void setHqJersey(bool on) {
+    update(() => hqJersey = on);
+    SharedPreferences.getInstance()
+        .then((p) => p.setBool(hqJerseyKey, on))
+        .catchError((Object _) => false);
+  }
+
+  /// How tall the Studio's controls under the 3D are (its tool bar, or the
+  /// tool panel while one is open): the round Assist button keeps above them.
+  final studioClearance = ValueNotifier<double>(0);
+
+  /// Closes the Studio's tool panel under the 3D; set while one is open, so
+  /// Android Back closes it before leaving the Studio.
+  VoidCallback? closeStudioPanel;
+
+  /// Set by the Studio's open Colours panel: a tap on the 3D kit hands it the
+  /// viewer's 'colourPick' message (slot, area). Null = tap-to-pick is off.
+  void Function(Map<String, dynamic> pick)? colourPick;
+
+  /// Drag to kit: the 3D viewer glows the part under the finger ([at] is
+  /// 0..1 over the 3D, as [pickGarment]); null clears the glow. Set by the
+  /// 3D viewer.
+  void Function(Offset? at)? hoverGarment;
+
+  /// While something is dragged from Drag to kit: the 3D view lets the
+  /// pointer through to the app (web, mouse). Set by the 3D viewer.
+  void Function(bool dragging)? viewerPassThrough;
+
+  /// The panel opened or closed: the viewer turns tap-to-pick on or off.
+  void setColourPick(void Function(Map<String, dynamic> pick)? handler) {
+    colourPick = handler;
+    notifyListeners();
+  }
+
   bool boardMode = false;
   String? selectedLayerId;
 
@@ -271,7 +628,12 @@ class AppController extends ChangeNotifier {
 
   /// Zooms the 2D panels: 'in', 'out' or 'fit'.
   void Function(String how)? zoomBoard;
-  Future<String> Function(String src, {bool removeBg, String? tint})?
+  Future<String> Function(
+    String src, {
+    bool removeBg,
+    String? tint,
+    int maxSize,
+  })?
   processArtwork;
   Future<Map<String, dynamic>?> Function(double x, double y)? pickGarment;
 
@@ -281,12 +643,30 @@ class AppController extends ChangeNotifier {
   void selectLayer(String? id) => update(() => selectedLayerId = id);
 
   /// The Artboard design to open when the Artboard next starts (the
-  /// Studio's "Edit in Artboard" on artwork sent from it): its account id.
+  /// Studio's "Edit in Artboard" on artwork sent from it, or a design picked
+  /// on Assets): its account id.
   int? openArtboardDoc;
+
+  /// Where [openArtboardDoc] was picked: 'assets' (it opens as File > Open
+  /// from my account does; [openArtboardVersion] is the version Assets
+  /// listed) or null (Edit in Artboard).
+  String? openArtboardFrom;
+  int? openArtboardVersion;
 
   /// Opens the Artboard with the design an artwork layer came from.
   void editInArtboard(int doc) {
     openArtboardDoc = doc;
+    openArtboardFrom = null;
+    openArtboardVersion = null;
+    go(AppScreen.artboard);
+  }
+
+  /// Assets › Artboard: opens a design saved in the account in the Artboard,
+  /// ready to edit ([version]: the one Assets listed).
+  void openArtboardDesign(int doc, {int? version}) {
+    openArtboardDoc = doc;
+    openArtboardFrom = 'assets';
+    openArtboardVersion = version;
     go(AppScreen.artboard);
   }
 
@@ -322,6 +702,49 @@ class AppController extends ChangeNotifier {
       'artboard': ?doc,
     });
     return 'added';
+  }
+
+  /// Artwork to 3D (task 9.153): a new kit of [sportName] on [garmentName]
+  /// for the user's own artwork, opened in the Studio.
+  void startArtworkKit(String sportName, String garmentName, String name) {
+    _resetDesign();
+    mode = 'DYO';
+    sport = sportName;
+    garment = garmentName;
+    projectName = name.isEmpty ? '$sportName $garmentName' : name;
+    _undo.clear();
+    go(AppScreen.studio);
+  }
+
+  /// One design or logo (a PNG data URL) on the front of the kit, to move and
+  /// resize there, or as an all-over print ([allOver]), as one undo step.
+  Future<void> placeArtwork(
+    String src,
+    String name, {
+    bool allOver = false,
+  }) async {
+    if (allOver) {
+      final picture = ProjectSync.bytes(src);
+      if (picture == null) return;
+      // In its own colours, repeated over the garment.
+      final png = await preparePattern(picture, 'full');
+      edit(() {
+        patternTile = png;
+        pattern = 'Solid';
+        patternScale = 0.16;
+        zones = {};
+      });
+      return;
+    }
+    addLayer({
+      'type': 'image',
+      'name': name,
+      'src': src,
+      'side': 'front',
+      'x': 0.0,
+      'y': garment == 'Shorts' ? 0.23 : 0.42,
+      'w': 0.24,
+    });
   }
 
   /// A new kit on [garment] (Send to 3D Studio from the Artboard).
@@ -383,12 +806,14 @@ class AppController extends ChangeNotifier {
   /// tell the user, or null when the check was cancelled.
   Future<String?> importPrintLayout(String name, Uint8List bytes) async {
     final lower = name.toLowerCase();
-    final type = lower.endsWith('.pdf')
+    final type = lower.endsWith('.pdf') || lower.endsWith('.ai')
         ? 'application/pdf'
         : lower.endsWith('.svg')
         ? 'image/svg+xml'
         : lower.endsWith('.png')
         ? 'image/png'
+        : lower.endsWith('.webp')
+        ? 'image/webp'
         : lower.endsWith('.jpg') || lower.endsWith('.jpeg')
         ? 'image/jpeg'
         : null;
@@ -448,7 +873,7 @@ class AppController extends ChangeNotifier {
       });
     });
     final panels = (result['panels'] as List?)?.length ?? 0;
-    return 'Print layout on the 3D kit: $panels panels from $name. '
+    return 'Print layout on the 3D kit: $panels panel${panels == 1 ? '' : 's'} from $name. '
         'Save the project to keep it.';
   }
 
@@ -456,7 +881,14 @@ class AppController extends ChangeNotifier {
   /// PNG, JPG, WebP, PDF or SVG), kept with the saved assets, checked in the
   /// 3D view, then on the kit exactly as drawn (a singlet) as one undo step.
   /// Answers what to tell the user, or null when the check was cancelled.
-  Future<String?> importDesignPicture(String name, Uint8List bytes) async {
+  ///
+  /// [known]: the kit's garment is the one the picture was read as (an AI
+  /// design, task 9.116), so the check opens on it rather than on a guess.
+  Future<String?> importDesignPicture(
+    String name,
+    Uint8List bytes, {
+    bool known = false,
+  }) async {
     final lower = name.toLowerCase();
     final type = lower.endsWith('.pdf')
         ? 'application/pdf'
@@ -500,14 +932,29 @@ class AppController extends ChangeNotifier {
           'Training Tee' => 'tee',
           'Polo' => 'polo',
           'Polo with pocket' => 'pocketpolo',
+          'Netball dress' => 'netball-dress',
+          'Football jersey' => 'nfljersey',
+          'Shooting shirt' => 'shooting-shirt',
+          // Socks keep their own shape, with the design's colours.
+          'Socks' => 'socks',
+          // The cap keeps its own shape, with the design's colours.
+          'Cap' => 'cap',
+          '5 panel cap' => 'five-panel-cap',
+          'Beanie' => 'beanie',
+          // The skirt keeps its own shape, with the design's colours.
+          'Skirt' => 'skirt',
+          // The bucket hat keeps its own shape, with the design's colours.
+          'Bucket hat' => 'bucket-hat',
           // Hoodies are long-sleeved: a drawing of one is read as a sleeved top.
           'Hoodie' ||
+          'Compression top' ||
           'Zip hoodie' ||
           'Varsity jacket' ||
           'Track jacket' => 'jersey',
           'Jersey' => 'jersey',
           _ => 'singlet',
         },
+        known: known,
       );
     } on Object {
       forget();
@@ -528,6 +975,10 @@ class AppController extends ChangeNotifier {
         'tee' => 'Training Tee',
         'polo' => 'Polo',
         'pocketpolo' => 'Polo with pocket',
+        'netball-dress' => 'Netball dress',
+        'nfljersey' => 'Football jersey',
+        // (A flat garment on the shooting shirt stays on it, CLIENT598.)
+        'shooting-shirt' => 'Shooting shirt',
         _ => 'Singlet',
       };
       layout = copyLayout({
@@ -537,6 +988,9 @@ class AppController extends ChangeNotifier {
         'kind': 'drawing',
         'parts': [top],
       });
+      // The picture carries its own lettering: the position letters read
+      // from it are not added again.
+      layers = layers.where((l) => l['id'] != positionLayer).toList();
     });
     return 'Your design is on the 3D kit as drawn ($name). '
         'Save the project to keep it.';
@@ -577,11 +1031,18 @@ class AppController extends ChangeNotifier {
     k.zones,
     k.zoneColors,
     k.trackStyle,
+    k.neck,
+    k.fit,
+    k.patternColor,
+    k.patternColorOwn,
+    k.parts,
     k.productName,
     k.gradient,
     k.gradients,
     k.marks,
     k.layout,
+    k.patternScale,
+    k.patternBody,
   ]);
 
   /// YOUR DESIGN is on the kit now.
@@ -605,15 +1066,54 @@ class AppController extends ChangeNotifier {
   }
 
   /// A 3D still of the user's own kit for the YOUR DESIGN card, taken just
-  /// before a preset replaces it.
+  /// before a preset replaces it (unless the one there is of the kit now).
   Future<void> captureOwnThumb() async {
     if (_onPreset) return;
     final capture = captureMockup;
     if (capture == null) return;
+    final shot = _signature(kit);
+    if (ownThumb != null && _ownShot == shot) return;
     try {
-      ownThumb = await capture('Front') ?? ownThumb;
+      final still = await capture('Front');
+      if (still != null) {
+        ownThumb = still;
+        _ownShot = shot;
+      }
     } on Object {
-      // The swatch shows.
+      // The last still (or the swatch) shows.
+    }
+  }
+
+  /// The kit (its signature) [ownThumb] shows; null: not known.
+  String? _ownShot;
+
+  /// YOUR DESIGN's still is not of the user's own kit as it is on the 3D
+  /// view now (THUMB 2026-11-12: it followed only presets, so the card
+  /// showed the colour swatch, or an older kit, while the user designed).
+  bool get ownStillWanted {
+    final own = ownKit;
+    if (own == null || _onPreset || captureMockup == null) return false;
+    final now = _signature(own);
+    return now != _ownShot && now == _signature(kit);
+  }
+
+  /// Takes YOUR DESIGN's still of the user's own kit (the 3D viewer calls
+  /// this once the kit is on and the changes have stopped).
+  Future<void> takeOwnStill() async {
+    final capture = captureMockup, own = ownKit;
+    if (capture == null || own == null || _onPreset) return;
+    final shot = _signature(own);
+    try {
+      final still = await capture('Front');
+      // (Kept only while the kit is still that one: a change takes another.)
+      final now = ownKit;
+      if (still == null || _onPreset || now == null) return;
+      if (_signature(now) != shot) return;
+      ownThumb = still;
+      _ownShot = shot;
+      notifyListeners();
+    } on Object {
+      // The last still (or the swatch) shows.
     }
   }
 
@@ -625,6 +1125,55 @@ class AppController extends ChangeNotifier {
     edit(() => _restore(own));
     _onPreset = false;
   }
+
+  /// A garment tile's starting look (task 9.154, sports_catalog.dart
+  /// tileLook): its colours, pattern, colour areas, number and its look.
+  ///
+  /// [from]: the garment the kit was on; on another one its marks' places,
+  /// sizes and sides go (a polo's chest crest at y .6 is off a cap's crown,
+  /// CP1 2026-11-02), their colour and look stay.
+  void startLook(Map<String, dynamic> look, {String? from}) {
+    final moved = from != null && from != garment;
+    mainColor = ProjectSync.color(look['main']);
+    secondaryColor = ProjectSync.color(look['secondary']);
+    accentColor = ProjectSync.color(look['accent']);
+    pattern = look['pattern'] as String;
+    patternColor = look['patternColor'] as String?;
+    patternColorOwn = look['patternColorOwn'] == true ? true : null;
+    zones = copyZones(look['zones']);
+    zoneColors = copyZones(look['zoneColors']);
+    // The picture's own objects ('tile-…') replace the last tile's.
+    layers = [
+      ...layers.where((l) => !'${l['id']}'.startsWith('tile-')),
+      ...(look['layers'] as List).cast<Map<String, dynamic>>(),
+    ];
+    // Parts with a look of their own (the rugby blades' black sides, the
+    // socks' cyan heel and toe), as the website applies them.
+    parts = copyParts(look['parts']);
+    gradient = null;
+    gradients = null;
+    number = look['number'] as String;
+    marks = {
+      for (final e in marks.entries)
+        if (e.key != 'top_number' &&
+            e.key != 'top_frontNumber' &&
+            // Marks a bib tile hid (team name, crest, name) show again.
+            !(const {'top_wordmark', 'top_crest', 'top_name'}.contains(e.key) &&
+                e.value is Map &&
+                (e.value as Map)['hidden'] == true) &&
+            !(moved && e.value is Map && _ownLook(e.value as Map).isEmpty))
+          e.key: moved && e.value is Map ? _ownLook(e.value as Map) : e.value,
+      ...(look['marks'] as Map<String, dynamic>),
+    };
+    notifyListeners();
+  }
+
+  /// A mark's own colour and look without its place, size and side.
+  static Map<String, dynamic> _ownLook(Map m) => {
+    for (final e in m.entries)
+      if (!const {'x', 'y', 'scale', 'rot', 'side'}.contains(e.key))
+        '${e.key}': e.value,
+  };
 
   void _applyPreset(Map<String, dynamic> design) => edit(() {
     if (design['main'] != null) mainColor = ProjectSync.color(design['main']);
@@ -638,8 +1187,31 @@ class AppController extends ChangeNotifier {
     gradient = copyGradient(design['gradient']);
     gradients = copyGradient(design['gradients']);
     zones = copyZones(design['zones']);
-    zoneColors = copyZones(design['zoneColors']);
-    patternTile = null;
+    // (The kit's ready-made 3D model stays: its flag is kept, model_flags.dart.)
+    zoneColors = keepModelFlags(zoneColors, copyZones(design['zoneColors']));
+    patternColor = design['patternColor'] is String
+        ? design['patternColor'] as String
+        : null;
+    // The whole look, as the website applies it (task 9.148: a My preset
+    // carries its fabric, My pattern picture, pattern size and track style).
+    patternColorOwn = design['patternColorOwn'] == true ? true : null;
+    parts = copyParts(design['parts']);
+    patternTile = ProjectSync.bytes(design['patternImage']);
+    if (design.containsKey('patternScale')) {
+      patternScale = (design['patternScale'] as num?)?.toDouble();
+    }
+    if (design.containsKey('patternBody')) {
+      patternBody = (design['patternBody'] as num?)?.toDouble();
+    }
+    if (design['trackStyle'] is String) {
+      trackStyle = design['trackStyle'] == 'hood' ? 'hood' : 'collar';
+    }
+    // A My preset's garment style (NK1); a 3DEEZI preset keeps the kit's.
+    if (design.containsKey('neck')) neck = readNeck(design['neck']);
+    if (design.containsKey('fit')) fit = readFit(design['fit']);
+    if (designFabrics.contains(design['fabric'])) {
+      fabric = design['fabric'] as String;
+    }
     layout = copyLayout(design['layout']);
   });
 
@@ -671,6 +1243,11 @@ class AppController extends ChangeNotifier {
   // ---------- renders and the studio
   Uint8List? renderFront, renderBack;
   String view = 'Front';
+
+  /// Counts Front / Back / Side presses: the 3D turns to the view on every
+  /// press, also when it is the view already chosen (the kit may have been
+  /// turned by hand since).
+  int viewPresses = 0;
 
   /// The studio shows the live 3D kit; false shows the AI render.
   bool show3d = true;
@@ -762,6 +1339,37 @@ class AppController extends ChangeNotifier {
     ),
   );
 
+  /// "Forgot password?": emails a 6-digit code. Returns (message, error).
+  Future<(String?, String?)> sendLoginCode(String email) async {
+    try {
+      return (await api.sendLoginCode(email.trim()), null);
+    } on ApiException catch (e) {
+      return (null, e.message);
+    }
+  }
+
+  /// Signs in with the emailed code; null on success, otherwise a message.
+  Future<String?> signInWithCode({
+    required String email,
+    required String code,
+  }) =>
+      _account(() => api.loginWithCode(email: email.trim(), code: code.trim()));
+
+  /// Sets a new password with the emailed code and signs in.
+  Future<String?> resetPassword({
+    required String email,
+    required String code,
+    required String password,
+    required String passwordConfirmation,
+  }) => _account(
+    () => api.resetPassword(
+      email: email.trim(),
+      code: code.trim(),
+      password: password,
+      passwordConfirmation: passwordConfirmation,
+    ),
+  );
+
   Future<String?> _account(Future<ApiUser> Function() call) async {
     try {
       final account = await call();
@@ -825,7 +1433,18 @@ class AppController extends ChangeNotifier {
     try {
       final seen = <int>{};
       for (final json in await api.projects()) {
-        final server = ProjectSync.fromServer(json);
+        // Marquees (Signage & Marquees) are not kits: they are listed and
+        // opened on the Signage & Marquees screen (screens/signage.dart).
+        if (json['garment'] == 'marquee') continue;
+        final Project server;
+        try {
+          server = ProjectSync.fromServer(json);
+        } on Object {
+          // One project that cannot be read must not stop the sync or remove
+          // this device's copy of it: it stays as it is.
+          if (json['id'] case final num id) seen.add(id.toInt());
+          continue;
+        }
         seen.add(server.remoteId!);
         final i = projects.indexWhere(
           (p) =>
@@ -856,12 +1475,8 @@ class AppController extends ChangeNotifier {
       for (final p in projects.where((p) => p.pendingUpload).toList()) {
         await _upload(p);
       }
-      // Newest first, with the bundled samples last.
-      bool sample(Project p) => p.asset != null && !p.persisted;
-      projects.sort((a, b) {
-        if (sample(a) != sample(b)) return sample(a) ? 1 : -1;
-        return b.updated.compareTo(a.updated);
-      });
+      // Newest first.
+      projects.sort((a, b) => b.updated.compareTo(a.updated));
     } on ApiException catch (e) {
       if (e.unauthorized) {
         await _expire(e.message);
@@ -878,7 +1493,8 @@ class AppController extends ChangeNotifier {
   }
 
   /// Uploads one project. An expired session is rethrown; other failures
-  /// are recorded on the project.
+  /// are recorded on the project (shown on its card, the Projects screen's
+  /// cloud line and the Save screen) and tried again later ([retryUploads]).
   Future<void> _upload(Project p) async {
     try {
       final body = ProjectSync.toServer(p);
@@ -898,9 +1514,45 @@ class AppController extends ChangeNotifier {
         p.remoteId = null;
         return _upload(p);
       }
-      p.syncError = e.message;
+      p.syncError = notOnAccount(e.message);
     } finally {
       notifyListeners();
+    }
+  }
+
+  /// Why a save did not reach the account, in words the customer can act on
+  /// (QA10 2026-11-11: a refused save only showed a cloud mark).
+  static String notOnAccount(String reason) {
+    final why = reason.trim();
+    return 'Saved on this device, but not on your account yet'
+        '${why.isEmpty ? '.' : ' (${why.endsWith('.') ? why.substring(0, why.length - 1) : why}).'}'
+        ' The app will try again by itself; you can also tap Sync now in '
+        'Projects.';
+  }
+
+  /// Projects saved on this device that the account has not taken yet.
+  bool get uploadsWaiting => projects.any((p) => p.pendingUpload);
+
+  /// When the next automatic try of [retryUploads] may run, and the wait
+  /// after it (doubling up to 30 minutes while the saves keep failing).
+  DateTime _nextRetry = DateTime.fromMillisecondsSinceEpoch(0);
+  Duration _retryWait = const Duration(minutes: 1);
+
+  /// Tries the saves that did not reach the account again (the app runs it
+  /// every minute and when it comes back to the front; [now] skips the wait).
+  Future<void> retryUploads({bool now = false}) async {
+    if (!signedIn || _sync != null || !uploadsWaiting) return;
+    final at = DateTime.now();
+    if (!now && at.isBefore(_nextRetry)) return;
+    await syncProjects();
+    if (uploadsWaiting) {
+      _nextRetry = DateTime.now().add(_retryWait);
+      final longer = _retryWait * 2;
+      _retryWait = longer > const Duration(minutes: 30)
+          ? const Duration(minutes: 30)
+          : longer;
+    } else {
+      _retryWait = const Duration(minutes: 1);
     }
   }
 
@@ -917,8 +1569,7 @@ class AppController extends ChangeNotifier {
         });
   }
 
-  /// Loads projects saved on the device (newest first) above the samples.
-  /// A saved project replaces the sample it was created from.
+  /// Loads the projects saved on the device (newest first).
   Future<void> restoreProjects() async {
     try {
       final saved = await store.loadAll();
@@ -945,28 +1596,12 @@ class AppController extends ChangeNotifier {
     notifyListeners();
   }
 
-  final List<Project> projects = [
-    for (final (i, title, sport, garment, mode, version, hours) in const [
-      (1, 'Warriors Concept', 'Rugby League', 'Jersey', 'AI', 1, 2),
-      (2, 'Mantis Elite', 'Training / Gym', 'Training Tee', 'AI', 2, 26),
-      (3, 'Club Jersey', 'Soccer', 'Jersey', 'DYO', 1, 30),
-      (4, 'Morahu', 'Basketball', 'Singlet', 'DYO', 3, 72),
-      (5, 'Coastal Blues', 'Rugby Union', 'Jersey', 'AI', 1, 96),
-      (6, 'Away Edition', 'Soccer', 'Training Tee', 'DYO', 2, 120),
-    ])
-      Project(
-        id: 'sample-$i',
-        title: title,
-        sport: sport,
-        garment: garment,
-        mode: mode,
-        version: version,
-        updated: DateTime.now().subtract(Duration(hours: hours)),
-        asset: 'assets/images/project_$i.png',
-        kit: _sampleKit(i, garment),
-      ),
-  ];
+  /// The customer's own projects only: saved on this device and, signed in,
+  /// the account's. No example projects (client 2026-11-10: "Take all
+  /// examples out").
+  final List<Project> projects = [];
 
+  /// The kit a new design starts from.
   static KitState _sampleKit(int i, String garment) {
     const palettes = [
       (0xff0b1016, 0xff00c2cc, 0xff36e3ee, 'WARRIORS'),
@@ -1000,11 +1635,6 @@ class AppController extends ChangeNotifier {
     Map<String, dynamic> details,
   ) async {
     if (!signedIn) throw ApiException('Sign in to order kits.');
-    if (p.asset != null && !p.persisted) {
-      throw ApiException(
-        'This is a sample design. Open it, then save it as your own project to order it.',
-      );
-    }
     if (p.remoteId == null || p.pendingUpload) await syncProjects();
     if (p.remoteId == null) {
       throw ApiException(
@@ -1083,6 +1713,7 @@ class AppController extends ChangeNotifier {
     zoneColors,
     gradient,
     gradients,
+    parts,
   ]);
 
   /// A design picture or print layout is painted instead of the colours,
@@ -1122,11 +1753,18 @@ class AppController extends ChangeNotifier {
     zones: copyZones(zones),
     zoneColors: copyZones(zoneColors),
     trackStyle: trackStyle,
+    neck: neck,
+    fit: fit,
+    patternColor: patternColor,
+    patternColorOwn: patternColorOwn,
+    parts: copyParts(parts),
     productName: productName,
     gradient: copyGradient(gradient),
     gradients: copyGradient(gradients),
     marks: copyMarks(marks),
     layout: copyLayout(layout),
+    patternScale: patternScale,
+    patternBody: patternBody,
   );
 
   void _restore(KitState k) {
@@ -1147,10 +1785,17 @@ class AppController extends ChangeNotifier {
     zones = copyZones(k.zones);
     zoneColors = copyZones(k.zoneColors);
     trackStyle = k.trackStyle;
+    neck = k.neck;
+    fit = k.fit;
+    patternColor = k.patternColor;
+    patternColorOwn = k.patternColorOwn;
+    parts = copyParts(k.parts);
     productName = k.productName;
     gradient = copyGradient(k.gradient);
     gradients = copyGradient(k.gradients);
     marks = copyMarks(k.marks);
+    patternScale = k.patternScale;
+    patternBody = k.patternBody;
     layout = copyLayout(k.layout);
     _shelveLayout();
     if (!layers.any((layer) => layer['id'] == selectedLayerId)) {
@@ -1159,6 +1804,39 @@ class AppController extends ChangeNotifier {
   }
 
   /// Changes the kit and records the previous state for Undo.
+  /// The tile's ready-made 3D model always shows (client 2026-11-17,
+  /// 571.png): a design opened on a sport's tile takes that tile's model flags
+  /// (model_flags.dart withTileModel), and a neck the model doesn't offer
+  /// falls back to the model's own. No undo step; true when it changed.
+  bool applyTileModel() {
+    GarmentTile? tile;
+    for (final t in sportNamed(sport)?.tiles ?? const <GarmentTile>[]) {
+      if (!t.soon && t.garment == garment && t.name == productName) {
+        tile = t;
+        break;
+      }
+    }
+    final look = tile?.look;
+    if (look == null) return false;
+    final own = tileLook(look)['zoneColors'];
+    final colours = withTileModel(
+      zoneColors,
+      own is Map ? own.cast<String, dynamic>() : const {},
+    );
+    final fixed = fixedNeck(garment, colours ?? zoneColors);
+    // (a collar style of the Rugby League jersey's model stays: RUGBYJ)
+    final neckOff = fixed != null &&
+        neck != null &&
+        neck != fixed &&
+        !(isModelCollar(neck) &&
+            modelCollarsFor(garment, colours ?? zoneColors) != null);
+    if (colours == null && !neckOff) return false;
+    if (colours != null) zoneColors = colours;
+    if (neckOff) neck = null;
+    notifyListeners();
+    return true;
+  }
+
   void edit(VoidCallback change) {
     _shelveLayout();
     _undo.add(kit);
@@ -1202,7 +1880,11 @@ class AppController extends ChangeNotifier {
     pattern = value.pattern;
     fabric = value.fabric;
     logoText = value.logoText;
-    backName = value.logoText;
+    // Netball has no player names or numbers (client 2026-10-26): its AI
+    // designs start with an empty back name and number.
+    final back = AiService.kitBack(value.sport, value.logoText);
+    backName = back.backName;
+    number = back.number ?? number;
   });
 
   // ---------- starting points
@@ -1210,6 +1892,7 @@ class AppController extends ChangeNotifier {
     _restore(_sampleKit(1, 'Jersey'));
     shelvedLayouts.clear();
     ownKit = ownThumb = null;
+    _ownShot = null;
     _onPreset = false;
     logoText = backName = 'MANTIS';
     number = '23';
@@ -1232,6 +1915,7 @@ class AppController extends ChangeNotifier {
     projectName = '';
     saved = false;
     saveError = null;
+    saveNotice = null;
   }
 
   void startAi() {
@@ -1248,14 +1932,6 @@ class AppController extends ChangeNotifier {
     _resetDesign();
     mode = 'DYO';
     go(AppScreen.sport);
-  }
-
-  /// "Explore the 3D studio": straight into the studio with a fresh kit.
-  void exploreStudio() {
-    _resetDesign();
-    mode = 'DYO';
-    projectName = '$sport $garment';
-    go(AppScreen.studio);
   }
 
   /// Renders the HD presentation mockup for the brief in the background
@@ -1292,7 +1968,10 @@ class AppController extends ChangeNotifier {
   /// "Make it 3D": the same AI redraws the mockup as a flat front and back
   /// print sheet (kept in Artwork); the caller puts it on the 3D kit with
   /// [importDesignPicture].
-  Future<Uint8List> mockupPrintSheet({bool frontOnly = false}) async {
+  Future<Uint8List> mockupPrintSheet({
+    bool frontOnly = false,
+    String? garment,
+  }) async {
     final image = mockupImage;
     if (image == null) throw AiException('Create the HD mockup first.');
     sheetBusy = true;
@@ -1301,7 +1980,7 @@ class AppController extends ChangeNotifier {
       final sheet = await ai.printSheet(
         image,
         sport: sport,
-        garment: garment,
+        garment: garment ?? this.garment,
         logos: references,
         frontOnly: frontOnly,
       );
@@ -1390,6 +2069,89 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// "Open in 3D Designer" (task 9.116): the chosen AI design on the 3D
+  /// garment its picture was read as ([reading]), in the picture's own
+  /// colours and pattern, with its club symbol ([logo]) and lettering
+  /// (netball: the position letters, front and back, and no name). Opens the
+  /// studio; the picture itself (the print sheet) may go on after.
+  void openReading(
+    int index,
+    DesignReading reading, {
+    Uint8List? logo,
+    Uint8List? print,
+  }) {
+    final concept = concepts[index];
+    selectedConcept = index;
+    sport = concept.spec.sport;
+    applySpec(concept.spec);
+    garment = reading.garment;
+    final s = sportNamed(sport);
+    final team = reading.teamName;
+    edit(() {
+      mainColor = reading.mainColor;
+      secondaryColor = reading.secondaryColor;
+      accentColor = reading.accentColor;
+      pattern = reading.pattern;
+      if (team.isNotEmpty) logoText = team;
+      final hidden = <String, dynamic>{};
+      if (reading.letters.isNotEmpty) {
+        // Netball: the position letters in the number's place, no name above
+        // them, and large on the front below the crest.
+        backName = '';
+        number = reading.letters;
+        hidden['top_name'] = {'hidden': true};
+        layers = [
+          ...layers.where((l) => l['id'] != positionLayer),
+          {
+            'id': positionLayer,
+            'name': 'Position letters',
+            'type': 'text',
+            'part': 'top',
+            'side': 'front',
+            'x': 0.0,
+            // (Lower on the taller netball dress: as far under its shoulders.)
+            'y': reading.garment == 'Netball dress' ? 0.5 : 0.36,
+            'rot': 0,
+            'text': reading.letters,
+            'size': 0.17,
+            'color':
+                '#${reading.accentColor.toARGB32().toRadixString(16).padLeft(8, '0').substring(2)}',
+          },
+        ];
+      } else {
+        backName = (s?.names ?? true)
+            ? (reading.backName.isNotEmpty ? reading.backName : logoText)
+            : '';
+        number = (s?.numbers ?? true)
+            ? (reading.number.isNotEmpty ? reading.number : '23')
+            : '';
+      }
+      // No team name in the picture: no chest wordmark (3DEEZI is never on
+      // the front, client 2026-10-26).
+      if (team.isEmpty || !reading.nameOnFront) {
+        hidden['top_wordmark'] = {'hidden': true};
+      }
+      marks = hidden;
+      if (reading.garment == 'Track jacket') {
+        trackStyle = reading.hood ? 'hood' : 'collar';
+      }
+      if (logo != null) logoImage = logo;
+      // The picture's own print all over the body (task 9.126).
+      if (print != null) patternTile = print;
+    });
+    _undo.clear();
+    renderFront = concept.image;
+    renderBack = null;
+    projectName = concept.spec.designName;
+    show3d = true;
+    view = 'Front';
+    go(AppScreen.studio);
+  }
+
+  /// The netball position letters' text layer from a read AI picture: taken
+  /// off again when the picture itself goes on (it has its own lettering).
+  static const positionLayer = 'position-front';
+
   /// Opens the chosen AI concept in the Design Studio.
   void openConcept(int index) {
     final concept = concepts[index];
@@ -1409,6 +2171,7 @@ class AppController extends ChangeNotifier {
   /// Switches view, rendering the AI back view the first time it is needed.
   Future<String?> showView(String value) async {
     view = value;
+    viewPresses++;
     notifyListeners();
     final front = renderFront, design = spec;
     if (show3d ||
@@ -1438,8 +2201,30 @@ class AppController extends ChangeNotifier {
       ? projects[selectedProject].version + 1
       : 1;
 
-  Future<bool> saveProject(String title, {Uint8List? thumbnail}) async {
-    final updating = selectedProject >= 0 && selectedProject < projects.length;
+  /// The version a save under [title] gets: a new name (or a copy) starts a
+  /// new project at Version 1.
+  int versionFor(String title) {
+    final had = selectedProject >= 0 && selectedProject < projects.length;
+    if (!had) return 1;
+    final t = title.trim();
+    return t.isEmpty || t == projects[selectedProject].title.trim()
+        ? nextVersion
+        : 1;
+  }
+
+  /// Saves the design. A saved project under a different name, or with
+  /// [asCopy], becomes a new project and the old one stays as it was (9.147).
+  Future<bool> saveProject(
+    String title, {
+    Uint8List? thumbnail,
+    bool asCopy = false,
+  }) async {
+    final had = selectedProject >= 0 && selectedProject < projects.length;
+    final updating =
+        had &&
+        !asCopy &&
+        (title.trim().isEmpty ||
+            title.trim() == projects[selectedProject].title.trim());
     final project = Project(
       id: updating ? projects[selectedProject].id : null,
       title: title.trim().isEmpty ? '$sport $garment' : title.trim(),
@@ -1447,7 +2232,7 @@ class AppController extends ChangeNotifier {
       garment: garment,
       mode: mode,
       kit: kit,
-      version: nextVersion,
+      version: updating || !had ? nextVersion : 1,
       updated: DateTime.now(),
       asset: updating ? projects[selectedProject].asset : null,
       thumbnail: thumbnail ?? mockupFront ?? renderFront,
@@ -1467,6 +2252,7 @@ class AppController extends ChangeNotifier {
     projectName = project.title;
     saved = false;
     saveError = null;
+    saveNotice = null;
     notifyListeners();
     try {
       await store.save(project);
@@ -1477,11 +2263,19 @@ class AppController extends ChangeNotifier {
           'full or unavailable. Keep this tab open, free some space and retry, '
           'or sign in to save your design to your account.';
     }
+    saveNotice = null;
     if (signedIn) {
       try {
         await _upload(project);
       } on ApiException catch (e) {
         await _expire(e.message);
+        saveNotice = notOnAccount(e.message);
+      }
+      // Kept here, but the account refused it or could not be reached: say
+      // so on the Save screen (the next tries run by themselves).
+      if (project.pendingUpload && project.syncError != null) {
+        saveNotice = project.syncError;
+        _nextRetry = DateTime.now().add(_retryWait);
       }
     }
     saved =
@@ -1491,6 +2285,11 @@ class AppController extends ChangeNotifier {
     notifyListeners();
     return saved;
   }
+
+  /// After a save: it is on this device, but not on the account yet (why,
+  /// and that it is tried again). Null when it reached the account or no
+  /// account is signed in.
+  String? saveNotice;
 
   void loadProject(Project project) {
     _resetDesign();
@@ -1508,6 +2307,7 @@ class AppController extends ChangeNotifier {
       ownThumb = thumb;
       _onPreset = preset;
     }
+    _ownShot = null;
     projectName = project.title;
     saved = true;
     go(AppScreen.studio);
@@ -1524,6 +2324,41 @@ class AppController extends ChangeNotifier {
     final board = captureBoard;
     if (panels && board != null) {
       mockupPanels = await board().catchError((_) => null) ?? mockupPanels;
+    }
+  }
+}
+
+/// The last AI Designer brief on this device (guests, and anyone signed
+/// out): the prompt and its designs with their pictures (Recent designs).
+class RecentDesignsStore {
+  const RecentDesignsStore();
+  static const _key = '3deezi.ai.last';
+
+  Future<Map<String, dynamic>?> load() async {
+    try {
+      final raw = (await SharedPreferences.getInstance()).getString(_key);
+      final s = raw == null ? null : jsonDecode(raw) as Map<String, dynamic>;
+      return (s?['options'] as List?)?.isNotEmpty == true ? s : null;
+    } on Object {
+      return null;
+    }
+  }
+
+  /// Keeps it; when the device's storage is too small, the first design only.
+  Future<void> save(Map<String, dynamic> session) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      try {
+        await prefs.setString(_key, jsonEncode(session));
+      } on Object {
+        final options = session['options'] as List;
+        await prefs.setString(
+          _key,
+          jsonEncode({...session, 'options': options.take(1).toList()}),
+        );
+      }
+    } on Object {
+      // Storage blocked: Recent designs are a convenience.
     }
   }
 }

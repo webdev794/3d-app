@@ -16,7 +16,7 @@ use Illuminate\Support\Collection;
 class PricingService
 {
     /** Garment rows a quote request may hold. */
-    public const MAX_ITEMS = 30;
+    public const MAX_ITEMS = 60;
 
     /** @var Collection<int, PriceRule>|null */
     private ?Collection $rules = null;
@@ -60,6 +60,8 @@ class PricingService
         foreach (config('catalog.garments', []) as $garment) {
             $garments[$garment['id']] ??= $garment['name'];
         }
+        // The marquee (Signage & Marquees, 2026-11-02): priced and counted as marquees ("2 marquees").
+        $garments['marquee'] ??= 'Marquee';
 
         return $garments;
     }
@@ -70,7 +72,8 @@ class PricingService
         if (filled($item['label'] ?? null)) {
             return (string) $item['label'];
         }
-        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? null;
+        // A catalogue sport by its name, or a sport typed in "Custom…" (client 2026-11-02) as typed.
+        $sport = collect(config('catalog.sports'))->firstWhere('id', $item['sport'] ?? null)['name'] ?? (filled($item['sport'] ?? null) ? trim((string) $item['sport']) : null);
 
         return trim(($sport ? $sport.' ' : '').(self::garments()[$item['garment'] ?? 'other'] ?? 'Garment'));
     }
@@ -95,8 +98,9 @@ class PricingService
                 'list' => count(array_filter($players, $named)),
                 default => 0,
             };
-            // The sport's garment tile the kit was made as ("Netball dress", task 9.99) names the line.
-            $items[] = ['garment' => $kit['garment'] ?? 'jersey', 'sport' => $kit['sport'] ?? null] + (filled($kit['design']['productName'] ?? null) ? ['label' => (string) $kit['design']['productName']] : []) + ['kit' => $kit['name'] ?? null,
+            // The sport's garment tile the kit was made as ("Netball dress", task 9.99) names the line; a sport typed in
+            // "Custom…" (client 2026-11-02) is its sport.
+            $items[] = ['garment' => $kit['garment'] ?? 'jersey', 'sport' => filled($kit['design']['sportName'] ?? null) ? (string) $kit['design']['sportName'] : ($kit['sport'] ?? null)] + (filled($kit['design']['productName'] ?? null) ? ['label' => (string) $kit['design']['productName']] : []) + ['kit' => $kit['name'] ?? null,
                 'quantity' => (int) $order->quantity, 'names' => $names];
         }
 
@@ -322,9 +326,12 @@ class PricingService
     private function shipping(array $request, array $choices, int $quantity, array $settings, array $overrides, bool $explain, array &$reasons): array
     {
         $rules = $this->rules()->where('kind', 'shipping');
-        $code = $choices['destination']
+        // Picked up (the review's Pick up, or an order's pick-up note): never shipped, so never charged a region's shipping,
+        // whatever "Delivery to" region was chosen before switching (2026-11-11). Only the price list's own pick-up price
+        // (none by default: free) or a staff amount on the invoice applies.
+        $code = self::isPickup($request) ? 'PICKUP' : ($choices['destination']
             ?? self::destinationFromAddress((string) ($request['shipping_address'] ?? ''), $rules->pluck('name', 'code')->all())
-            ?? (filled($settings['default_destination']) ? strtoupper((string) $settings['default_destination']) : null);
+            ?? (filled($settings['default_destination']) ? strtoupper((string) $settings['default_destination']) : null));
         $rule = $code ? $rules->first(fn (PriceRule $r) => strtoupper((string) $r->code) === $code) : null;
         // The admin may use another code for a known place ("AUS" for Australia): match it by name.
         if (! $rule && isset(self::DESTINATIONS[$code])) {
@@ -345,6 +352,17 @@ class PricingService
         }
 
         return ['destination' => $code, 'name' => $name, 'amount_cents' => $amount, 'priced' => $amount !== null, 'taxable' => $rule ? $rule->taxable : true];
+    }
+
+    /** Whether a request is picked up: delivery "pickup" (the review's choice) or the order's pick-up note as its address. */
+    public static function isPickup(array $request): bool
+    {
+        if (($request['delivery'] ?? null) === 'pickup') {
+            return true;
+        }
+        $address = strtoupper(trim((string) preg_replace('/[^A-Za-z0-9]+/', ' ', (string) ($request['shipping_address'] ?? ''))));
+
+        return $address !== '' && $address === strtoupper(trim((string) preg_replace('/[^A-Za-z0-9]+/', ' ', \App\Support\OrderDelivery::PICKUP_TEXT)));
     }
 
     /** Names for destination codes the admin has not named. */

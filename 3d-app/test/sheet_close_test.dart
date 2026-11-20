@@ -58,6 +58,9 @@ void main() {
   testWidgets('Preset designs has a ✕ below the notch; a design stays on '
       'after closing (151.jpg)', (tester) async {
     final c = await openStudio(tester);
+    // (In More since the big-model Studio, client 2026-11-18, 606.png.)
+    await tester.tap(find.byKey(const ValueKey('studio-more')));
+    await settle(tester);
     await tapText(tester, 'Presets');
     await settle(tester);
     expect(find.text('PRESET DESIGNS'), findsOneWidget);
@@ -86,6 +89,9 @@ void main() {
     tester,
   ) async {
     final c = await openStudio(tester);
+    // (In More since the big-model Studio, client 2026-11-18, 606.png.)
+    await tester.tap(find.byKey(const ValueKey('studio-more')));
+    await settle(tester);
     await tapText(tester, 'Presets');
     await settle(tester);
     expect(find.text('PRESET DESIGNS'), findsOneWidget);
@@ -102,6 +108,11 @@ void main() {
       ('Colours', 'COLOURS'),
       ('Patterns', 'PATTERNS'),
     ]) {
+      if (chip == 'Artwork') {
+        // (In More since the big-model Studio, client 2026-11-18, 606.png.)
+        await tester.tap(find.byKey(const ValueKey('studio-more')));
+        await settle(tester);
+      }
       await tapText(tester, chip);
       await settle(tester);
       expect(find.text(inside), findsWidgets, reason: chip);

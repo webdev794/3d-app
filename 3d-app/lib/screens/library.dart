@@ -1,17 +1,24 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../api_client.dart' show ApiException;
 import '../app_controller.dart';
+import '../assist.dart';
+import '../widgets/bubble_page.dart';
 import '../widgets/flow_ui.dart';
+import '../widgets/glass_bubble.dart';
 import '../widgets/notification_bell.dart';
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart';
 import '../widgets/ui.dart';
+import 'bubble_home.dart' show BubbleTutorial;
 import 'business.dart';
+import 'edit_profile.dart';
 import 'image_editor.dart';
 import 'onboarding.dart' show editServer;
-import 'order_entry.dart' show OrderNowScreen;
 import 'team.dart' show TeamScreen;
 
 class _Tabs extends StatelessWidget {
@@ -49,13 +56,19 @@ class _Tabs extends StatelessWidget {
                       : null,
                   borderRadius: BorderRadius.circular(9),
                 ),
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w700,
-                    color: selected == label ? Colors.black : Palette.muted,
+                // Five tabs on a narrow phone: a name shrinks a little
+                // rather than wrapping.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: selected == label ? Colors.black : Palette.muted,
+                    ),
                   ),
                 ),
               ),
@@ -75,7 +88,7 @@ class ProjectsScreen extends StatefulWidget {
 }
 
 class _ProjectsScreenState extends State<ProjectsScreen> {
-  String _tab = 'All Designs';
+  String _tab = 'All';
 
   Future<void> _confirmDelete(Project p) async {
     final ok = await showDialog<bool>(
@@ -158,179 +171,594 @@ class _ProjectsScreenState extends State<ProjectsScreen> {
     }
   }
 
+  /// The search box's text (matched against the name and the sport).
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
+    final q = _search.text.trim().toLowerCase();
     final shown = c.projects.where(
-      (p) => switch (_tab) {
-        'AI Designs' => p.mode == 'AI',
-        'DYO Designs' => p.mode == 'DYO',
-        'Approved' => p.approved,
-        _ => true,
-      },
+      (p) =>
+          switch (_tab) {
+            'AI' => p.mode == 'AI',
+            'DYO' => p.mode == 'DYO',
+            'Approved' => p.approved,
+            _ => true,
+          } &&
+          (q.isEmpty ||
+              p.title.toLowerCase().contains(q) ||
+              p.sport.toLowerCase().contains(q) ||
+              p.kit.productName.toLowerCase().contains(q)),
     );
-    return Column(
-      children: [
-        TopBar(
-          title: 'My projects',
-          trailing: [
-            NotificationBell(c),
-            IconButton(
-              tooltip: 'New design',
-              onPressed: () => c.go(AppScreen.home),
-              icon: const Icon(Icons.add_circle_outline, color: Palette.cyan),
+    // The bubble look (client picture images/334, 2026-11-03): PROJECTS in one
+    // glass bubble with search, filter pills, glass kit cards and New project.
+    return BubblePage(
+      c: c,
+      title: 'PROJECTS',
+      subtitle: 'Pick up where you left off.',
+      bubbleKey: const ValueKey('projects-bubble'),
+      scrolls: true,
+      // Assets left the bottom bar (client picture 168.jpg): it opens from here and from Profile.
+      // A small, quiet chip (client picture images/344 has none; kept for Assets).
+      leading: Semantics(
+        button: true,
+        label: 'Assets',
+        excludeSemantics: true,
+        child: Material(
+          key: const ValueKey('projects-assets'),
+          color: const Color(0x66061528),
+          shape: StadiumBorder(
+            side: BorderSide(color: Palette.cyan.withValues(alpha: .3)),
+          ),
+          child: InkWell(
+            customBorder: const StadiumBorder(),
+            onTap: () => c.go(AppScreen.assets),
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.layers_outlined, size: 13, color: Palette.muted),
+                  SizedBox(width: 4),
+                  Text(
+                    'Assets',
+                    style: TextStyle(fontSize: 11, color: Color(0xffb9c5cf)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Only the customer's own projects (no examples, client
+          // 2026-11-10); search and filters only once there are some, as
+          // on the website's My projects.
+          if (c.projects.isNotEmpty) ...[
+            SizedBox(
+              height: 42,
+              child: GlassShine(
+                radius: 22,
+                child: TextField(
+                  key: const ValueKey('projects-search'),
+                  controller: _search,
+                  onChanged: (_) => setState(() {}),
+                  textInputAction: TextInputAction.search,
+                  style: const TextStyle(fontSize: 14),
+                  decoration: InputDecoration(
+                    hintText: 'Search projects',
+                    prefixIcon: const Icon(Icons.search, size: 20),
+                    isDense: true,
+                    filled: true,
+                    fillColor: const Color(0x99061528),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      borderSide: BorderSide(
+                        color: Palette.cyan.withValues(alpha: .35),
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(22),
+                      borderSide: BorderSide(
+                        color: Palette.cyan.withValues(alpha: .35),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            // All four fit inside the bubble (images/344).
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Row(
+                children: [
+                  for (final t in const ['All', 'AI', 'DYO', 'Approved'])
+                    Expanded(
+                      flex: t == 'Approved' ? 5 : 4,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: _FilterPill(
+                          label: t,
+                          selected: _tab == t,
+                          onTap: () => setState(() => _tab = t),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (c.projects.isEmpty)
+            !c.signedIn
+                // Signed out (the website's sign-in gate): sign in, or
+                // start a design on this device.
+                ? _EmptyCard(
+                    key: const ValueKey('projects-signin'),
+                    icon: Icons.verified_user_outlined,
+                    title: 'Make it yours.',
+                    text:
+                        'Sign in to save your kits, keep every version, and bring your assets together.',
+                    action: 'SIGN IN OR CREATE AN ACCOUNT',
+                    onAction: () => c.go(AppScreen.auth),
+                    c: c,
+                  )
+                : c.syncing
+                ? const Padding(
+                    padding: EdgeInsets.all(28),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : _EmptyCard(
+                    key: const ValueKey('projects-empty'),
+                    icon: Icons.folder_open_rounded,
+                    title: 'No projects yet',
+                    text:
+                        'Create a new kit and save it in the studio to add it here.',
+                    c: c,
+                  )
+          else if (shown.isEmpty)
+            _EmptyCard(
+              key: const ValueKey('projects-no-match'),
+              icon: Icons.search_off_rounded,
+              title: q.isEmpty && _tab == 'Approved'
+                  ? 'No approved designs yet'
+                  : 'No matching projects',
+              text: q.isEmpty && _tab == 'Approved'
+                  ? 'Kits approved for production by 3DEEZI appear here.'
+                  : 'Try a different search or clear the filters.',
+              action: 'CLEAR FILTERS',
+              onAction: () => setState(() {
+                _search.clear();
+                _tab = 'All';
+              }),
+            )
+          else
+            GridView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(2, 2, 2, 8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: .86,
+              ),
+              children: [
+                for (final p in shown)
+                  _ProjectCard(
+                    p: p,
+                    onTap: () => c.loadProject(p),
+                    onMenu: () => _actions(p),
+                  ),
+              ],
+            ),
+          if (c.projects.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 48,
+              child: FilledButton.icon(
+                key: const ValueKey('projects-new'),
+                onPressed: () => c.go(AppScreen.home),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Palette.cyan,
+                  foregroundColor: const Color(0xff04121f),
+                  shape: const StadiumBorder(),
+                  textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                icon: const Icon(Icons.add, size: 22),
+                label: const Text('New project'),
+              ),
+            ),
+            // Kits saved on this device only: offer the account.
+            if (!c.signedIn)
+              Center(
+                child: TextButton.icon(
+                  key: const ValueKey('projects-signin-link'),
+                  onPressed: () => c.go(AppScreen.auth),
+                  icon: const Icon(Icons.login_rounded, size: 15),
+                  label: const Text(
+                    'Sign in to keep all your designs',
+                    style: TextStyle(fontSize: 12.5),
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xff9fdfe8),
+                  ),
+                ),
+              ),
+          ],
+          Center(
+            child: BubbleAssistLink(
+              onPressed: () => AssistController.latest?.show(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Projects or an Assets tab with nothing to show: an icon, a title and a
+/// line (the website's wording), then a button, and the two ways to start a
+/// kit (AI Designer, Design Your Own) when [c] is given.
+class _EmptyCard extends StatelessWidget {
+  const _EmptyCard({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.text,
+    this.action,
+    this.onAction,
+    this.c,
+  });
+  final IconData icon;
+  final String title, text;
+  final String? action;
+  final VoidCallback? onAction;
+  final AppController? c;
+
+  @override
+  Widget build(BuildContext context) {
+    final start = c;
+    return _ThinGlass(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 22, 16, 18),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0x99061528),
+                border: Border.all(color: Palette.cyan.withValues(alpha: .4)),
+              ),
+              child: Icon(icon, size: 28, color: Palette.cyan),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'Rajdhani',
+                fontSize: 22,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Palette.muted, fontSize: 13),
+            ),
+            if (action case final label?) ...[
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: FilledButton(
+                  onPressed: onAction,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Palette.cyan,
+                    foregroundColor: const Color(0xff04121f),
+                    shape: const StadiumBorder(),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    textStyle: const TextStyle(
+                      fontSize: 13.5,
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  child: FittedBox(fit: BoxFit.scaleDown, child: Text(label)),
+                ),
+              ),
+            ],
+            if (start != null) ...[
+              SizedBox(height: action == null ? 16 : 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: _StartButton(
+                      key: const ValueKey('projects-start-ai'),
+                      icon: Icons.auto_awesome,
+                      label: 'AI Designer',
+                      filled: action == null,
+                      onTap: start.startAi,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _StartButton(
+                      key: const ValueKey('projects-start-dyo'),
+                      icon: Icons.design_services_outlined,
+                      label: 'Design Your Own',
+                      filled: action == null,
+                      onTap: start.startDyo,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// AI Designer / Design Your Own on the empty Projects tab.
+class _StartButton extends StatelessWidget {
+  const _StartButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.filled,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String label;
+  final bool filled;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 44,
+    child: OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: filled
+            ? const Color(0xff0f5d8a)
+            : const Color(0x99061528),
+        foregroundColor: Colors.white,
+        side: BorderSide(
+          color: Palette.cyan.withValues(alpha: filled ? 1 : .4),
+        ),
+        shape: const StadiumBorder(),
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+      ),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: Palette.cyan),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             ),
           ],
         ),
-        _Tabs(
-          labels: const [
-            'All Designs',
-            'AI Designs',
-            'DYO Designs',
-            'Approved',
-          ],
-          selected: _tab,
-          onSelect: (t) => setState(() => _tab = t),
+      ),
+    ),
+  );
+}
+
+/// A filter pill (All / AI / DYO / Approved): glass, lit when chosen.
+class _FilterPill extends StatelessWidget {
+  const _FilterPill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GlassShine(
+    radius: 22,
+    child: Semantics(
+      selected: selected,
+      button: true,
+      child: Material(
+        color: selected ? const Color(0xff0f5d8a) : const Color(0x99061528),
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: selected ? Palette.cyan : Palette.cyan.withValues(alpha: .3),
+            width: selected ? 1.5 : 1,
+          ),
         ),
-        Expanded(
-          child: shown.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Text(
-                      _tab == 'Approved'
-                          ? 'Kits approved for production by 3DEEZI appear here.'
-                          : 'No designs here yet.',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Palette.muted),
-                    ),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          child: SizedBox(
+            height: 30,
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : const Color(0xffb9c5cf),
                   ),
-                )
-              : GridView(
-                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: .78,
-                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// A kit as a glass card: its picture, its name, "Updated 2h ago" and the
+/// ⋯ menu (open, order, delete; a long press opens it too).
+class _ProjectCard extends StatelessWidget {
+  const _ProjectCard({
+    required this.p,
+    required this.onTap,
+    required this.onMenu,
+  });
+  final Project p;
+  final VoidCallback onTap, onMenu;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    onLongPress: onMenu,
+    child: _ThinGlass(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(5, 5, 5, 0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(11),
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    for (final p in shown)
-                      GlowCard(
-                        glow: false,
-                        onTap: () => c.loadProject(p),
-                        onLongPress: () => _actions(p),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Stack(
-                                fit: StackFit.expand,
-                                children: [
-                                  p.thumbnail == null && p.asset == null
-                                      ? _Swatch(p)
-                                      : artImage(
-                                          bytes: p.thumbnail,
-                                          asset: p.asset,
-                                        ),
-                                  if (p.remoteId != null || p.syncError != null)
-                                    Positioned(
-                                      top: 7,
-                                      right: 7,
-                                      child: Icon(
-                                        p.syncError != null
-                                            ? Icons.cloud_off_outlined
-                                            : p.pendingUpload
-                                            ? Icons.cloud_upload_outlined
-                                            : Icons.cloud_done_outlined,
-                                        size: 17,
-                                        color: Palette.cyan,
-                                        shadows: const [Shadow(blurRadius: 6)],
-                                      ),
-                                    ),
-                                  if (p.approved)
-                                    Positioned(
-                                      left: 7,
-                                      bottom: 7,
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 7,
-                                          vertical: 3,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xe6052a1f),
-                                          borderRadius: BorderRadius.circular(
-                                            12,
-                                          ),
-                                          border: Border.all(
-                                            color: const Color(0xff34d399),
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'APPROVED',
-                                          style: TextStyle(
-                                            color: Color(0xff34d399),
-                                            fontSize: 9,
-                                            fontWeight: FontWeight.w800,
-                                            letterSpacing: .8,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  if (p.localSaveError != null)
-                                    Positioned(
-                                      left: 7,
-                                      top: 7,
-                                      child: Tooltip(
-                                        message: p.localSaveError!,
-                                        child: const Icon(
-                                          Icons.warning_amber_rounded,
-                                          color: Color(0xffffbc75),
-                                          size: 18,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
+                    p.thumbnail == null && p.asset == null
+                        ? _Swatch(p)
+                        : artImage(bytes: p.thumbnail, asset: p.asset),
+                    if (p.remoteId != null || p.syncError != null)
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Tooltip(
+                          // Why it is not on the account yet (QA10).
+                          message:
+                              p.syncError ??
+                              (p.pendingUpload
+                                  ? 'Waiting to upload to your account'
+                                  : 'Saved to your account'),
+                          child: Icon(
+                            p.syncError != null
+                                ? Icons.cloud_off_outlined
+                                : p.pendingUpload
+                                ? Icons.cloud_upload_outlined
+                                : Icons.cloud_done_outlined,
+                            size: 16,
+                            color: p.syncError != null
+                                ? const Color(0xffffc36b)
+                                : Palette.cyan,
+                            shadows: const [Shadow(blurRadius: 6)],
+                          ),
+                        ),
+                      ),
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: IconButton(
+                        tooltip: 'More for ${p.title}',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: onMenu,
+                        icon: const Icon(
+                          Icons.more_horiz,
+                          color: Colors.white,
+                          shadows: [Shadow(blurRadius: 6)],
+                        ),
+                      ),
+                    ),
+                    if (p.approved)
+                      Positioned(
+                        left: 7,
+                        bottom: 7,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xe6052a1f),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xff34d399)),
+                          ),
+                          child: const Text(
+                            'APPROVED',
+                            style: TextStyle(
+                              color: Color(0xff34d399),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .8,
                             ),
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    p.title,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    // The sport's garment tile ("Netball dress"), when the kit has one.
-                                    '${p.sport}${p.kit.productName.isEmpty ? '' : ' · ${p.kit.productName}'} · v${p.version} · ${p.age}',
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Palette.muted,
-                                      fontSize: 10.5,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
+                          ),
+                        ),
+                      ),
+                    if (p.localSaveError != null)
+                      Positioned(
+                        left: 7,
+                        top: 26,
+                        child: Tooltip(
+                          message: p.localSaveError!,
+                          child: const Icon(
+                            Icons.warning_amber_rounded,
+                            color: Color(0xffffbc75),
+                            size: 18,
+                          ),
                         ),
                       ),
                   ],
                 ),
-        ),
-        BottomNav(controller: c),
-      ],
-    );
-  }
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 9),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  p.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Updated ${p.age}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Palette.muted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 /// 16 · Assets: logos, patterns, artwork and uploads.
@@ -344,6 +772,143 @@ class AssetsScreen extends StatefulWidget {
 class _AssetsScreenState extends State<AssetsScreen> {
   String _tab = 'Logos';
   AppController get c => widget.c;
+
+  /// Back from the Artboard after opening a design from the Artboard tab:
+  /// that tab again (read once, by the next Assets screen).
+  static String? _returnTab;
+
+  /// The Artboard designs kept in the account (File > Save to my account,
+  /// website or app), newest first; null until loaded.
+  List<_ArtboardDesign>? _designs;
+  String? _designsError;
+  int? _designsStatus;
+  bool _designsLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final back = _returnTab;
+    _returnTab = null;
+    if (back != null) {
+      _tab = back;
+      if (c.signedIn) {
+        _designsLoading = true;
+        _fetchDesigns();
+      }
+    }
+  }
+
+  void _select(String tab) {
+    setState(() => _tab = tab);
+    if (tab == 'Artboard' && _designs == null) _loadDesigns();
+  }
+
+  void _loadDesigns() {
+    if (_designsLoading || !c.signedIn) return;
+    setState(() {
+      _designsLoading = true;
+      _designsError = null;
+      _designsStatus = null;
+    });
+    _fetchDesigns();
+  }
+
+  Future<void> _fetchDesigns() async {
+    try {
+      final list = await c.api.artboards();
+      if (!mounted) return;
+      setState(() => _designs = [for (final j in list) _ArtboardDesign.of(j)]);
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _designsError = e.message;
+          _designsStatus = e.status;
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() {
+          _designsError = 'That did not work. Please try again.';
+          _designsStatus = null;
+        });
+      }
+    } finally {
+      _designsLoading = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// Opens the design in the Artboard, as File > Open from my account would.
+  void _openDesign(_ArtboardDesign d) {
+    _returnTab = 'Artboard';
+    c.openArtboardDesign(d.id, version: d.version);
+  }
+
+  /// Assets › Artboard: the designs kept in the account from the Artboard; a
+  /// tap opens one there, ready to edit.
+  Widget _artboardTab() {
+    Widget scroll(Widget child) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+      child: child,
+    );
+    final designs = _designs;
+    if (!c.signedIn || _designsStatus == 401) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-artboard-signin'),
+          icon: Icons.draw_outlined,
+          title: 'Your Artboard designs',
+          text: _designsStatus == 401
+              ? 'Your session has expired. Sign in again to see the designs you keep in the Artboard.'
+              : 'Sign in to see the designs you keep in the Artboard with File > Save to my account, on the website and in the app.',
+          action: 'SIGN IN',
+          onAction: () => c.go(AppScreen.auth),
+        ),
+      );
+    }
+    if (_designsError case final error?) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-artboard-error'),
+          icon: Icons.cloud_off_outlined,
+          title: 'Your Artboard designs could not be loaded',
+          text: error,
+          action: 'TRY AGAIN',
+          onAction: _loadDesigns,
+        ),
+      );
+    }
+    if (designs == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (designs.isEmpty) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-artboard-empty'),
+          icon: Icons.draw_outlined,
+          title: 'No Artboard designs yet',
+          text:
+              'Designs you keep in the Artboard with File > Save to my account show here. Tap one to carry on editing it.',
+          action: 'OPEN THE ARTBOARD',
+          onAction: () => c.go(AppScreen.artboard),
+        ),
+      );
+    }
+    return GridView(
+      key: const ValueKey('assets-artboard-grid'),
+      padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: .9,
+      ),
+      children: [
+        for (final d in designs)
+          _ArtboardCard(d: d, onTap: () => _openDesign(d)),
+      ],
+    );
+  }
 
   List<Uint8List> get _items => switch (_tab) {
     'Logos' => c.logos,
@@ -441,107 +1006,326 @@ class _AssetsScreenState extends State<AssetsScreen> {
   Widget build(BuildContext context) {
     final items = _items;
     final canUpload = _tab == 'Logos' || _tab == 'Uploads';
-    return Column(
-      children: [
-        TopBar(
-          title: 'Assets',
-          subtitle: 'Logos · patterns · artwork',
-          trailing: [NotificationBell(widget.c)],
-        ),
-        _Tabs(
-          labels: const ['Logos', 'Patterns', 'Artwork', 'Uploads'],
-          selected: _tab,
-          onSelect: (t) => setState(() => _tab = t),
-        ),
-        Expanded(
-          child: GridView(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-            ),
-            children: [
-              if (canUpload)
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: _upload,
-                  child: const Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add, color: Palette.cyan, size: 28),
-                      SizedBox(height: 4),
-                      Text(
-                        'Upload asset',
-                        style: TextStyle(fontSize: 10, color: Palette.muted),
-                      ),
-                    ],
-                  ),
-                ),
-              if (_tab == 'Patterns')
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: () =>
-                      _use(null, asset: 'assets/images/pattern_default.png'),
-                  child: artImage(asset: 'assets/images/pattern_default.png'),
-                ),
-              // Bundled samples so a new library is never empty.
-              for (final sample in switch (_tab) {
-                'Logos' => const [
-                  'assets/images/splash_mark.png',
-                  'assets/images/reference_1.png',
-                ],
-                'Uploads' => const [
-                  'assets/images/reference_2.png',
-                  'assets/images/reference_3.png',
-                  'assets/images/reference_4.png',
-                ],
-                _ => const <String>[],
-              })
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: () => _use(null, asset: sample),
-                  child: artImage(
-                    asset: sample,
-                    fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
-                  ),
-                ),
-              if (_tab == 'Artwork')
-                for (var i = 1; i <= 6; i++)
-                  GlowCard(
-                    radius: 12,
-                    glow: false,
-                    onTap: () =>
-                        _use(null, asset: 'assets/images/project_$i.png'),
-                    child: artImage(asset: 'assets/images/project_$i.png'),
-                  ),
-              for (final item in items.reversed)
-                GlowCard(
-                  radius: 12,
-                  glow: false,
-                  onTap: () => _use(item),
-                  child: artImage(
-                    bytes: item,
-                    fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
-                  ),
-                ),
+    // The bubble look (user 2026-11-05), as Projects and Profile.
+    return BubblePage(
+      c: c,
+      title: 'ASSETS',
+      compact: true,
+      bubbleKey: const ValueKey('assets-bubble'),
+      leading: BubbleCornerPill(
+        key: const ValueKey('assets-back'),
+        icon: Icons.arrow_back,
+        label: 'Back',
+        // Opened from Projects or Profile (no longer a bottom-bar tab).
+        onTap: c.back,
+      ),
+      child: Column(
+        children: [
+          _Tabs(
+            labels: const [
+              'Logos',
+              'Patterns',
+              'Artwork',
+              'Artboard',
+              'Uploads',
             ],
+            selected: _tab,
+            onSelect: _select,
           ),
+          // The designs saved in the Artboard (as on the website's Assets).
+          if (_tab == 'Artboard')
+            Expanded(child: _artboardTab())
+          // Uploads and Artwork hold only the customer's own pictures: empty,
+          // the website's "No assets yet" card.
+          else if (items.isEmpty && (_tab == 'Uploads' || _tab == 'Artwork'))
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+                child: _tab == 'Uploads'
+                    ? _EmptyCard(
+                        key: const ValueKey('assets-empty-uploads'),
+                        icon: Icons.cloud_upload_outlined,
+                        title: 'No uploads yet',
+                        text:
+                            'Upload logos, patterns or reference images to use in your designs.',
+                        action: 'UPLOAD ASSET',
+                        onAction: _upload,
+                      )
+                    : _EmptyCard(
+                        key: const ValueKey('assets-empty-artwork'),
+                        icon: Icons.image_outlined,
+                        title: 'No artwork yet',
+                        text:
+                            'Pictures you make in the AI Designer and the studio are kept here.',
+                        c: c,
+                      ),
+              ),
+            )
+          else
+            Expanded(
+              child: GridView(
+                padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 3,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                ),
+                children: [
+                  if (canUpload)
+                    GlowCard(
+                      radius: 12,
+                      glow: false,
+                      onTap: _upload,
+                      child: const Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add, color: Palette.cyan, size: 28),
+                          SizedBox(height: 4),
+                          Text(
+                            'Upload asset',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Palette.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (_tab == 'Patterns')
+                    GlowCard(
+                      radius: 12,
+                      glow: false,
+                      onTap: () => _use(
+                        null,
+                        asset: 'assets/images/pattern_default.png',
+                      ),
+                      child: artImage(
+                        asset: 'assets/images/pattern_default.png',
+                      ),
+                    ),
+                  // 3DEEZI's own mark, to place on a kit. No example logos,
+                  // uploads or artwork (client 2026-11-10: "Take all examples
+                  // out").
+                  if (_tab == 'Logos')
+                    GlowCard(
+                      radius: 12,
+                      glow: false,
+                      onTap: () =>
+                          _use(null, asset: 'assets/images/splash_mark.png'),
+                      child: artImage(
+                        asset: 'assets/images/splash_mark.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  for (final item in items.reversed)
+                    GlowCard(
+                      radius: 12,
+                      glow: false,
+                      onTap: () => _use(item),
+                      child: artImage(
+                        bytes: item,
+                        fit: _tab == 'Logos' ? BoxFit.contain : BoxFit.cover,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          if (items.isEmpty && _tab == 'Patterns')
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Text(switch (_tab) {
+                'Logos' => 'Upload your club crest to place it on any kit.',
+                'Patterns' => 'AI patterns you generate are kept here.',
+                _ => 'Reference photos you add appear here.',
+              }, style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A design kept in the account from the Artboard (`GET /artboards`): its
+/// name, a small picture of its page, its pages, version and last save.
+@immutable
+class _ArtboardDesign {
+  const _ArtboardDesign({
+    required this.id,
+    required this.name,
+    required this.picture,
+    required this.pages,
+    required this.version,
+    required this.updated,
+  });
+
+  factory _ArtboardDesign.of(Map<String, dynamic> j) {
+    // The picture: a PNG, JPEG or WebP data URL (or none).
+    final preview = j['preview'];
+    Uint8List? picture;
+    if (preview is String && preview.startsWith('data:image/')) {
+      try {
+        picture = base64Decode(preview.substring(preview.indexOf(',') + 1));
+      } on FormatException {
+        picture = null;
+      }
+    }
+    final name = '${j['name'] ?? ''}'.trim();
+    return _ArtboardDesign(
+      id: (j['id'] as num).toInt(),
+      name: name.isEmpty ? 'Artboard design' : name,
+      picture: picture,
+      pages: (j['pages'] as num?)?.toInt() ?? 1,
+      version: (j['version'] as num?)?.toInt() ?? 1,
+      updated: DateTime.tryParse('${j['updated_at'] ?? ''}')?.toLocal(),
+    );
+  }
+
+  final int id, pages, version;
+  final String name;
+  final Uint8List? picture;
+  final DateTime? updated;
+
+  /// "2 pages · Updated 3h ago", as the kit cards' "Updated …".
+  String get detail {
+    final at = updated;
+    String? ago;
+    if (at != null) {
+      final d = DateTime.now().difference(at);
+      ago = d.inMinutes < 1
+          ? 'just now'
+          : d.inHours < 1
+          ? '${d.inMinutes}m ago'
+          : d.inDays < 1
+          ? '${d.inHours}h ago'
+          : '${d.inDays}d ago';
+    }
+    return [
+      if (pages > 1) '$pages pages',
+      if (ago != null) 'Updated $ago',
+    ].join(' · ');
+  }
+}
+
+/// A saved Artboard design on Assets › Artboard: its page picture (or the
+/// Artboard's pen when it has none), the ARTBOARD label, its name and when
+/// it was saved. A tap opens it in the Artboard.
+class _ArtboardCard extends StatelessWidget {
+  const _ArtboardCard({required this.d, required this.onTap});
+  final _ArtboardDesign d;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    const placeholder = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.draw_outlined, color: Palette.cyan, size: 30),
+        SizedBox(height: 6),
+        Text(
+          'Artboard design',
+          style: TextStyle(fontSize: 10, color: Palette.muted),
         ),
-        if (items.isEmpty && _tab == 'Patterns')
-          Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Text(switch (_tab) {
-              'Logos' => 'Upload your club crest to place it on any kit.',
-              'Patterns' => 'AI patterns you generate are kept here.',
-              _ => 'Reference photos you add appear here.',
-            }, style: const TextStyle(color: Palette.muted, fontSize: 11.5)),
-          ),
-        BottomNav(controller: c),
       ],
+    );
+    final picture = d.picture;
+    return Semantics(
+      button: true,
+      label: 'Open ${d.name} in the Artboard',
+      excludeSemantics: true,
+      onTap: onTap,
+      child: GlowCard(
+        radius: 12,
+        glow: false,
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  ColoredBox(
+                    color: const Color(0xff0b1420),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 28, 12, 8),
+                      child: picture == null
+                          ? placeholder
+                          : Image.memory(
+                              picture,
+                              fit: BoxFit.contain,
+                              gaplessPlayback: true,
+                              filterQuality: FilterQuality.medium,
+                              errorBuilder: (_, _, _) => placeholder,
+                            ),
+                    ),
+                  ),
+                  Positioned(
+                    top: 6,
+                    left: 6,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xe606111e),
+                        borderRadius: BorderRadius.circular(5),
+                        border: Border.all(
+                          color: Palette.cyan.withValues(alpha: .4),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.draw_outlined,
+                            size: 11,
+                            color: Palette.cyan,
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'ARTBOARD',
+                            style: TextStyle(
+                              color: Palette.cyan,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: .8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 7, 10, 9),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    d.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    d.detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Palette.muted, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -551,160 +1335,424 @@ class ProfileScreen extends StatelessWidget {
   const ProfileScreen(this.c, {super.key});
   final AppController c;
 
-  Widget _stat(String value, String label) => Column(
-    children: [
-      Text(
-        value,
-        style: const TextStyle(
-          fontFamily: 'Rajdhani',
-          fontSize: 28,
-          color: Palette.cyan,
-          fontWeight: FontWeight.w700,
-        ),
-      ),
-      Text(label, style: const TextStyle(color: Palette.muted, fontSize: 10)),
-    ],
-  );
-
+  // The arrows sit left of the round Assist button (bottom right), so it never
+  // covers them (QA 10-28: "Orders" and "My orders").
   Widget _row(IconData icon, String label, VoidCallback tap) => ListTile(
-    contentPadding: EdgeInsets.zero,
+    contentPadding: const EdgeInsets.only(left: 14, right: 10),
+    dense: true,
+    minTileHeight: 40,
+    visualDensity: const VisualDensity(vertical: -4),
     leading: Icon(icon, color: Palette.cyan, size: 22),
-    title: Text(label, style: const TextStyle(fontSize: 13)),
-    trailing: const Icon(Icons.chevron_right, size: 18),
+    title: Text(label, style: const TextStyle(fontSize: 14)),
+    trailing: const Icon(Icons.chevron_right, size: 20),
     onTap: tap,
   );
 
-  @override
-  Widget build(BuildContext context) => Column(
+  /// A list of rows, each its own glass pill (client images/344).
+  Widget _glassList(List<Widget> rows) => Column(
     children: [
-      TopBar(title: 'Profile', trailing: [NotificationBell(c)]),
-      Expanded(
-        child: ListView(
-          padding: const EdgeInsets.all(22),
+      for (var i = 0; i < rows.length; i++)
+        Padding(
+          padding: EdgeInsets.only(top: i == 0 ? 0 : 6),
+          child: _ThinGlass(radius: 24, rim: 1, child: rows[i]),
+        ),
+    ],
+  );
+
+  /// The two letters in the round avatar ("FS" for Fabian Soutar).
+  static String initials(String name) {
+    final words = name
+        .split(RegExp(r'[\s@._-]+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+    if (words.isEmpty) return '?';
+    final a = words.first[0], b = words.length > 1 ? words[1][0] : '';
+    return (a + b).toUpperCase();
+  }
+
+  // StatefulBuilder: Profile shows the new name and email after Edit profile.
+  @override
+  Widget build(BuildContext context) =>
+      StatefulBuilder(builder: (context, refresh) => _build(context, refresh));
+
+  Future<void> _editProfile(BuildContext context, StateSetter refresh) async {
+    if (!c.signedIn) {
+      c.go(AppScreen.auth);
+      return;
+    }
+    await Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => EditProfileScreen(c)));
+    refresh(() {});
+  }
+
+  Future<void> _notifications(BuildContext context) async {
+    if (!c.signedIn) {
+      showToast(context, 'Sign in to see your notifications.');
+      return;
+    }
+    final tapped = await showModalBottomSheet<Map>(
+      context: context,
+      backgroundColor: Palette.surface,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => NotificationsSheet(c),
+    );
+    if (tapped != null && context.mounted) {
+      await openNotification(context, c, tapped);
+    }
+  }
+
+  void _addresses(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Palette.surface,
+    builder: (sheet) => const SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(22, 22, 22, 26),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Center(
-              child: CircleAvatar(
-                radius: 38,
-                backgroundColor: Color(0xff113342),
-                child: Icon(
-                  Icons.person_outline_rounded,
-                  size: 41,
-                  color: Palette.cyan,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            // The account's own name (its email when it has none); a guest is
-            // "Guest", never the demo name in AppController.name.
             Text(
-              c.signedIn
-                  ? (c.user!.name.trim().isNotEmpty
-                        ? c.user!.name.trim()
-                        : c.user!.email)
-                  : 'Guest',
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+              'Saved addresses',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 10),
             Text(
-              c.signedIn
-                  ? c.user!.email
-                  : 'Guest · projects stay on this device',
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Palette.muted, fontSize: 12),
-            ),
-            const SizedBox(height: 14),
-            _SyncCard(c),
-            const SizedBox(height: 26),
-            SurfaceCard(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _stat('${c.projects.length}', 'Projects'),
-                  _stat(
-                    '${c.logos.length + c.aiPatterns.length + c.uploads.length + c.artwork.length}',
-                    'Assets',
-                  ),
-                  _stat(
-                    '${c.projects.where((p) => p.mode == 'AI').length}',
-                    'AI designs',
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            _row(Icons.auto_awesome, 'New AI design', c.startAi),
-            _row(Icons.design_services_outlined, 'Design your own', c.startDyo),
-            _row(
-              Icons.folder_outlined,
-              'My projects',
-              () => c.go(AppScreen.projects),
-            ),
-            _row(
-              Icons.layers_outlined,
-              'Asset library',
-              () => c.go(AppScreen.assets),
-            ),
-            // Orders (as ORDERS on the website): the three ways to order.
-            _row(
-              Icons.receipt_long_outlined,
-              'Orders',
-              () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => OrderNowScreen(c)),
-              ),
-            ),
-            _row(
-              Icons.local_shipping_outlined,
-              'My orders',
-              () => c.go(AppScreen.orders),
-            ),
-            // 3DEEZI TEAM (as on the website's menu): request a designer, my design requests.
-            _row(
-              Icons.groups_outlined,
-              '3DEEZI TEAM',
-              () => Navigator.of(
-                context,
-              ).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
-            ),
-            _row(
-              Icons.workspace_premium_outlined,
-              'Plans & pricing',
-              () => c.go(AppScreen.pricing),
-            ),
-            const SizedBox(height: 22),
-            // The website's footer pages, opened signed in (same as the site's footer links).
-            for (final (icon, label, path) in const [
-              (Icons.info_outline, 'About', '/about'),
-              (Icons.support_agent_outlined, 'Support', '/support'),
-              (Icons.privacy_tip_outlined, 'Privacy', '/privacy'),
-              (Icons.description_outlined, 'Terms', '/terms'),
-            ])
-              _row(
-                icon,
-                label,
-                () => openSitePage(context, c.api.sitePage(path), label),
-              ),
-            const SizedBox(height: 22),
-            _row(
-              Icons.dns_outlined,
-              'Server · ${c.api.host}',
-              () => editServer(context, c),
-            ),
-            const SizedBox(height: 12),
-            SecondaryButton(
-              label: c.signedIn ? 'Sign out' : 'Sign in or register',
-              icon: c.signedIn ? Icons.logout : Icons.login,
-              onPressed: () async {
-                if (c.signedIn) await c.signOut();
-                c.go(AppScreen.auth);
-              },
+              'No saved addresses yet. The order form asks where to deliver '
+              'each order; saving addresses here is coming soon.',
+              style: TextStyle(color: Palette.muted, height: 1.4),
             ),
           ],
         ),
       ),
-      BottomNav(controller: c),
-    ],
+    ),
   );
+
+  void _help(BuildContext context) => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: Palette.surface,
+    builder: (sheet) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ListTile(
+            title: Text(
+              'Help & tutorials',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.play_circle_outline, color: Palette.cyan),
+            title: const Text('Replay the home tutorial'),
+            onTap: () {
+              Navigator.pop(sheet);
+              BubbleTutorial.open(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.auto_awesome, color: Palette.cyan),
+            title: const Text('Ask 3DEEZI Assist'),
+            onTap: () {
+              Navigator.pop(sheet);
+              AssistController.latest?.show();
+            },
+          ),
+          ListTile(
+            leading: const Icon(
+              Icons.support_agent_outlined,
+              color: Palette.cyan,
+            ),
+            title: const Text('Support'),
+            onTap: () {
+              Navigator.pop(sheet);
+              openSitePage(context, c.api.sitePage('/support'), 'Support');
+            },
+          ),
+        ],
+      ),
+    ),
+  );
+
+  // The bubble look (client picture images/334, 2026-11-03): PROFILE in one
+  // glass bubble: the round initials, the name and "Account settings", the
+  // glass list (Personal details, Subscription, Saved addresses,
+  // Notifications, Help & tutorials), Sign out, Rewards and Assist; the rest
+  // of the old list (projects, assets, orders, team, the site's pages, the
+  // server) stays below under MORE.
+  Widget _build(BuildContext context, StateSetter refresh) {
+    final name = c.signedIn
+        ? (c.user!.name.trim().isNotEmpty ? c.user!.name.trim() : c.user!.email)
+        : 'Guest';
+    return BubblePage(
+      c: c,
+      title: 'PROFILE',
+      bubbleKey: const ValueKey('profile-bubble'),
+      // The whole page scrolls and the bubble grows, like Orders.
+      scrolls: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              clipBehavior: Clip.none,
+              children: [
+                Positioned(
+                  top: -30,
+                  child: IgnorePointer(
+                    child: Opacity(
+                      opacity: .13,
+                      child: Image.asset(
+                        'assets/images/emblem-final.png',
+                        width: 260,
+                        color: const Color(0xff4fb8ff),
+                        colorBlendMode: BlendMode.srcIn,
+                        errorBuilder: (_, _, _) => const SizedBox(),
+                      ),
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Container(
+                    width: 84,
+                    height: 84,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: const RadialGradient(
+                        center: Alignment(-.3, -.4),
+                        colors: [Color(0xff1d5fa8), Color(0xff071a36)],
+                      ),
+                      border: Border.all(color: Palette.cyan, width: 2.4),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Palette.cyan.withValues(alpha: .45),
+                          blurRadius: 18,
+                        ),
+                      ],
+                    ),
+                    child: c.signedIn
+                        ? Text(
+                            initials(name),
+                            key: const ValueKey('profile-initials'),
+                            style: const TextStyle(
+                              fontFamily: 'Rajdhani',
+                              fontWeight: FontWeight.w700,
+                              fontSize: 32,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.person_outline_rounded,
+                            size: 40,
+                            color: Palette.cyan,
+                          ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // The account's own name (its email when it has none); a guest is
+            // "Guest", never the demo name in AppController.name.
+            Text(
+              name,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+            if (c.signedIn && c.user!.email.isNotEmpty)
+              Text(
+                c.user!.email,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Palette.muted, fontSize: 12),
+              ),
+            const SizedBox(height: 2),
+            Center(
+              child: TextButton(
+                onPressed: () => _editProfile(context, refresh),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xffd3dee8),
+                  visualDensity: VisualDensity.compact,
+                ),
+                child: Text(
+                  c.signedIn
+                      ? 'Account settings'
+                      : 'Guest · projects stay on this device',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            _glassList([
+              _row(
+                Icons.person_outline,
+                'Personal details',
+                () => _editProfile(context, refresh),
+              ),
+              _row(
+                Icons.layers_outlined,
+                'Subscription',
+                () => c.go(AppScreen.pricing),
+              ),
+              _row(
+                Icons.location_on_outlined,
+                'Saved addresses',
+                () => _addresses(context),
+              ),
+              _row(
+                Icons.notifications_none_rounded,
+                'Notifications',
+                () => _notifications(context),
+              ),
+              _row(
+                Icons.help_outline,
+                'Help & tutorials',
+                () => _help(context),
+              ),
+            ]),
+            const SizedBox(height: 14),
+            Center(
+              child: SizedBox(
+                width: 335,
+                height: 46,
+                child: _ThinGlass(
+                  radius: 24,
+                  key: const ValueKey('profile-sign-out'),
+                  onTap: () async {
+                    if (c.signedIn) await c.signOut();
+                    c.go(AppScreen.auth);
+                  },
+                  semanticsLabel: c.signedIn
+                      ? 'Sign out'
+                      : 'Sign in or register',
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            c.signedIn ? Icons.logout : Icons.login,
+                            size: 20,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            c.signedIn ? 'Sign out' : 'Sign in or register',
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'REWARDS · COMING SOON',
+                    style: TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14,
+                      letterSpacing: 2,
+                      color: Color(0xffd3dee8),
+                    ),
+                  ),
+                  SizedBox(width: 6),
+                  Icon(Icons.auto_awesome, size: 16, color: Palette.cyan),
+                ],
+              ),
+            ),
+            Center(
+              child: BubbleAssistLink(
+                onPressed: () => AssistController.latest?.show(),
+              ),
+            ),
+            const SizedBox(height: 14),
+            const Padding(
+              padding: EdgeInsets.only(left: 6, bottom: 6),
+              child: Text(
+                'MORE',
+                style: TextStyle(
+                  fontFamily: 'Rajdhani',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  letterSpacing: 2,
+                  color: Color(0xff9fb0bf),
+                ),
+              ),
+            ),
+            _SyncCard(c),
+            const SizedBox(height: 10),
+            _glassList([
+              _row(Icons.auto_awesome, 'New AI design', c.startAi),
+              _row(
+                Icons.design_services_outlined,
+                'Design your own',
+                c.startDyo,
+              ),
+              _row(
+                Icons.folder_outlined,
+                'My projects',
+                () => c.go(AppScreen.projects),
+              ),
+              _row(
+                Icons.layers_outlined,
+                'Asset library',
+                () => c.go(AppScreen.assets),
+              ),
+              // Orders (as ORDERS on the website): the Orders tab, the three ways to order.
+              _row(
+                Icons.receipt_long_outlined,
+                'Orders',
+                () => c.go(AppScreen.orderHub),
+              ),
+              _row(
+                Icons.local_shipping_outlined,
+                'My orders',
+                () => c.go(AppScreen.orders),
+              ),
+              // 3DEEZI TEAM (as on the website's menu): request a designer, my design requests.
+              _row(
+                Icons.groups_outlined,
+                '3DEEZI TEAM',
+                () => Navigator.of(
+                  context,
+                ).push(MaterialPageRoute<void>(builder: (_) => TeamScreen(c))),
+              ),
+              // The website's footer pages, opened signed in (same as the site's footer links).
+              for (final (icon, label, path) in const [
+                (Icons.info_outline, 'About', '/about'),
+                (Icons.support_agent_outlined, 'Support', '/support'),
+                (Icons.privacy_tip_outlined, 'Privacy', '/privacy'),
+                (Icons.description_outlined, 'Terms', '/terms'),
+              ])
+                _row(
+                  icon,
+                  label,
+                  () => openSitePage(context, c.api.sitePage(path), label),
+                ),
+              _row(
+                Icons.dns_outlined,
+                'Server · ${c.api.host}',
+                () => editServer(context, c),
+              ),
+            ]),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 /// Cloud status: signed in and synced, syncing, or why it failed.
@@ -727,7 +1775,11 @@ class _SyncCard extends StatelessWidget {
         : c.syncMessage != null
         ? (Icons.cloud_off_outlined, c.syncMessage!)
         : failed.isNotEmpty
-        ? (Icons.cloud_off_outlined, failed.first.syncError!)
+        ? (
+            Icons.cloud_off_outlined,
+            '${failed.first.title}: ${failed.first.syncError!}'
+                '${failed.length > 1 ? ' (${failed.length - 1} more not on your account yet.)' : ''}',
+          )
         : (
             Icons.cloud_done_outlined,
             '$cloud project${cloud == 1 ? '' : 's'} saved to your account'
@@ -779,6 +1831,66 @@ class _Swatch extends StatelessWidget {
           fontWeight: FontWeight.w700,
           color: p.kit.accentColor,
           shadows: const [Shadow(blurRadius: 8)],
+        ),
+      ),
+    ),
+  );
+}
+
+/// A dark glass card with a thin (1.5 px) cyan rim and 16 px corners (images/344).
+class _ThinGlass extends StatelessWidget {
+  const _ThinGlass({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.radius = 16,
+    this.semanticsLabel,
+    this.rim = 1.5,
+  });
+  final double rim;
+  final String? semanticsLabel;
+  final Widget child;
+  final VoidCallback? onTap;
+  final double radius;
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: semanticsLabel != null && onTap != null,
+    label: semanticsLabel,
+    excludeSemantics: semanticsLabel != null,
+    onTap: semanticsLabel == null ? null : onTap,
+    child: DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xd8071a2c), Color(0xe0020d18)],
+        ),
+        // A soft ~4 px glass rim (not a sharp line).
+        border: Border.all(color: const Color(0x3836c8ff), width: 4),
+        boxShadow: const [BoxShadow(color: Color(0x2236c8ff), blurRadius: 6)],
+      ),
+      position: DecorationPosition.background,
+      child: DecoratedBox(
+        // The light glass top edge.
+        position: DecorationPosition.foreground,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: .22),
+              Colors.white.withValues(alpha: 0),
+            ],
+            stops: const [0, .28],
+          ),
+        ),
+        child: Material(
+          type: MaterialType.transparency,
+          borderRadius: BorderRadius.circular(radius),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(onTap: onTap, child: child),
         ),
       ),
     ),

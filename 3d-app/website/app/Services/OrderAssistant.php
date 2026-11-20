@@ -27,6 +27,8 @@ class OrderAssistant
         'rain jacket' => 'jacket', 'windbreakers' => 'jacket', 'windbreaker' => 'jacket', 'jackets' => 'jacket', 'jacket' => 'jacket',
         'tracksuit pants' => 'pants', 'track pants' => 'pants', 'trackpants' => 'pants', 'trackies' => 'pants', 'trousers' => 'pants', 'pants' => 'pants',
         'game shorts' => 'shorts', 'training shorts' => 'shorts', 'shorts' => 'shorts',
+        // A dress (the netball / tennis dress) is ordered on a singlet row (Order::PROJECT_ROWS), named by its product.
+        'dresses' => 'singlet', 'dress' => 'singlet',
         'tank tops' => 'singlet', 'tank top' => 'singlet', 'singlets' => 'singlet', 'singlet' => 'singlet', 'vests' => 'singlet', 'vest' => 'singlet',
         'pairs of socks' => 'socks', 'pair of socks' => 'socks', 'socks' => 'socks', 'sock' => 'socks',
         'caps' => 'cap', 'cap' => 'cap', 'hats' => 'cap', 'hat' => 'cap',
@@ -36,7 +38,7 @@ class OrderAssistant
         'full kits' => 'kit', 'full kit' => 'kit', 'uniforms' => 'kit', 'uniform' => 'kit', 'kits' => 'kit', 'kit' => 'kit', 'sets' => 'kit',
     ];
 
-    private const SPORT_WORDS = [
+    public const SPORT_WORDS = [
         // Before 'football' and 'league' (the first match wins); the new categories of 2026-10-21 (task 9.79).
         'american football' => 'american-football', 'gridiron' => 'american-football', 'touch football' => 'touch', 'oztag' => 'touch',
         'school leavers' => 'school-leavers', 'lawn bowls' => 'lawn-bowls', 'fight wear' => 'fight-wear', 'fightwear' => 'fight-wear', 'club casual' => 'teamwear',

@@ -43,7 +43,7 @@ export const allGarments = ['jersey', 'fullkit', 'shorts', 'tee', 'singlet', 'po
 export const quickSports: QuickSport[] = [
   { id: 'rugby-league', label: 'Rugby League', sport: 'rugby-league', garments: allGarments },
   { id: 'rugby-union', label: 'Rugby Union', sport: 'rugby-union', garments: allGarments },
-  { id: 'netball', label: 'Netball', sport: 'netball', garments: ['singlet', 'shorts', 'tee', 'polo'] },
+  { id: 'netball', label: 'Netball', sport: 'netball', garments: ['netball-dress', 'singlet', 'shorts', 'tee', 'polo'] },
   { id: 'football', label: 'Soccer', sport: 'football', garments: allGarments },
   { id: 'basketball', label: 'Basketball', sport: 'basketball', garments: ['singlet', 'fullkit', 'shorts', 'tee', 'polo'] },
   { id: 'fight-wear', label: 'Fight Wear', sport: 'fight-wear', brief: 'Fight wear', garments: ['tee', 'shorts', 'singlet'] },
@@ -53,7 +53,7 @@ export const quickSports: QuickSport[] = [
   { id: 'hockey', label: 'Hockey', sport: 'hockey', garments: allGarments },
   { id: 'training', label: 'Training', sport: 'training', garments: ['tee', 'singlet', 'shorts', 'polo', 'jersey'] },
 ];
-export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
+export const garmentLabels: Record<string, string> = { jersey: 'Jersey', fullkit: 'Full kit', shorts: 'Shorts', tee: 'Training tee', singlet: 'Singlet', 'netball-dress': 'Netball dress', polo: 'Polo', pocketpolo: 'Polo with pocket', hoodie: 'Hoodie', ziphoodie: 'Zip hoodie', varsity: 'Varsity jacket', trackjacket: 'Track jacket' };
 
 /**
  * The quick picks, then every other catalogue sport in catalogue order, each with the catalogue's garments for it. A quick
@@ -82,6 +82,17 @@ export function garmentChips(sport?: QuickSport): GarmentChip[] {
 const tileArt = (s: QuickSport) => s.art ?? media(`images/ai-designer/sport-${s.id}.webp`);
 
 /** The garment a brief names, if any ("navy polo" → polo; "jersey and shorts" → full kit). */
+/**
+ * Shirts we have no 3D model of yet (client 2026-11-04, images/416): the closest garment we have shows them, with a
+ * note on the AI card. coming = the model is on the build queue (tasks.md). The app does the same (widgets/ai_stage.dart).
+ */
+export function closestModel(text: string): { name: string; garment: string; coming: boolean } | null {
+  const t = text.toLowerCase();
+  if (/\bfishing (?:shirts?|tops?|jerseys?)\b|\bangler(?:'s)? shirts?\b/.test(t)) return { name: 'fishing shirt', garment: 'polo', coming: true };
+  if (/\bbutton[- ]?(?:up|down)?[- ]shirts?\b|\bcollared shirts?\b|\blong[- ]sleeved? polos?\b/.test(t)) return { name: 'button shirt', garment: 'polo', coming: false };
+  return null;
+}
+
 export function garmentInBrief(text: string): string | null {
   const t = text.toLowerCase();
   const has = (re: RegExp) => re.test(t);
@@ -95,9 +106,13 @@ export function garmentInBrief(text: string): string | null {
   if (has(/\bhood(?:ie|y)s?\b|\bhooded (?:jumpers?|sweat\w*|tops?|pullovers?)\b/)) return 'hoodie';
   // The varsity (letterman, baseball or college) jacket is its own 3D garment; other jackets stay tees for now.
   if (has(/\bvarsity jackets?\b|\bletterm[ae]n(?:'s)? jackets?\b|\bletter jackets?\b|\bletterm[ae]n\b|\b(?:baseball|college) jackets?\b/)) return 'varsity';
+  // A fishing, button-up or collared shirt has no 3D model yet (images/416): the polo (collar and buttons) is the closest.
+  if (closestModel(t)) return 'polo';
   if (has(/\bpocket polos?\b|\bpolos? (?:shirts? )?with (?:a )?(?:chest )?pockets?\b/)) return 'pocketpolo';
   if (has(/\bpolos?\b/)) return 'polo';
-  if (has(/\bsinglets?\b|\bvests?\b|\btank tops?\b|\bdress(es)?\b|\bbodysuits?\b/)) return 'singlet';
+  // A dress (netball, tennis) is the women's netball dress (task 9.126), no longer a singlet.
+  if (has(/\bdress(es)?\b/)) return 'netball-dress';
+  if (has(/\bsinglets?\b|\bvests?\b|\btank tops?\b|\bbodysuits?\b/)) return 'singlet';
   if (has(/\bt-?shirts?\b|\btees?\b|\bjackets?\b|\bhi-?vis\b|\brash ?guards?\b/)) return 'tee';
   if (shorts) return 'shorts';
   if (top) return 'jersey';
@@ -151,8 +166,20 @@ export function SportRow({ tiles, selected, onSelect }: { tiles: QuickSport[]; s
   const [more, setMore] = useState({ prev: false, next: true });
   const measure = useCallback(() => { const el = strip.current; if (!el) return; const prev = el.scrollLeft > 2, next = el.scrollLeft + el.clientWidth < el.scrollWidth - 2; setMore(m => m.prev === prev && m.next === next ? m : { prev, next }); }, []);
   useEffect(() => { measure(); const el = strip.current; if (!el) return; const ro = new ResizeObserver(measure); ro.observe(el); return () => ro.disconnect(); }, [measure, tiles.length]);
+  // A mouse can scroll it too: the wheel scrolls sideways and a drag pulls the row (a drag is not a click on a tile).
+  useEffect(() => {
+    const el = strip.current; if (!el) return;
+    let down: { x: number; left: number; id: number } | null = null, moved = false;
+    const wheel = (e: WheelEvent) => { if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return; el.scrollLeft += e.deltaY; e.preventDefault(); };
+    const start = (e: PointerEvent) => { if (e.pointerType !== 'mouse' || e.button !== 0) return; down = { x: e.clientX, left: el.scrollLeft, id: e.pointerId }; moved = false; };
+    const move = (e: PointerEvent) => { if (!down) return; const dx = e.clientX - down.x; if (!moved && Math.abs(dx) > 6) { moved = true; el.setPointerCapture(down.id); el.style.scrollSnapType = 'none'; } if (moved) el.scrollLeft = down.left - dx; };
+    const end = () => { if (!down) return; down = null; el.style.scrollSnapType = ''; };
+    const click = (e: MouseEvent) => { if (moved) { e.stopPropagation(); e.preventDefault(); moved = false; } };
+    el.addEventListener('wheel', wheel, { passive: false }); el.addEventListener('pointerdown', start); el.addEventListener('pointermove', move); el.addEventListener('pointerup', end); el.addEventListener('pointercancel', end); el.addEventListener('click', click, true);
+    return () => { el.removeEventListener('wheel', wheel); el.removeEventListener('pointerdown', start); el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', end); el.removeEventListener('pointercancel', end); el.removeEventListener('click', click, true); };
+  }, []);
   const page = (dir: number) => { const el = strip.current; if (!el) return; const w = el.querySelector<HTMLElement>('.aid-tile')?.offsetWidth ?? 140; el.scrollBy({ left: dir * Math.max(el.clientWidth - w, w), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' }); };
-  return <div className={`aid-sports${more.prev || more.next ? '' : ' fits'}`}>
+  return <div className={`aid-sports${more.prev || more.next ? '' : ' fits'}${more.prev ? ' has-prev' : ''}${more.next ? ' has-next' : ''}`}>
     <button type="button" className="aid-arrow" onClick={() => page(-1)} disabled={!more.prev} aria-label="Previous sports"><ChevronLeft size={22} /></button>
     <div ref={strip} className="aid-strip" onScroll={measure} role="group" aria-label="Choose a sport (optional)">
       {tiles.map((s, i) => <button key={s.id} type="button" className="aid-tile" aria-pressed={selected === s.id} onClick={() => onSelect(s.id)} title={selected === s.id ? `${s.label}: chosen (click again to clear)` : `Design for ${s.label}`}>

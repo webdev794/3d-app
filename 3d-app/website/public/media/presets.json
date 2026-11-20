@@ -202,5 +202,377 @@
       },
       "layers": []
     }
+  },
+  {
+    "id": "rl-c02-01",
+    "name": "Chevron Strike",
+    "description": "Rugby League design collection 02, design 01: white V chevron with a blue edge across the chest, banded cuffs.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c02-01",
+        "name": "Rugby League Chevron Strike",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c02-02",
+    "name": "Chest Band",
+    "description": "Rugby League design collection 02, design 02: white chest band with blue edges and the wordmark inside it, sleeve bands.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c02-02",
+        "name": "Rugby League Chest Band",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c02-03",
+    "name": "Pinstripe Hoops",
+    "description": "Rugby League design collection 02, design 03: four white and blue pinstripes low on the body, white collar trim.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c02-03",
+        "name": "Rugby League Pinstripe Hoops",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c02-04",
+    "name": "Big V",
+    "description": "Rugby League design collection 02, design 04: large white V yoke with a blue edge, a V round the number on the back, blue collar.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c02-04",
+        "name": "Rugby League Big V",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c02-05",
+    "name": "Shoulder Slash",
+    "description": "Rugby League design collection 02, design 05: white shoulder slashes and a fade to white at the hem.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c02-05",
+        "name": "Rugby League Shoulder Slash",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c02-06",
+    "name": "Lightning",
+    "description": "Rugby League design collection 02, design 06: blue lightning lines down the sides, blue collar and cuffs.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c02-06",
+        "name": "Rugby League Lightning",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c03-01",
+    "name": "Twin Chest Bands",
+    "description": "Rugby League design collection 03, design 01: white and blue chest bands across the body and sleeves.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c03-01",
+        "name": "Rugby League Twin Chest Bands",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c03-02",
+    "name": "Side Stripe",
+    "description": "Rugby League design collection 03, design 02: white and blue stripe down one side over a fine diagonal texture.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c03-02",
+        "name": "Rugby League Side Stripe",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c03-03",
+    "name": "White Yoke",
+    "description": "Rugby League design collection 03, design 03: white yoke and sleeves with a blue band under it.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c03-03",
+        "name": "Rugby League White Yoke",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c03-04",
+    "name": "Sash",
+    "description": "Rugby League design collection 03, design 04: white diagonal sash with a blue edge.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c03-04",
+        "name": "Rugby League Sash",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c03-05",
+    "name": "Claw Flash",
+    "description": "Rugby League design collection 03, design 05: white and blue claw flashes at the sides and shoulders.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c03-05",
+        "name": "Rugby League Claw Flash",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "rl-c03-06",
+    "name": "Hoops",
+    "description": "Rugby League design collection 03, design 06: white and blue hoops on the lower body, white collar.",
+    "sport": "rugby-league",
+    "design": {
+      "garment": "jersey",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:rl-c03-06",
+        "name": "Rugby League Hoops",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "jersey"
+        ],
+        "kind": "drawing"
+      }
+    }
   }
 ]

@@ -26,6 +26,12 @@ class OrderUpdate extends Model
         return ['data' => 'array'];
     }
 
+    /** Older entries written as "AUD $1,870.00" read in the site's one price style, "A$1,870.00" (task 9.85). */
+    protected function message(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::get(fn (?string $value) => \App\Services\Pricing\Money::restyle($value));
+    }
+
     protected static function booted(): void
     {
         // The customer hears about what needs them or what they would want to know: approval needed, a message

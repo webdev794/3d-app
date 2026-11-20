@@ -1,0 +1,93 @@
+{
+  "about": "AFL > AFL guernsey: Tripo model aussie-rules-singlet.glb, booklet card 11230 (the user: the finalized view is the booklet card): golden yellow body; azure neck band and armhole bands (Collar colour) on the model's own band pieces; the card's wide royal chest band printed all the way round (Secondary), straight top and bottom edges; our number low on the front and below the band on the back (Accent); our marks only, never the card's artwork, text or logos. Its colours end on the model's own lines: viewer/tripo-pieces.mjs (MODELQ4 2026-11-17).",
+  "glb": "../../../tripo/aussie-rules-singlet.glb",
+  "converter": "afl-guernsey",
+  "part": "singlet",
+  "flag": "aflGuernsey",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "AFL guernsey",
+      "image": "afl-guernsey"
+    }
+  ],
+  "look": {
+    "main": "#d6b13a",
+    "secondary": "#1f3f8a",
+    "accent": "#1e2758",
+    "patternColor": "#1e2758",
+    "number": "1",
+    "zoneColors": {
+      "aflGuernsey": "#3e71aa"
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": -0.085,
+        "y": 0.6,
+        "scale": 0.4
+      },
+      "top_crest": {
+        "x": 0.085,
+        "y": 0.6,
+        "scale": 0.28
+      },
+      "top_frontNumber": {
+        "x": 0,
+        "y": 0.15,
+        "scale": 1.1
+      },
+      "top_number": {
+        "x": 0,
+        "y": 0.2,
+        "scale": 1
+      }
+    },
+    "layers": [
+      {
+        "type": "shape",
+        "id": "tile-band",
+        "name": "Chest band",
+        "part": "top",
+        "side": "front",
+        "x": 0,
+        "y": 0.48,
+        "shape": "rectangle",
+        "w": 0.6,
+        "h": 0.155,
+        "colorFrom": "secondary"
+      },
+      {
+        "type": "shape",
+        "id": "tile-band-back",
+        "name": "Chest band (back)",
+        "part": "top",
+        "side": "back",
+        "x": 0,
+        "y": 0.48,
+        "shape": "rectangle",
+        "w": 0.6,
+        "h": 0.155,
+        "colorFrom": "secondary"
+      }
+    ],
+    "parts": {
+      "collar": {
+        "colour": "#3e71aa"
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "zoomQ90D90Y500P80",
+      "zoomQ-90D90Y500P80",
+      "zoomQ45D90Y500P75",
+      "zoomQ-135D90Y500P75",
+      "zoomD60Y700P55",
+      "zoomQ50D40X80Y700P60",
+      "zoomQ-50D40X-80Y700P60"
+    ]
+  }
+}

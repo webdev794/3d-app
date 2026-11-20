@@ -25,9 +25,13 @@ class OrderBoardController extends Controller
 {
     public function board(Request $request): JsonResponse
     {
-        $filters = $request->validate(['view' => ['sometimes', 'in:current,completed'], 'search' => ['sometimes', 'nullable', 'string', 'max:120']]);
+        $filters = $request->validate(['view' => ['sometimes', 'in:current,completed'], 'search' => ['sometimes', 'nullable', 'string', 'max:120'],
+            // Made by (preferred suppliers): a supplier's id, or 3deezi.
+            'supplier' => ['sometimes', 'nullable', 'string', 'max:20']]);
+        $orders = Order::query();
+        \App\Models\Supplier::filter($orders, $filters['supplier'] ?? null);
 
-        return response()->json(['data' => OrderBoard::build(Order::query(), true, $filters['view'] ?? 'current', trim((string) ($filters['search'] ?? '')))]);
+        return response()->json(['data' => OrderBoard::build($orders, true, $filters['view'] ?? 'current', trim((string) ($filters['search'] ?? '')))]);
     }
 
     /** The staff an order can be assigned to. */

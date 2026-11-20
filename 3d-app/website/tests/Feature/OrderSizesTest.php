@@ -22,7 +22,7 @@ class OrderSizesTest extends TestCase
 
     private function form(array $items, array $extra = []): array
     {
-        return ['source' => 'form', 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'phone' => '0400 000 000',
+        return ['source' => 'form', ...$this->artwork(), 'team_name' => 'MANTIS', 'contact_name' => 'Fabian', 'items' => $items, 'phone' => '0400 000 000',
             'needed_by' => now()->addWeeks(6)->toDateString(), 'delivery' => 'pickup'] + $extra;
     }
 
@@ -48,8 +48,10 @@ class OrderSizesTest extends TestCase
             ['garment' => 'jersey', 'sport' => 'rugby-league', 'fit' => 'womens', 'sizes' => ['W24' => 1, 'W10' => 3]],
             ['garment' => 'jersey', 'sport' => 'rugby-league', 'fit' => 'youth', 'sizes' => ['16Y' => 2, '2Y' => 1, '10Y' => 2]],
         ];
-        // The review's price: every row at the jersey price, each named with its fit.
-        $quote = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU']])->assertOk()->json('data');
+        // The review's price: every row at the jersey price, each named with its fit. Picked up (as form() places it):
+        // the Australia region chosen before is not charged (2026-11-11).
+        $quote = $this->postJson('/api/v1/pricing/quote', ['items' => $items, 'pricing' => ['destination' => 'AU'], 'delivery' => 'pickup'])->assertOk()->json('data');
+        $this->assertSame('0.00', $quote['shipping']['amount']);
         $this->assertSame('priced', $quote['status']);
         $this->assertSame(15, $quote['quantity']);
         $this->assertSame([6, 4, 5], array_column($quote['lines'], 'quantity'));
@@ -104,7 +106,7 @@ endstream/s', $pdf, $streams);
         // A draft saved with Kids opens as it was and can still be sent (Kids is still a size the order takes).
         $draft = $this->postJson('/api/v1/order-drafts', ['kind' => 'form', 'data' => $this->form([['garment' => 'shorts', 'fit' => 'youth', 'sizes' => ['Kids' => 6]]])])->assertCreated()->json('data.id');
         $this->getJson("/api/v1/order-drafts/{$draft}")->assertOk()->assertJsonPath('data.data.items.0.sizes.Kids', 6);
-        $sent = $this->postJson("/api/v1/order-drafts/{$draft}/submit", [], ['Idempotency-Key' => 'sizes-old-kids'])->assertCreated()->json('data');
+        $sent = $this->postJson("/api/v1/order-drafts/{$draft}/submit", $this->artwork(), ['Idempotency-Key' => 'sizes-old-kids'])->assertCreated()->json('data');
         $this->assertSame(['Kids' => 6], Order::find($sent['id'])->sizes);
         $this->assertNull(OrderDraft::find($draft));
     }
