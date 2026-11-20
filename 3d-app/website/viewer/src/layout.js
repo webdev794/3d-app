@@ -213,7 +213,11 @@ function openNeck(mask, w, p) {
   for (let q = 0, id = 0; q < bw * bh; q++) {
     if (label[q] || mask[at(q % bw, Math.floor(q / bw))]) continue;
     const box = fill(q, ++id), cx = Math.round((box.x0 + box.x1) / 2);
-    if (box.n < 0.002 * bw * bh || box.y0 > 0.25 * bh || cx < 0.3 * bw || cx > 0.7 * bw) continue;
+    // (Neck-sized only: a white yoke, chevron or V drawn at the top of a design on a white page is a hole too, and was
+    // cut out of the print with all above it: PRESETRL 2026-11-20, a neck is under about half the width and a third
+    // of the height; those panels span 0.6-1.0 of the width or reach about 0.45 deep.)
+    // (And centred: a white wedge off to one side, split off a chevron by a line inside it, was taken: PRESETRL rl-c02-01.)
+    if (box.n < 0.002 * bw * bh || box.y0 > 0.25 * bh || cx < 0.4 * bw || cx > 0.6 * bw || box.x1 - box.x0 > 0.55 * bw || box.y1 > 0.3 * bh) continue;
     let above = 0;
     for (let y = 0; y < box.y0; y++) if (mask[at(cx, y)]) above++;
     if (above <= 0.06 * bh && (!neck || box.n > neck.n)) neck = box;
@@ -243,6 +247,70 @@ function openNeck(mask, w, p) {
     if (size > bestSize) { best = id; bestSize = size; }
   }
   for (let q = 0; q < bw * bh; q++) if (piece[q] && piece[q] !== best) mask[at(q % bw, Math.floor(q / bw))] = 0;
+}
+
+/**
+ * A garment drawing whose neck opening is drawn in a colour of its own under a straight top edge (the inside of the back
+ * seen through it, drawn dark; or the back's collar drawn dark across its top: QATEST 2026-11-19 qa-flat-jersey). That
+ * patch is the opening: cut out up to the top, as openNeck does for one drawn white, so the outline runs round the
+ * neckline (else the patch was printed on the chest under the 3D collar). `px`: the page's pixels (RGBA, `w` wide).
+ * Only a solid patch of one colour in the top middle, wider than deep, deepest in its middle, is taken.
+ */
+function drawnNeck(mask, w, p, px) {
+  const bw = p.x1 - p.x0 + 1, bh = p.y1 - p.y0 + 1, cx = Math.round((p.x0 + p.x1) / 2);
+  const col = (x, y) => { const i = (y * w + x) * 4; return [px[i], px[i + 1], px[i + 2]]; };
+  const far = (a, b) => Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
+  let top = -1;
+  for (let y = p.y0; y <= p.y1 && top < 0; y++) if (mask[y * w + cx]) top = y;
+  // (The top is not straight across in the middle: its neck is already in the outline.)
+  if (top < 0 || top > p.y0 + 0.04 * bh) return;
+  // The body's colour: the middle of each channel across the middle third, a third of the way down.
+  const row = Math.round(p.y0 + 0.33 * bh), body = [[], [], []];
+  for (let x = Math.round(p.x0 + 0.35 * bw); x <= p.x0 + 0.65 * bw; x++) if (mask[row * w + x]) col(x, row).forEach((v, c) => body[c].push(v));
+  if (!body[0].length) return;
+  const bodyCol = body.map((v) => v.sort((a, b) => a - b)[v.length >> 1]);
+  let seed = -1;
+  for (let y = top; y < top + 0.06 * bh && seed < 0; y++) if (mask[y * w + cx] && far(col(cx, y), bodyCol) > 90) seed = y;
+  if (seed < 0) return;
+  const seedCol = col(cx, seed), limit = p.y0 + 0.3 * bh, seen = new Uint8Array(bw * bh), low = new Int32Array(bw).fill(-1);
+  const stack = [[cx, seed]];
+  seen[(seed - p.y0) * bw + cx - p.x0] = 1;
+  let n = 0, x0 = cx, x1 = cx, y1 = seed;
+  while (stack.length) {
+    const [x, y] = stack.pop();
+    n++; x0 = Math.min(x0, x); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    low[x - p.x0] = Math.max(low[x - p.x0], y);
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, ny = y + dy, r = (ny - p.y0) * bw + nx - p.x0;
+      if (nx < p.x0 || nx > p.x1 || ny < p.y0 || ny > limit || seen[r] || !mask[ny * w + nx] || far(col(nx, ny), seedCol) > 60) continue;
+      seen[r] = 1;
+      stack.push([nx, ny]);
+    }
+  }
+  const pw = x1 - x0 + 1, ph = y1 - p.y0 + 1, ends = Math.max(low[x0 - p.x0 + Math.round(0.1 * pw)], low[x1 - p.x0 - Math.round(0.1 * pw)]);
+  if (pw < 0.1 * bw || pw > 0.5 * bw || Math.abs((x0 + x1) / 2 - cx) > 0.05 * bw || ph > 0.25 * bh || y1 - top < 0.015 * bh
+    || n < 0.35 * pw * (y1 - Math.min(seed, top) + 1) || low[cx - p.x0] < ends) return;
+  for (let x = x0; x <= x1; x++) for (let y = p.y0; y <= low[x - p.x0]; y++) mask[y * w + x] = 0;
+}
+
+/**
+ * A drawing's outline with a point where its top crosses its middle line (the neck's tip of a straight collar line is
+ * that middle: layout-warp.js middleOf; on a straight top the outline's nearest point could be well off it, and the 3D
+ * neck's tip was put there: the print shifted to one side, QATEST 2026-11-19 qa-flat-jersey).
+ */
+function withTopMiddle(o) {
+  const xs = o.map((q) => q[0]), cx = (Math.min(...xs) + Math.max(...xs)) / 2, W = Math.max(...xs) - Math.min(...xs);
+  let best = -1, by = Infinity;
+  o.forEach((a, i) => {
+    const b = o[(i + 1) % o.length];
+    if ((a[0] - cx) * (b[0] - cx) > 0 || a[0] === b[0]) return;
+    const y = a[1] + ((cx - a[0]) * (b[1] - a[1])) / (b[0] - a[0]);
+    if (y < by) { by = y; best = i; }
+  });
+  if (best < 0) return o;
+  const a = o[best], b = o[(best + 1) % o.length];
+  if (Math.min(Math.abs(a[0] - cx), Math.abs(b[0] - cx)) < 0.004 * W) return o;
+  return [...o.slice(0, best + 1), [cx, by], ...o.slice(best + 1)];
 }
 
 /**
@@ -442,7 +510,7 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
     // Close thin gaps across the panel (a white line above a cuff or hem band, whether it cuts the panel in two or
     // stops just short of one edge), so the outline runs round the outside and not into the gap. A drawing has no
     // such lines: its front's neck opening is opened instead.
-    if (drawing) openNeck(mask, w, p);
+    if (drawing) { openNeck(mask, w, p); drawnNeck(mask, w, p, px); }
     else {
       const most = Math.ceil(h * 0.03);
       for (let x = p.x0; x <= p.x1; x++) {
@@ -461,6 +529,7 @@ export function findPanels(image, labels = [], { drawing = false } = {}) {
     for (let y = p.y0; y <= p.y1 && sy < 0; y++) for (let x = p.x0; x <= p.x1; x++) if (mask[y * w + x]) { sx = x; sy = y; break; }
     let outline = simplify(trace(mask, w, h, sx, sy), 0.7).map(([x, y]) => [(x + 0.5) / k, (y + 0.5) / k]);
     if (area2(outline) < 0) outline = outline.reverse();
+    if (drawing) outline = withTopMiddle(outline);
     // A drawing's shape that fills its box (`frame`: a detail panel or a photo, not a garment).
     return { id: `p${n}`, role: p.role ?? 'none', label: p.label, x0: p.x0 / k, y0: p.y0 / k, x1: (p.x1 + 1) / k, y1: (p.y1 + 1) / k, outline, ...(drawing ? { frame: !!p.frame } : {}) };
   });

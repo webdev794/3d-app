@@ -1,0 +1,31 @@
+{
+  "about": "Women's rugby jersey (women-rugby-jersey.glb): per triangle from its own seams (regions, creaseDeg 25: TRIPO/MODELQ5/wrj-regs.jpg): the V neck band (3) and its lining (7, 11) the Collar colour; the cuff bands (4, 5 and their bits 13, 14, 16, 18) the trim colour; body (0), sleeves (1, 2), sleeve seams and hem band the print (MODELQ5 2026-11-20).",
+  "glb": "../../../tripo/women-rugby-jersey.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "collar",
+    "trim"
+  ],
+  "rules": [
+    {
+      "regions": [
+        3,
+        7,
+        11
+      ],
+      "part": "collar"
+    },
+    {
+      "regions": [
+        4,
+        5,
+        13,
+        14,
+        16,
+        18
+      ],
+      "part": "trim"
+    }
+  ],
+  "smooth": 1
+}

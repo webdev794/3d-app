@@ -1,0 +1,23 @@
+{
+  "about": "Women's fitness bottoms (women-fitness-bottoms.glb): the model's own high waistband (its own piece above its seam) in the Waistband part's colour (else Secondary), per triangle (MODELQ2 2026-11-16, viewer/tripo-parts.mjs).",
+  "glb": "../../../tripo/women-fitness-bottoms.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "part:waistband|main"
+  ],
+  "rules": [
+    {
+      "where": "y > 0.855 && r != 0",
+      "part": "part:waistband|main"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}

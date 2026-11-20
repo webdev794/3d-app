@@ -72,6 +72,10 @@ void main() {
     );
 
     // Choosing a design applies it and keeps the sheet open, as before.
+    // (On Rugby League the sport's own presets come first, PRESETRL 2026-11-19:
+    // the 3DEEZI ones are further down the sheet.)
+    await tester.ensureVisible(find.text('Electric Chevron'));
+    await settle(tester);
     await tester.tap(find.text('Electric Chevron'));
     await settle(tester);
     expect(c.pattern, 'Chevron');

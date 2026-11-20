@@ -25,7 +25,7 @@ import { buildBucketHat } from './bucket.js';
 import { buildBeanie } from './beanie.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
-import { loadTripo, tripoReady, tripoGarment, tripoNeckOutline, bballRoundOutline } from './tripomesh.js';
+import { loadTripo, tripoReady, tripoGarment, tripoNeckOutline, bballRoundOutline, BAND_SWATCH } from './tripomesh.js';
 import { RECIPE_MODELS } from './recipemodels.js';
 import { modelCollarOf, modelCollarV, buildModelCollar } from './modelcollars.js';
 import { FB_JERSEY, FB_SPEC, FB_SWATCH, FB_CUFF_STRIPE, isFbJersey, buildModelFoldCollar, buildModelWing } from './fbjersey.js';
@@ -41,7 +41,7 @@ import { collarSpec, fitSpec, collarColours, paintCollarBand, buildCollarParts }
 import { buildHoodCords, ribNormalMap, tubeAlong } from './hoodie.js';
 import { buildSnaps, varsityRibMap, quiltMap, finishMap, varsityColour } from './varsity.js';
 import { readLayout, findPanels, confirmPanels, hemFold, joinLines, drawPockets, ROLE_NAMES } from './layout.js';
-import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape, unprojectPhoto } from './layout-warp.js';
+import { regionsFor, warpLayout, panelColour, panelSides, DRAWN, drawingSides, orderDrawing, lineColour, drawnCut, drawnSleeves, sleevedShape, unprojectPhoto, drawingGrow, modelFlatOf } from './layout-warp.js';
 
 const params = new URLSearchParams(location.search);
 const mobile = /Android|iPhone|iPad/i.test(navigator.userAgent) || params.has('mobile');
@@ -989,7 +989,9 @@ function buildKit(kind) {
     // The track jacket: smooth polyester (a little gloss, a fine knit), its stand-up collar (printed outside, lined) or
     // the zip hoodie's hood and drawstring, rib cuffs and hem band, the front zip and its garage, the pocket zips.
     let track = null;
-    if (garment.track) {
+    // (A track jacket on its 3D model (tracksuit-jacket, track-jacket): the model is the whole jacket, none of the made
+    // jacket's own pieces are built over it: MODELQ5 2026-11-20.)
+    if (garment.track && !tripo) {
       const t = garment.track;
       partMaterial.roughness = 0.55;
       partMaterial.sheen = 0.5;
@@ -1706,7 +1708,12 @@ function warpParts() {
   for (const part of parts) {
     if (part.painter.layoutBase || part.garment.socks || part.garment.skirt || part.garment.cap || part.garment.hat) continue;
     const { painter } = part, shorts = painter.kind === 'shorts';
-    painter.layoutBase = warpLayout(renderer, layout.image, regionsFor(painter, layout.panels, layout.image, { drawing: !!layout.drawing }), painter.canvas.width, painter.canvas.height);
+    // (A drawing on a ready-made model with its own sleeves measured: its sleeves printed on them (layout-warp.js
+    // MODEL_SLEEVES), and grown past the garment's outline where the model's own places reach, its band swatches kept
+    // (drawingGrow).)
+    const own = layout.drawing ? modelFlatOf(part.tripo?.data) : null;
+    const grow = own ? drawingGrow(painter, painter.model?.swatch?.length ? painter.model.swatch : BAND_SWATCH) : null;
+    painter.layoutBase = warpLayout(renderer, layout.image, regionsFor(painter, layout.panels, layout.image, { drawing: !!layout.drawing, own }), painter.canvas.width, painter.canvas.height, grow);
     const main = shorts ? byRole.legL ?? byRole.legR : byRole.front ?? byRole.back;
     // (A drawing: its commonest colour, never a blend of its colours: CLIENT598.)
     painter.layoutFill = main ? panelColour(layout.image, main, 0.45, 0.8, !!layout.drawing) : design.main;

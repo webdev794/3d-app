@@ -1,12 +1,151 @@
 {
-  "about": "Rash guard (rashguard.glb): the model's own piping (raglan, neck, hem and cuff seams) in the Secondary, its inside plain, per triangle from its own seams (MODELQ 2026-11-16).",
-  "glb": "../../../tripo/rashguard.glb",
-  "creaseDeg": 25,
-  "keys": ["trim", "inside"],
-  "rules": [
-    { "regions": [1], "part": "inside" },
-    { "regions": [2, 3, 4, 5, 9, 12, 16], "part": "trim" },
-    { "where": "size < 1500 && y > 0.84 && y < 0.9 && Math.abs(x) < 0.14 && r !== 1 && r !== 7 && r !== 0", "part": "trim" }
-  ],
-  "smooth": 0
+  "about": "Rash guard (rashguard-parts.glb as the model, HOODIE/MODELQ6 2026-11-20): coloured from its own parts by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made tee's sleeves; the neck band the Collar colour (else the trim colour), the cuff rolls and hem band the trim colour (Secondary), each one even band from its own edge. Stitch lines beside the raglan seams and above the cuffs and hem.",
+  "hoodieParts": {
+    "glb": "../../../tripo/rashguard-parts.glb",
+    "roles": {
+      "tripo_part_17": "body",
+      "tripo_part_26": "body",
+      "tripo_part_9": "collar",
+      "tripo_part_11": "hem",
+      "tripo_part_10": "cuffL",
+      "tripo_part_13": "sleeveR",
+      "tripo_part_2": "sleeveR",
+      "tripo_part_1": "sleeveL",
+      "tripo_part_23": "sleeveL"
+    },
+    "split": [
+      {
+        "part": "tripo_part_10",
+        "where": "x < 0",
+        "role": "cuffR"
+      }
+    ],
+    "order": [
+      "sleeveL",
+      "sleeveR"
+    ],
+    "regions": {
+      "sleeveL": {
+        "roles": [
+          "sleeveL"
+        ],
+        "key": "area:leftSleeve"
+      },
+      "sleeveR": {
+        "roles": [
+          "sleeveR"
+        ],
+        "key": "area:rightSleeve"
+      }
+    },
+    "sleeveMap": {
+      "sleeveL": {
+        "armhole": [
+          [
+            0.258,
+            0.688
+          ],
+          [
+            0.258,
+            0.53
+          ]
+        ],
+        "cuff": [
+          [
+            0.418,
+            0.566
+          ],
+          [
+            0.372,
+            0.476
+          ]
+        ]
+      },
+      "sleeveR": {
+        "armhole": [
+          [
+            0.258,
+            0.688
+          ],
+          [
+            0.258,
+            0.53
+          ]
+        ],
+        "cuff": [
+          [
+            0.418,
+            0.566
+          ],
+          [
+            0.372,
+            0.476
+          ]
+        ]
+      }
+    },
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "sleeveL",
+          "at": -0.005
+        },
+        {
+          "region": "sleeveR",
+          "at": -0.005
+        }
+      ],
+      "rings": [
+        {
+          "role": "collar",
+          "at": 0.004
+        },
+        {
+          "role": "hem",
+          "at": 0.004
+        },
+        {
+          "role": "cuffL",
+          "at": 0.004
+        },
+        {
+          "role": "cuffR",
+          "at": 0.004
+        }
+      ]
+    },
+    "neckReach": 0.16,
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 30,
+    "speck": 8,
+    "rings": {
+      "collar": {
+        "key": "collar",
+        "dir": "up"
+      },
+      "hem": {
+        "key": "trim",
+        "dir": "down",
+        "not": [
+          "sleeveL",
+          "sleeveR",
+          "cuffL",
+          "cuffR"
+        ]
+      },
+      "cuffL": {
+        "key": "trim",
+        "dir": "out",
+        "beyond": "sleeveL"
+      },
+      "cuffR": {
+        "key": "trim",
+        "dir": "out",
+        "beyond": "sleeveR"
+      }
+    }
+  }
 }

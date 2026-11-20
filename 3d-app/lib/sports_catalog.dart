@@ -915,6 +915,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // a cyan stripe down each outer leg (zoneColors.pantsStripe).
     'trackSuit': {
       'zoneColors': {
+        'tsJacket': '#ffffff',
         'body': '#1d2123',
         'shoulder': '#1d2123',
         'side': '#1d2123',
@@ -933,6 +934,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     },
     'bballTracksuit': {
       'zoneColors': {
+        'tsJacket': '#ffffff',
         'shoulder': '#27282a',
         'side': cyan,
         'sideBlade': '#0a5ae6',
@@ -1199,6 +1201,9 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'tsJacket': {'zoneColors': {'tsJacket': '#ffffff'}},
+    'womenRugbyJersey': {'main': '#272e48', 'secondary': '#e2bf3a', 'accent': '#e2bf3a', 'patternColor': '#e2bf3a', 'pattern': 'None', 'number': '7', 'parts': {'collar': {'colour': '#e2bf3a'}}, 'zoneColors': {'womenRugbyJersey': '#e2bf3a'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.7}, 'top_number': {'color': '#e2bf3a'}, 'top_name': {'hidden': true}}, 'layers': []},
+    'fitnessBottoms': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#1c58c8', 'patternColor': '#16b4f0', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'fitnessBottoms': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'side': 'back', 'x': 0.1, 'y': 0.83, 'scale': 0.7}, 'shorts_wordmark': {'side': 'back', 'x': 0.1, 'y': 0.79, 'scale': 0.5}}, 'layers': []},
     'womenLeggings': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#1c58c8', 'patternColor': '#16b4f0', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'womenLeggings': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.84, 'scale': 0.8}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802, 'scale': 0.8}}, 'layers': []},
     'rugbyVJersey': {'main': '#ffca00', 'secondary': '#ffca00', 'accent': '#11183f', 'patternColor': '#11183f', 'parts': {'leftSleeve': {'colour': '#11183f'}, 'rightSleeve': {'colour': '#11183f'}}, 'zoneColors': {'rugbyVJersey': '#11183f'}, 'marks': {'top_number': {'color': '#ffffff'}, 'top_frontNumber': {'hidden': true}, 'top_wordmark': {'x': -0.07, 'y': 0.575, 'scale': 0.34}, 'top_crest': {'x': 0.075, 'y': 0.575, 'scale': 0.85}, 'top_name': {'color': '#ffffff'}}, 'layers': []},
     'rugbyJersey': {'main': '#e2bf3a', 'secondary': '#e2bf3a', 'accent': '#32324c', 'patternColor': '#32324c', 'parts': {'leftSleeve': {'colour': '#32324c'}, 'rightSleeve': {'colour': '#32324c'}}, 'zoneColors': {'rugbyJersey': '#32324c'}, 'marks': {'top_number': {'color': '#32324c'}, 'top_frontNumber': {'x': 0, 'y': 0.45}, 'top_wordmark': {'x': -0.07, 'y': 0.575, 'scale': 0.34}, 'top_crest': {'x': 0.075, 'y': 0.575, 'scale': 0.85}}, 'layers': []},
@@ -1509,6 +1514,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'rugby-jersey',
       // (Its own 3D model, rugby-vneck-jersey-textured.glb: RUGBYV 2026-11-19.)
       look: 'rugbyVJersey',
+    ),
+    GarmentTile(
+      "Women's rugby jersey",
+      "Fitted women's rugby jersey with a V-neck.",
+      'Jersey',
+      image: 'rugby-jersey',
+      look: 'womenRugbyJersey',
     ),
     GarmentTile(
       'Playing Shorts',
@@ -2437,6 +2449,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Compression top',
       image: 'nfl-compression-top',
       look: 'fitnessTop',
+    ),
+    GarmentTile(
+      "Women's fitness bottoms",
+      'High-waisted fitness bottoms in stretch fabric.',
+      'Shorts',
+      image: 'leggings',
+      look: 'fitnessBottoms',
     ),
     GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts'),
     GarmentTile(

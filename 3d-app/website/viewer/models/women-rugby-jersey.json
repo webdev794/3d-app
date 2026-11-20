@@ -1,0 +1,59 @@
+{
+  "about": "Rugby Union > Women's rugby jersey (new tile next to Women's rugby shorts, as the women's rugby kit of booklet card 14524: V-neck, sleeve trims, matching shorts): Tripo model women-rugby-jersey.glb (shape only, faces front), coloured by its own parts per triangle (16 Nov method, viewer/tripo-parts.mjs regions: V neck band + its lining the Collar colour, cuff bands the trim colour, body, sleeves and hem band the print). Look in the women's rugby shorts' card colours: navy body and sleeves, gold V band and cuffs, our 3 mark and 3DEEZI wordmark on the chest and our number on the back (our marks only). MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/women-rugby-jersey.glb",
+  "converter": "top",
+  "part": "jersey",
+  "garment": "jersey",
+  "flag": "womenRugbyJersey",
+  "ownNeck": "v",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "jersey",
+    "creaseDeg": 25
+  },
+  "look": {
+    "main": "#272e48",
+    "secondary": "#e2bf3a",
+    "accent": "#e2bf3a",
+    "patternColor": "#e2bf3a",
+    "pattern": "None",
+    "number": "7",
+    "parts": {
+      "collar": {
+        "colour": "#e2bf3a"
+      }
+    },
+    "zoneColors": {
+      "womenRugbyJersey": "#e2bf3a"
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_crest": {
+        "x": -0.09,
+        "y": 0.6,
+        "scale": 0.7
+      },
+      "top_number": {
+        "color": "#e2bf3a"
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

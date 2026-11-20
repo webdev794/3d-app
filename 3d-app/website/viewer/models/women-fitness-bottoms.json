@@ -1,0 +1,64 @@
+{
+  "about": "Gymwear > Women's fitness bottoms (new tile, the user 2026-11-16; next to Women's fitness top, booklet card 117908): Tripo model women-fitness-bottoms.glb (shape only; made facing away, so turned round: convert.turn 180, placing only), coloured by its own parts (16 Nov method: tripo-parts rule = its own high waistband piece above its seam; tripo-pieces fromParts). Tile picture: the leggings picture (garment-leggings, no picture of its own); look in the 3DEEZI black and cyan of the Gymwear tiles (as the fitness top): black body and waistband, cyan side stripe, our 3 mark and wordmark low on the back waistband where the card has its label. Settings first made by MODELQ2 2026-11-17; put on the tile by MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/women-fitness-bottoms.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "trackpants",
+    "legs": 0.651,
+    "creaseDeg": 25,
+    "turn": 180
+  },
+  "part": "trackpants",
+  "garment": "shorts",
+  "flag": "fitnessBottoms",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#27282a",
+    "secondary": "#16b4f0",
+    "accent": "#1c58c8",
+    "patternColor": "#16b4f0",
+    "pattern": "None",
+    "number": "",
+    "parts": {
+      "waistband": {
+        "colour": "#27282a"
+      }
+    },
+    "zoneColors": {
+      "fitnessBottoms": "#27282a",
+      "pantsStripe": "#16b4f0"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "side": "back",
+        "x": 0.1,
+        "y": 0.83,
+        "scale": 0.7
+      },
+      "shorts_wordmark": {
+        "side": "back",
+        "x": 0.1,
+        "y": 0.79,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D70P72",
+      "zoomQ-160D70P72"
+    ]
+  }
+}

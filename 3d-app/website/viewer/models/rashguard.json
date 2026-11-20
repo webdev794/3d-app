@@ -1,6 +1,6 @@
 {
-  "about": "Rash guard tiles (Swimming, Fight Wear): Tripo model rashguard.glb, booklet card 117732 (aqua body with magenta piping along its own raglan, neck, hem and cuff seams; our 3DEEZI wordmark and 3 mark small low on the front left where the card has its small label; nothing of its text). Tile look: the existing 'blades' look + the model flag (2026-11-16 coordinator); `look` is only the check design.",
-  "glb": "../../../tripo/rashguard.glb",
+  "about": "Rash guard tiles (Swimming, Fight Wear): Tripo model rashguard-parts.glb (cards 55098 / 54953, long-sleeve compression top), HOODIE/MODELQ6 2026-11-20: the PARTS file is the model (the user: rashguard-textured.glb came out twice with no collar band, no cuff roll and no proper sleeve ends; the parts file has them), coloured from its own parts by viewer/tripo-hoodie.mjs (viewer/parts/rashguard.json). Replaces the old rashguard.glb. Tile look: the existing 'blades' look + the model flag; `look` is only the check design.",
+  "glb": "../../../tripo/rashguard-parts.glb",
   "converter": "top",
   "part": "tee",
   "flag": "rashGuard",

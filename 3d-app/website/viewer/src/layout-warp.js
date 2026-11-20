@@ -699,7 +699,83 @@ function garment(painter) {
  * The regions of the garment's print atlas each print panel goes to: for each, the garment's side lines (in atlas
  * pixels) and the panel's matching side lines (in page pixels).
  */
-export function regionsFor(painter, panels, image = null, { drawing = false } = {}) {
+/**
+ * A sleeved garment drawing on a ready-made model with its own print places for its body and its sleeves (RUGBYJ altUv:
+ * the RL jersey, a raglan model): the drawing's body onto the body's places and each sleeve onto its sleeve's. The
+ * drawing is split at its armholes (its shoulder's corner straight to its underarm), the garment by a line from just
+ * out of the neck to the underarm, outside all the body's places. As one piece, the drawing's set-in armhole crossed
+ * the body's places by the raglan seam: the sleeve's colour ragged and stepped along it (QATEST 2026-11-19 z9-flat).
+ * `g`: the garment's outline (garment()), `o` / `c`: the drawing's outline and corners (drawingSides), `at`: the
+ * garment's corners (indices into g.o), `l` / `r`: the garment's side on the drawing's left / right.
+ */
+function splitSleeves(g, o, c, { N, T, CT, CB, U, H }, l, r, back, region, neckDepth, px) {
+  const ys = o.map((p) => p[1]), tall = Math.max(...ys) - Math.min(...ys), line = (a, b) => resample([a, b], 16);
+  const Sr = corner(o, c.Nr, c.CTr, 0.02 * tall, 0.03 * tall), Sl = corner(o, c.CTl, c.Nl, 0.02 * tall, 0.03 * tall);
+  const gs = (d) => { const [nS, sCT] = cut(g.edge(N[d], CT[d]), 0.08); return { nS, sCT, arm: line(nS.at(-1), g.o[U[d]]) }; };
+  const R = gs(r), L = gs(l), rev = (a) => [...a].reverse(), P = (a, b) => path(o, a, b), on = px(back);
+  const body = {
+    ...region,
+    sides: [...(back ? [g.edge(N[l], N[r])] : [g.edge(N[l], T), g.edge(T, N[r])]), R.nS, R.arm, g.edge(U[r], H[r]), g.edge(H[r], H[l]), g.edge(H[l], U[l]), rev(L.arm), rev(L.nS)].map(on),
+    target: [...(back ? [P(c.Nl, c.Nr)] : [P(c.Nl, c.T), P(c.T, c.Nr)]), P(c.Nr, Sr), line(o[Sr], o[c.Ur]), P(c.Ur, c.Hr), P(c.Hr, c.Hl), P(c.Hl, c.Ul), line(o[c.Ul], o[Sl]), P(Sl, c.Nl)],
+    // (The back's neckline loose as for the whole back, below.)
+    ...(back ? { loose: neckDepth < 0.025 ? [] : [0] } : {}),
+  };
+  const right = { ...region, sides: [R.sCT, g.edge(CT[r], CB[r]), g.edge(CB[r], U[r]), rev(R.arm)].map(on), target: [P(Sr, c.CTr), P(c.CTr, c.CBr), P(c.CBr, c.Ur), line(o[c.Ur], o[Sr])] };
+  const left = { ...region, sides: [g.edge(U[l], CB[l]), g.edge(CB[l], CT[l]), rev(L.sCT), L.arm].map(on), target: [P(c.Ul, c.CBl), P(c.CBl, c.CTl), P(c.CTl, Sl), line(o[Sl], o[c.Ul])] };
+  return [body, right, left];
+}
+
+/**
+ * The ready-made models' own sleeves (CLIENT598 2026-11-20, measured from each model's print places: dbg/corners.py,
+ * rows.py): a model is printed from its own flat pattern, where its sleeves lie elsewhere than the made garment's
+ * (shorter, hanging lower, or down beside the body), so a garment drawing laid on the made outline put the drawing's
+ * body colour on the lower sleeves (QATEST 2026-11-19: the QA flat jersey's black sleeves purple underneath). Each
+ * sleeve's places lie in S-CT-CB-U: S the armhole's top, CT / CB the cuff's outer and inner end (a sleeve's top line
+ * runs S to CT), U the armhole's foot. Per half (front, back), the wearer's left (x > 0; the right mirrored), metres.
+ */
+export const MODEL_SLEEVES = {
+  'training-tee': {
+    front: { S: [0.235, 0.685], CT: [0.361, 0.619], CB: [0.323, 0.436], U: [0.155, 0.42] },
+    back: { S: [0.265, 0.676], CT: [0.37, 0.609], CB: [0.324, 0.438], U: [0.15, 0.42] },
+  },
+  // (Sleeves down beside the body: the cuff along the bottom, CT its outer end.)
+  'polo-shirt': {
+    front: { S: [0.16, 0.68], CT: [0.315, 0.43], CB: [0.215, 0.41], U: [0.15, 0.55] },
+    back: { S: [0.168, 0.68], CT: [0.31, 0.43], CB: [0.21, 0.41], U: [0.16, 0.55] },
+  },
+  'cricket-polo-jersey': {
+    front: { S: [0.165, 0.71], CT: [0.32, 0.43], CB: [0.225, 0.41], U: [0.145, 0.56] },
+    back: { S: [0.16, 0.7], CT: [0.32, 0.43], CB: [0.225, 0.41], U: [0.145, 0.56] },
+  },
+  // (A: a bend in the sleeve's top line, S-A-CT.)
+  'polo-zip': {
+    front: { S: [0.15, 0.67], A: [0.28, 0.67], CT: [0.4, 0.565], CB: [0.38, 0.495], U: [0.17, 0.415] },
+    back: { S: [0.15, 0.67], A: [0.28, 0.67], CT: [0.395, 0.56], CB: [0.38, 0.505], U: [0.17, 0.415] },
+  },
+};
+
+/** A ready-made model's own sleeves (MODEL_SLEEVES), from its data (`tripo.data`: window.TRIPO_MESHES[name]). */
+export function modelFlatOf(data) {
+  const all = window.TRIPO_MESHES ?? {}, name = data ? Object.keys(all).find((k) => all[k] === data) : null;
+  return name ? MODEL_SLEEVES[name] ?? null : null;
+}
+
+/**
+ * A sleeved garment drawing's sleeves on a ready-made model's own sleeves (`own`: MODEL_SLEEVES's, for this half): each
+ * drawn sleeve (cut off at the drawing's armhole: its shoulder's corner straight to its underarm) onto its sleeve's
+ * places, printed over the drawing as laid on the garment (which the body keeps). (Arguments as splitSleeves.)
+ */
+function ownSleeves(own, o, c, l, r, back, region, px) {
+  const ys = o.map((p) => p[1]), tall = Math.max(...ys) - Math.min(...ys), line = (a, b) => resample([a, b], 16);
+  const Sr = corner(o, c.Nr, c.CTr, 0.02 * tall, 0.03 * tall), Sl = corner(o, c.CTl, c.Nl, 0.02 * tall, 0.03 * tall);
+  const G = (k, d) => [d * own[k][0], own[k][1]], L = (a, b, d) => line(G(a, d), G(b, d)), P = (a, b) => path(o, a, b), on = px(back);
+  const top = (d) => resample(own.A ? [G('S', d), G('A', d), G('CT', d)] : [G('S', d), G('CT', d)], 16);
+  const right = { ...region, sides: [top(r), L('CT', 'CB', r), L('CB', 'U', r), L('U', 'S', r)].map(on), target: [P(Sr, c.CTr), P(c.CTr, c.CBr), P(c.CBr, c.Ur), line(o[c.Ur], o[Sr])] };
+  const left = { ...region, sides: [L('U', 'CB', l), L('CB', 'CT', l), [...top(l)].reverse(), L('S', 'U', l)].map(on), target: [P(c.Ul, c.CBl), P(c.CBl, c.CTl), P(c.CTl, Sl), line(o[Sl], o[c.Ul])] };
+  return [right, left];
+}
+
+export function regionsFor(painter, panels, image = null, { drawing = false, own = null } = {}) {
   const g = garment(painter), out = [];
   const px = (back) => (line) => line.map(([x, y]) => { const c = painter.toCanvas(back, x, y); return [c.x, c.y]; });
   const byRole = Object.fromEntries(panels.filter((p) => p.role !== 'none').map((p) => [p.role, p]));
@@ -727,10 +803,14 @@ export function regionsFor(painter, panels, image = null, { drawing = false } = 
         if (!panel) continue;
         const drawn = drawingSides(panel.outline, true), o = panel.outline, c = drawn.corners;
         const region = { back, inset: Math.max(3, 0.005 * (panel.x1 - panel.x0)), conform: true, surface: shape(back) };
+        // (A model with its own print places for its body and sleeves: body and sleeves each onto their own, splitSleeves.)
+        if (painter.model?.altUv && drawn.found) { out.push(...splitSleeves(g, o, c, { N, T, CT, CB, U, H }, l, r, back, region, drawn.neckDepth, px)); continue; }
         // The back's neckline is left loose, except a straight one (AI flat sheets, task 9.126): loose, the middle of a
         // straight collar line was pulled down into a V through the lettering ("RANVERS").
         if (back) out.push({ ...region, sides: sides(l, r).map(px(back)), target: drawn.sides, loose: drawn.neckDepth < 0.025 ? [] : [0] });
         else out.push({ ...region, sides: [g.edge(N[l], T), g.edge(T, N[r]), ...sides(l, r).slice(1)].map(px(back)), target: [path(o, c.Nl, c.T), path(o, c.T, c.Nr), ...drawn.sides.slice(1)] });
+        // (A ready-made model with its own sleeves measured (MODEL_SLEEVES): the drawn sleeves printed over them, ownSleeves.)
+        if (own?.front && drawn.found) out.push(...ownSleeves(back ? own.back : own.front, o, c, l, r, back, region, px));
       }
       return out;
     }
@@ -1337,7 +1417,7 @@ export function regionMesh(region, spacing) {
  * Draws the print panels into a canvas the size of the painter's atlas (transparent elsewhere) with the graphics
  * card, from the layout page `image`.
  */
-export function warpLayout(renderer, image, regions, width, height) {
+export function warpLayout(renderer, image, regions, width, height, grow = null) {
   const tex = new THREE.CanvasTexture(image);
   tex.flipY = false;
   tex.colorSpace = THREE.NoColorSpace;
@@ -1380,8 +1460,48 @@ export function warpLayout(renderer, image, regions, width, height) {
   const data = g.createImageData(width, height), row = width * 4;
   for (let y = 0; y < height; y++) data.data.set(buf.subarray((height - 1 - y) * row, (height - y) * row), y * row);
   bleed(data.data, width, height);
+  if (grow) growPrint(data.data, width, height, grow);
   g.putImageData(data, 0, 0);
   return out;
+}
+
+/**
+ * Where a garment drawing is printed past its 3D garment's outline (drawingGrow): a ready-made model's own flat pattern
+ * reaches out past the made garment's outline (a sleeve's underside hanging below the cuff's corner, the hem's middle
+ * below the hem), and there the print had the drawing's commonest colour: a black sleeve came out purple underneath
+ * (QATEST 2026-11-19 qa-flat-jersey). Those places take the colour of the nearest printed place instead, as the
+ * garment's edge goes on: `reach` pixels at most, within each half of the atlas (`split`: the back's first column),
+ * nothing above row `top` (the swatches the bands are printed from) nor in the `keep` boxes ([x0, y0, x1, y1]).
+ */
+function growPrint(px, width, height, { reach, split, top = 0, keep = [] }) {
+  const n = width * height, dist = new Int32Array(n).fill(-1), queue = new Int32Array(n);
+  let head = 0, tail = 0;
+  for (let j = 0; j < n; j++) if (px[j * 4 + 3] === 255) { dist[j] = 0; queue[tail++] = j; }
+  const kept = (x, y) => keep.some(([a, b, c, d]) => x >= a && x <= c && y >= b && y <= d);
+  while (head < tail) {
+    const j = queue[head++], x = j % width, y = (j - x) / width, d = dist[j];
+    if (d >= reach) continue;
+    for (const [nx, ny] of [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]]) {
+      if (nx < 0 || ny < top || nx >= width || ny >= height || (nx < split) !== (x < split)) continue;
+      const k = ny * width + nx;
+      if (dist[k] >= 0) continue;
+      dist[k] = d + 1;
+      if (kept(nx, ny)) continue;
+      px[k * 4] = px[j * 4]; px[k * 4 + 1] = px[j * 4 + 1]; px[k * 4 + 2] = px[j * 4 + 2]; px[k * 4 + 3] = 255;
+      queue[tail++] = k;
+    }
+  }
+}
+
+/** How far a garment drawing's print is grown past its garment's outline on `painter`'s atlas (growPrint). */
+export function drawingGrow(painter, swatches = []) {
+  const top = Math.max(...painter.outline.map((p) => p.y)) + 0.02, at = (back, x, y) => painter.toCanvas(back, x, y);
+  const keep = swatches.flatMap(([x, y]) => [false, true].map((back) => {
+    const a = at(back, x - 0.025, y + 0.025), b = at(back, x + 0.025, y - 0.025);
+    return [Math.min(a.x, b.x), Math.min(a.y, b.y), Math.max(a.x, b.x), Math.max(a.y, b.y)];
+  }));
+  const p = at(false, 0, top);
+  return { reach: Math.round(0.12 * p.s), split: painter.canvas.height, top: Math.max(0, Math.round(p.y)), keep };
 }
 
 /**

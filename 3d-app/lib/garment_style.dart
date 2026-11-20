@@ -148,6 +148,7 @@ const modelOwnNecks = {
   'rugbyJersey': 'round',
   // (the retired old Rugby League jersey model's flag: its designs show the new model: RUGBYJ)
   'fbJersey': 'round',
+  'womenRugbyJersey': 'v',
 };
 
 /// A model's own neck by its name where it is not a plain round or V neck

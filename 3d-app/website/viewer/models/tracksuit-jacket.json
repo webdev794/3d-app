@@ -1,0 +1,29 @@
+{
+  "about": "Tracksuit jacket (Basketball > Tracksuit and Netball > Tracksuit: the jacket over the tracksuit pants model, tracksuit-pants.glb, user 2026-11-16, card 11007): Tripo model tracksuit-jacket.glb (shape only; faces front), coloured per triangle from its own seams (16 Nov method: tripo-parts regions: the stand-up collar outside and inside the Collar colour; body, sleeves, rib cuffs and hem printed through the made track jacket's pattern, so the tiles' own looks (bballTracksuit, trackSuit: side panels, stripes, zip colour) print on it). Shown by the flag tsJacket, set in those two tiles' own looks (catalog.php / sports_catalog.dart), as the pants' tsPants; this look line is not used by a tile. MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/tracksuit-jacket.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "tsJacket",
+  "ownNeck": "stand",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25
+  },
+  "look": {
+    "zoneColors": {
+      "tsJacket": "#ffffff"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

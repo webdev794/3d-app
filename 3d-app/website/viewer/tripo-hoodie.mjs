@@ -13,7 +13,7 @@
 //   regions  { <region>: { roles: [...], key } }: the pieces whose borders are smooth lines (hood, sleeves, pocket); the
 //            print (key null) everywhere else; `order` which wins where two meet
 //   lining   { region, key }: in that region the cloth facing into the hood (towards its middle, per height) is the lining
-//   rings    { <role>: { key, dir: 'out' | 'down', width, beyond } }: a rib band of one even width from its opening's fold
+//   rings    { <role>: { key, dir: 'out' | 'down' | 'up', width, beyond } }: a rib band of one even width from its opening's fold
 //            (cuffs, waistband): its own colour up to `width`, the piece round it (`beyond`: a region, else the print) after
 //   plain    { <role>: key }: pieces of their own shape (cords), one colour, never smoothed
 //   sleeveMap { region: { armhole: [top, bottom], cuff: [top, bottom] } }: each sleeve's print places laid onto the made
@@ -270,6 +270,7 @@ for (const [rn, R] of Object.entries(settings.rings ?? {})) {
   const c0 = cp.reduce((acc, v) => acc.map((x, i) => x + A.P[v * 3 + i] / cp.length), [0, 0, 0]);
   let ax;
   if (R.dir === 'down') ax = [0, -1, 0];
+  else if (R.dir === 'up') ax = [0, 1, 0];   // (MODELQ5 2026-11-20, the rash guard's neck band: HOODIE)
   else {
     const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const v of cp) { const d = sub(P3(v), c0); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i][j] += d[i] * d[j]; }
     const tr = C[0][0] + C[1][1] + C[2][2]; ax = [0.31, 0.53, 0.79]; for (let it = 0; it < 300; it++) { const m2 = [0, 1, 2].map((i) => tr * ax[i] - (C[i][0] * ax[0] + C[i][1] * ax[1] + C[i][2] * ax[2])); ax = nrm(m2); }

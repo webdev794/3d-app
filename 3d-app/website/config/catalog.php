@@ -152,8 +152,8 @@ $look = function (string $name, array $extra = []): array {
         // (viewer trackpants.js, shown by zoneColors.pantsStripe). Netball: the track jacket's own look, level chest logos.
         // Basketball: cyan side panels, a black zip, a small stacked logo on the left chest. Rugby: the wordmark high on
         // the right chest, the "3" on the left. American football: the stacked logo on the left chest.
-        'trackSuit' => ['zoneColors' => ['body' => '#1d2123', 'shoulder' => '#1d2123', 'side' => '#1d2123', 'cuffs' => '#1c2229', 'stripe' => $cyan, 'zip' => $cyan, 'pantsStripe' => $cyan, 'tsPants' => '#27282a'], 'marks' => $trackLevel + $pantsMarks],
-        'bballTracksuit' => ['zoneColors' => ['shoulder' => '#27282a', 'side' => $cyan, 'sideBlade' => '#0a5ae6', 'stripe' => $cyan, 'zip' => '#27282a', 'pantsStripe' => $cyan, 'tsPants' => '#27282a'], 'marks' => $trackStack + $pantsMarks],
+        'trackSuit' => ['zoneColors' => ['tsJacket' => '#ffffff', 'body' => '#1d2123', 'shoulder' => '#1d2123', 'side' => '#1d2123', 'cuffs' => '#1c2229', 'stripe' => $cyan, 'zip' => $cyan, 'pantsStripe' => $cyan, 'tsPants' => '#27282a'], 'marks' => $trackLevel + $pantsMarks],
+        'bballTracksuit' => ['zoneColors' => ['tsJacket' => '#ffffff', 'shoulder' => '#27282a', 'side' => $cyan, 'sideBlade' => '#0a5ae6', 'stripe' => $cyan, 'zip' => '#27282a', 'pantsStripe' => $cyan, 'tsPants' => '#27282a'], 'marks' => $trackStack + $pantsMarks],
         'rugbyTracksuit' => ['zoneColors' => ['shoulder' => '#27282a', 'side' => $cyan, 'stripe' => $cyan, 'zip' => $cyan, 'pantsStripe' => $cyan], 'marks' => ['top_wordmark' => ['x' => -0.105, 'y' => 0.6, 'scale' => 1.0], 'top_crest' => ['x' => 0.105, 'y' => 0.59, 'scale' => 1.0]] + $pantsMarks],
         'nflTracksuit' => ['zoneColors' => ['shoulder' => '#27282a', 'side' => $cyan, 'stripe' => $cyan, 'zip' => $cyan, 'pantsStripe' => $cyan, 'lining' => $cyan], 'marks' => $trackStack + $pantsMarks],
         'trackSides' => ['zoneColors' => ['shoulder' => '#27282a', 'side' => $cyan, 'stripe' => $cyan, 'zip' => $cyan]],
@@ -227,6 +227,9 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'tsJacket' => ['zoneColors' => ['tsJacket' => '#ffffff']],
+        'womenRugbyJersey' => ['main' => '#272e48', 'secondary' => '#e2bf3a', 'accent' => '#e2bf3a', 'patternColor' => '#e2bf3a', 'pattern' => 'None', 'number' => '7', 'parts' => ['collar' => ['colour' => '#e2bf3a']], 'zoneColors' => ['womenRugbyJersey' => '#e2bf3a'], 'marks' => ['top_wordmark' => ['x' => 0.09, 'y' => 0.6, 'scale' => 0.45], 'top_crest' => ['x' => -0.09, 'y' => 0.6, 'scale' => 0.7], 'top_number' => ['color' => '#e2bf3a'], 'top_name' => ['hidden' => true]], 'layers' => []],
+        'fitnessBottoms' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#1c58c8', 'patternColor' => '#16b4f0', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['fitnessBottoms' => '#27282a', 'pantsStripe' => '#16b4f0'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['side' => 'back', 'x' => 0.1, 'y' => 0.83, 'scale' => 0.7], 'shorts_wordmark' => ['side' => 'back', 'x' => 0.1, 'y' => 0.79, 'scale' => 0.5]], 'layers' => []],
         'womenLeggings' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#1c58c8', 'patternColor' => '#16b4f0', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['womenLeggings' => '#27282a', 'pantsStripe' => '#16b4f0'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84, 'scale' => 0.8], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802, 'scale' => 0.8]], 'layers' => []],
         'rugbyVJersey' => ['main' => '#ffca00', 'secondary' => '#ffca00', 'accent' => '#11183f', 'patternColor' => '#11183f', 'parts' => ['leftSleeve' => ['colour' => '#11183f'], 'rightSleeve' => ['colour' => '#11183f']], 'zoneColors' => ['rugbyVJersey' => '#11183f'], 'marks' => ['top_number' => ['color' => '#ffffff'], 'top_frontNumber' => ['hidden' => true], 'top_wordmark' => ['x' => -0.07, 'y' => 0.575, 'scale' => 0.34], 'top_crest' => ['x' => 0.075, 'y' => 0.575, 'scale' => 0.85], 'top_name' => ['color' => '#ffffff']], 'layers' => []],
         'rugbyJersey' => ['main' => '#e2bf3a', 'secondary' => '#e2bf3a', 'accent' => '#32324c', 'patternColor' => '#32324c', 'parts' => ['leftSleeve' => ['colour' => '#32324c'], 'rightSleeve' => ['colour' => '#32324c']], 'zoneColors' => ['rugbyJersey' => '#32324c'], 'marks' => ['top_number' => ['color' => '#32324c'], 'top_frontNumber' => ['x' => 0, 'y' => 0.45], 'top_wordmark' => ['x' => -0.07, 'y' => 0.575, 'scale' => 0.34], 'top_crest' => ['x' => 0.075, 'y' => 0.575, 'scale' => 0.85]], 'layers' => []],
@@ -309,6 +312,7 @@ $sports = [
         // (On its own 3D model, rugby-vneck-jersey-textured.glb (RUGBYV 2026-11-19, look 'rugbyVJersey',
         // viewer/models/rugby-vneck-jersey.json); the Rugby Kit keeps its own jersey.)
         $tile('Jersey', 'Performance rugby jersey.', 'jersey', 'rugby-jersey') + ['design' => $look('rugbyVJersey')],
+        $tile("Women's rugby jersey", "Fitted women's rugby jersey with a V-neck.", 'jersey', 'rugby-jersey') + ['design' => $look('womenRugbyJersey')],
         $tile('Playing Shorts', 'Durable rugby shorts.', 'shorts', 'rugby-shorts'),
         // (On its own 3D model, women-rugby-shorts.glb: MODELQ2 2026-11-16, the user.)
         $tile('Women\'s rugby shorts', 'Fitted women\'s rugby shorts.', 'shorts', 'rugby-shorts') + ['design' => $look('womenRugbyShorts')],
@@ -606,6 +610,7 @@ $sports = [
             $tile('Gym tee', 'Fitted tee for every session.', 'tee'),
             // (Women's fitness top: its own 3D model (booklet card 117908), MODELQ 2026-11-16, the user; the bottoms' tile below.)
             $tile("Women's fitness top", 'Cropped long-sleeve fitness top in stretch fabric.', 'compression', 'nfl-compression-top') + ['design' => $look('fitnessTop')],
+            $tile("Women's fitness bottoms", 'High-waisted fitness bottoms in stretch fabric.', 'shorts', 'leggings') + ['design' => $look('fitnessBottoms')],
             $tile('Gym shorts', 'Light shorts for training.', 'shorts'),
             $tile('Leggings', 'Squat-proof leggings and tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Hoodie', 'Warm hoodie for warm-ups.', 'hoodie', 'team-hoodie'),

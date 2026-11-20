@@ -96,7 +96,7 @@ export function dressColour(design: { main?: string; secondary?: string; zoneCol
     return (key === 'body' ? design.main : design.secondary) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-export const VIEWER_VERSION = '2026-10-20-371';
+export const VIEWER_VERSION = '2026-10-20-373';
 
 /**
  * The browser's own private mode, in its own words and with its own shortcut (LIVEFIX L1 2026-11-12): what works at once
