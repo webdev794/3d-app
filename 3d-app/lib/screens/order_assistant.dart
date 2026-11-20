@@ -11,6 +11,7 @@ import '../app_controller.dart';
 import '../widgets/flow_ui.dart' show pickArtwork;
 import '../widgets/bubble_page.dart' show BubbleFillScroll;
 import '../widgets/glass_bubble.dart';
+import '../widgets/keyboard_dismiss.dart' show KeyboardOpen;
 import '../widgets/site_page_stub.dart'
     if (dart.library.js_interop) '../widgets/site_page_web.dart'
     if (dart.library.io) '../widgets/site_page_io.dart'
@@ -795,202 +796,141 @@ class _OrderAssistantScreenState extends State<OrderAssistantScreen>
       final w = box.maxWidth.clamp(0.0, 520.0);
       // A short phone (360 × 740 and less): a smaller picture and tiles, so
       // Powered by / Switch to Manual Form stay above the tab bar.
-      // (Client 456's inner panel is taller: the whole bubble fits above the
-      // tab bar on a 390 × 844 phone.)
       final compact = box.maxHeight < 720;
       tileHeight = compact ? .62 : .8;
       // The picture's full size, and the least it shrinks to (it takes
-      // what the rest of the bubble leaves) before the bubble scrolls.
+      // what the rest of the page leaves) before the page scrolls.
       final hero = (w * .44).clamp(150.0, 220.0);
       final heroMin = compact ? 80.0 : 120.0;
-      // The whole bubble always fits above the tab bar (360, 390, a
-      // 590 × 700 window …): on a short screen its content scrolls inside
-      // it instead of running under the bar. Everything keeps about 14 px
-      // clear of the rim's glowing band (the rim line sits [lineIn] in from
-      // the bubble's edge, its band about 10 px wide), user 2026-11-06.
-      final lineIn = (w - 24) / 2 * .045;
-      final side = (lineIn + 24).roundToDouble();
-      final inner = w - 24 - side * 2;
-      // Home's glass round it all (user 2026-11-06): Home's dome on top and
-      // bottom, so it reads as one soft bubble; the picture sits up in the
-      // top dome and the prompt panel ends above where the bottom curves in.
-      // (A little lower than Home's own dome, .62 of the half-width instead
-      // of .7, so the five ways in, the picture and the prompt panel all
-      // fit above the tab bar on a 360 × 780 phone.)
-      final dome = math.min(
-        (w - 24) / 2 * .62,
-        (box.maxHeight - 16) / 2 * kDomeH,
-      );
-      // The picture sits up in the top dome (it keeps its shape, so it is
-      // narrower when smaller and clear of the curve)...
-      final top = math.max(8.0, dome * .16);
+      // No outer glass bubble (client 2026-11-20, 616.png: "The outer bubble
+      // not needed here because it hides the text box when typing"): the
+      // picture, title, text, the five ways in and the prompt panel stand on
+      // the page itself, in their own look.
+      const side = 20.0;
+      final inner = math.max(0.0, w - side * 2);
       final gap = compact ? 10.0 : 12.0;
-      // ...and the prompt panel (rounder corners) ends where the bottom
-      // curve would come within 14 px of the rim's band.
       const panelRadius = 40.0;
-      final bottom = bubbleBottomRoom(
-        w - 24,
-        dome,
-        side: side,
-        corner: panelRadius,
-        clear: 22,
-      );
+      // While typing (the keyboard up) the page keeps the prompt panel, its
+      // text box and buttons fully in view just above the keyboard: the page
+      // is read from its bottom (the picture gives way first; the title,
+      // text and options scroll up above the panel).
+      final typing =
+          KeyboardOpen.of(context) || View.of(context).viewInsets.bottom > 0;
       return Padding(
         key: const ValueKey('assistant-welcome'),
-        padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+        padding: const EdgeInsets.fromLTRB(side, 4, side, 6),
         child: Align(
           alignment: Alignment.topCenter,
-          child: SizedBox(
-            width: w - 24,
-            child: _LiveGlass(
-              dome: dome,
-              // Content scrolled up or down slips under the rim, never over
-              // it: clipped to the inside of the rim's band, and faded at
-              // the scrolling edges.
-              child: ClipPath(
-                clipper: _InsideRim(dome: dome, inset: lineIn + 14),
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(side, top, side, bottom),
-                  // The bubble fills the room down to the tab bar, like
-                  // Home's; the picture takes what the rest leaves (up to its
-                  // full size). (Short or wide windows: the content scrolls
-                  // inside the bubble at its normal size, user 2026-11-06, 468.)
-                  child: SizedBox(
-                    width: inner,
-                    height: math.max(120, box.maxHeight - 10 - top - bottom),
-                    child: _ScrollFade(
-                      child: BubbleFillScroll(
-                        minFlex: (_) => heroMin,
+          // (The option bubbles keep their gentle bob: the clock only, no glass.)
+          child: _LiveGlass(
+            child: SizedBox(
+              width: inner,
+              height: math.max(120, box.maxHeight - 10),
+              child: _ScrollFade(
+                child: BubbleFillScroll(
+                  reverse: typing,
+                  minFlex: (_) => typing ? 0 : heroMin,
+                  children: [
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, room) {
+                          final h = math.min(hero, room.maxHeight);
+                          return Align(
+                            alignment: const Alignment(0, .5),
+                            child: SizedBox(
+                              width: math.min(inner, h * 1.9),
+                              height: h,
+                              child: const _Hero(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    SizedBox(
+                      width: inner,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Expanded(
-                            child: LayoutBuilder(
-                              builder: (context, room) {
-                                final h = math.min(hero, room.maxHeight);
-                                // Never into the curved top: the picture
-                                // (its sheet and jersey span about 80 % of
-                                // its width) keeps 14 px clear of the rim's
-                                // band where the dome narrows.
-                                final y =
-                                    top + (room.maxHeight - h) * .75 + h * .08;
-                                final half = (w - 24) / 2 * .955;
-                                final chord = y >= dome
-                                    ? half
-                                    : half *
-                                          math.sqrt(
-                                            1 - math.pow((dome - y) / dome, 2),
-                                          );
-                                return Align(
-                                  alignment: const Alignment(0, .5),
-                                  child: SizedBox(
-                                    width: math.max(
-                                      0.0,
-                                      math.min(
-                                        math.min(inner, h * 1.9),
-                                        (chord - 24) / .4,
-                                      ),
-                                    ),
-                                    height: h,
-                                    child: const _Hero(),
-                                  ),
-                                );
-                              },
+                          const SizedBox(height: 4),
+                          _createTitle(),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Tell us what you need, upload your notes, images or existing files. I’ll build your complete order form for you.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              height: 1.3,
+                              color: Color(0xffd3dee8),
                             ),
                           ),
-                          SizedBox(
-                            width: inner,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                const SizedBox(height: 4),
-                                _createTitle(),
-                                const SizedBox(height: 6),
-                                const Text(
-                                  'Tell us what you need, upload your notes, images or existing files. I’ll build your complete order form for you.',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    height: 1.3,
-                                    color: Color(0xffd3dee8),
-                                  ),
-                                ),
-                                SizedBox(height: gap),
-                                _tiles(),
-                                SizedBox(height: gap),
-                                // Client 456: the prompt bar and Powered by / Switch to
-                                // Manual Form together in ONE glowing inner glass panel.
-                                // Drop an option bubble here; it glows as
-                                // one comes near.
-                                _DropBox(
-                                  key: _panelKey,
-                                  glow: _panelGlow,
-                                  radius: panelRadius,
-                                  canDrop: () => _flying == null,
-                                  onDrop: (i, at) => _launch(i, dropAt: at),
-                                  child: GlassCard(
-                                    key: const ValueKey('assistant-panel'),
-                                    radius: panelRadius,
-                                    bubbleRim: true,
-                                    child: Padding(
-                                      // (Slim edges: the panel sits a little
-                                      // in from the sides, the text keeps its
-                                      // width.)
-                                      padding: const EdgeInsets.fromLTRB(
-                                        4,
-                                        8,
-                                        4,
-                                        8,
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          _bar(
-                                            hint:
-                                                'e.g. I need 9 polos: 3 × 4XL, 2 × 2XL and 4 × 5XL. Black with our club logo on the chest.',
-                                          ),
-                                          const SizedBox(height: 10),
-                                          Row(
-                                            children: [
-                                              const Expanded(child: _Powered()),
-                                              Container(
-                                                width: 14,
-                                                height: 1,
-                                                margin:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 6,
-                                                    ),
-                                                color: Palette.cyan.withValues(
-                                                  alpha: .5,
-                                                ),
-                                              ),
-                                              Expanded(
-                                                child: _OutlinePill(
-                                                  key: const ValueKey(
-                                                    'assistant-manual',
-                                                  ),
-                                                  icon: Icons
-                                                      .keyboard_alt_outlined,
-                                                  label:
-                                                      'Switch to Manual Form',
-                                                  onTap: _manual,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
+                          SizedBox(height: gap),
+                          _tiles(),
+                          SizedBox(height: gap),
+                          // Client 456: the prompt bar and Powered by / Switch to
+                          // Manual Form together in ONE glowing inner glass panel.
+                          // Drop an option bubble here; it glows as
+                          // one comes near.
+                          _DropBox(
+                            key: _panelKey,
+                            glow: _panelGlow,
+                            radius: panelRadius,
+                            canDrop: () => _flying == null,
+                            onDrop: (i, at) => _launch(i, dropAt: at),
+                            child: GlassCard(
+                              key: const ValueKey('assistant-panel'),
+                              radius: panelRadius,
+                              bubbleRim: true,
+                              child: Padding(
+                                // (Slim edges: the panel sits a little
+                                // in from the sides, the text keeps its
+                                // width.)
+                                padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    _bar(
+                                      hint:
+                                          'e.g. I need 9 polos: 3 × 4XL, 2 × 2XL and 4 × 5XL. Black with our club logo on the chest.',
                                     ),
-                                  ),
+                                    const SizedBox(height: 10),
+                                    Row(
+                                      children: [
+                                        const Expanded(child: _Powered()),
+                                        Container(
+                                          width: 14,
+                                          height: 1,
+                                          margin: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                          ),
+                                          color: Palette.cyan.withValues(
+                                            alpha: .5,
+                                          ),
+                                        ),
+                                        Expanded(
+                                          child: _OutlinePill(
+                                            key: const ValueKey(
+                                              'assistant-manual',
+                                            ),
+                                            icon: Icons.keyboard_alt_outlined,
+                                            label: 'Switch to Manual Form',
+                                            onTap: _manual,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
-                                if (error != null) _errorText(),
-                              ],
+                              ),
                             ),
                           ),
+                          if (error != null) _errorText(),
+                          const SizedBox(height: 6),
                         ],
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -2129,18 +2069,15 @@ class _OrderSheet extends StatelessWidget {
   );
 }
 
-/// Home's glass round the Create your order screen (user 2026-11-06): the
-/// same shape, rim, glow and lights as Home, gently alive: it breathes (its
-/// edge swells and settles by about 1 %, every 6 s) and a soft light glides
-/// round inside the rim (once every 12 s). Only the glass moves: it is
-/// painted behind the content in its own layer, so text and buttons never
-/// shift. Still with reduced motion, and paused when the screen is hidden.
+/// The Create your order screen's slow clock (client 2026-11-20, 616.png:
+/// no outer glass bubble any more): it only keeps the option bubbles'
+/// gentle bob (once every 12 s). Still with reduced motion, and paused when
+/// the screen is hidden.
 class _LiveGlass extends StatefulWidget {
-  const _LiveGlass({required this.dome, required this.child});
-  final double dome;
+  const _LiveGlass({required this.child});
   final Widget child;
 
-  /// Widget tests keep the glass still, so pumpAndSettle can settle.
+  /// Widget tests keep the clock still, so pumpAndSettle can settle.
   static bool animateInTests = false;
 
   @override
@@ -2193,94 +2130,11 @@ class _LiveGlassState extends State<_LiveGlass>
   }
 
   @override
-  Widget build(BuildContext context) => RepaintBoundary(
-    child: CustomPaint(
-      key: const ValueKey('assistant-glass'),
-      painter: _LiveGlassPainter(_paintAt, widget.dome, _t.isAnimating),
-      isComplex: true,
-      willChange: _t.isAnimating,
-      child: _GlassClock(
-        tick: _paintAt,
-        moving: _t.isAnimating,
-        child: RepaintBoundary(child: widget.child),
-      ),
-    ),
+  Widget build(BuildContext context) => _GlassClock(
+    tick: _paintAt,
+    moving: _t.isAnimating,
+    child: RepaintBoundary(child: widget.child),
   );
-}
-
-class _LiveGlassPainter extends CustomPainter {
-  _LiveGlassPainter(this.t, this.dome, this.moving) : super(repaint: t);
-  final ValueListenable<double> t;
-  final double dome;
-
-  /// Moving: the light gliding round the rim shows too.
-  final bool moving;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (size.isEmpty) return;
-    final v = t.value;
-    // Breathing: twice round per loop (6 s), wider as it gets a touch
-    // shorter and back, about 1 % either way.
-    final b = math.sin(v * 4 * math.pi);
-    final sx = 1 + .009 * b, sy = 1 - .005 * b;
-    canvas.save();
-    canvas.translate(size.width / 2, size.height / 2);
-    canvas.scale(sx, sy);
-    canvas.translate(-size.width / 2, -size.height / 2);
-    HomeGlassPainter(
-      t: (v * 2) % 1,
-      dome: dome,
-      // The light gliding round the rim, starting at the top left.
-      sweep: moving ? (v + .62) % 1 : null,
-    ).paint(canvas, size);
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(_LiveGlassPainter old) =>
-      old.t != t || old.dome != dome || old.moving != moving;
-}
-
-/// The inside of the Create your order bubble's rim: Home's outline (dome
-/// on top and bottom, straight sides) moved [inset] px in at the sides and
-/// about 16 px in at the top and bottom, so content scrolled into the rim
-/// slips under it instead of drawing over it.
-class _InsideRim extends CustomClipper<Path> {
-  const _InsideRim({required this.dome, required this.inset});
-  final double dome, inset;
-
-  @override
-  Path getClip(Size size) {
-    final w = size.width, h = size.height;
-    final a = math.max(w / 2 - inset, 1.0);
-    final ry = math.min(dome, h / 2);
-    final dy = math.max(ry - 16, 1.0);
-    final cx = w / 2;
-    return Path()
-      ..moveTo(cx - a, ry)
-      ..arcTo(
-        Rect.fromCenter(center: Offset(cx, ry), width: a * 2, height: dy * 2),
-        math.pi,
-        math.pi,
-        false,
-      )
-      ..lineTo(cx + a, h - ry)
-      ..arcTo(
-        Rect.fromCenter(
-          center: Offset(cx, h - ry),
-          width: a * 2,
-          height: dy * 2,
-        ),
-        0,
-        math.pi,
-        false,
-      )
-      ..close();
-  }
-
-  @override
-  bool shouldReclip(_InsideRim old) => old.dome != dome || old.inset != inset;
 }
 
 /// Softly fades the scrolling content out at an edge with more above or

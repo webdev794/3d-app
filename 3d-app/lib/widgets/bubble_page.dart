@@ -764,7 +764,12 @@ class BubbleFillScroll extends StatelessWidget {
     required this.minFlex,
     required this.children,
     this.scrollKey,
+    this.reverse = false,
   });
+
+  /// Read from the bottom (the last child in view first), e.g. while the
+  /// keyboard is up under a page's text box (CLIENTOPS, client 616).
+  final bool reverse;
 
   /// The least height of the Expanded child, from the page width.
   final double Function(double width) minFlex;
@@ -775,6 +780,7 @@ class BubbleFillScroll extends StatelessWidget {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) => SingleChildScrollView(
       key: scrollKey,
+      reverse: reverse,
       child: _FillColumn(
         flexIndex: children.indexWhere((w) => w is Expanded),
         minFlex: minFlex(box.maxWidth),

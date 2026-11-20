@@ -6,6 +6,9 @@
 // front's pattern runs to the side seams; a sleeve, a cuff, a hem band or the socks' top band is its own piece. Track
 // pants: their front and back look covers each whole side (the pants, never the jacket). Nothing here paints for a
 // design without such a look, so every other look is drawn as before.
+// A model whose sleeves are not pieces of their own (the training tee, the football jersey: sleeves in the body's piece):
+// there the made garment's sleeve areas on the print are the sleeves, and the front and back stop at them (PATTERNDND r2).
+import { zoneAt, partAt, partRegion } from './zones.js';
 
 /** The rib parts: their own colour is their piece's plain colour (main.js paintPlains); a pattern never goes on them. */
 const RIB = new Set(['collar', 'waistband']);
@@ -70,6 +73,48 @@ function clipPoly(pts, vals, sign) {
   return out;
 }
 
+/** The made garment's sleeve at a garment point ({side, x, y}) on the body's piece, or null. */
+function bodySleeve(painter, at) {
+  const p = partAt(painter.kind, zoneAt(painter.kind, at.x, at.y, at.side), at.side, at.x, at.y);
+  return p === 'leftSleeve' || p === 'rightSleeve' ? p : null;
+}
+/** One side's garment-metre transform on `g` (texture.js side), the print scaled by `k` and moved `dx` pixels. */
+function setSide(painter, g, back, k = 1, dx = 0) {
+  const { minX, maxX, minY, span } = painter.frame;
+  const H = painter.canvas.height * k, s = H / span;
+  if (back) g.setTransform(-s, 0, 0, -s, H + maxX * s + dx, H + minY * s);
+  else g.setTransform(s, 0, 0, -s, -minX * s + dx, H + minY * s);
+}
+/** The made garment's sleeve outlines on one side (garment metres). */
+const sleeveOutlines = (painter, back) => ['leftSleeve', 'rightSleeve'].flatMap((k) => partRegion(painter.kind, k, back)?.keep ?? []);
+const tracePolys = (g, polys) => { for (const poly of polys) { poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); } };
+/**
+ * The clips of a part on one side, each a function that clips `g` (scale `k`, moved `dx` pixels): its own pieces, and
+ * the body's piece (less the sleeve areas for the front or back; only its sleeve area for a sleeve).
+ */
+function partClips(painter, fp, e, side, k = 1, dx = 0) {
+  const out = [], own = e?.paths[side], mode = e?.body[side], bp = fp.body.paths[side];
+  if (own) out.push((g) => { g.setTransform(k, 0, 0, k, dx, 0); g.clip(own); });
+  if (mode && bp) out.push((g) => {
+    g.setTransform(k, 0, 0, k, dx, 0);
+    g.clip(bp);
+    const polys = mode === 'cut' ? sleeveOutlines(painter, side === 1) : partRegion(painter.kind, mode, side === 1)?.keep ?? [];
+    if (mode === 'cut' && !polys.length) return;
+    setSide(painter, g, side === 1, k, dx);
+    g.beginPath();
+    if (mode === 'cut') g.rect(-5, -5, 10, 10);
+    tracePolys(g, polys);
+    g.clip(mode === 'cut' ? 'evenodd' : 'nonzero');
+  });
+  return out;
+}
+/** A part's box on one side in canvas pixels (its pieces and its share of the body's piece). */
+function partBox(e, side) {
+  const a = e.boxes[side], b = e.bodyBoxes[side];
+  if (!a || !b) return a ?? b;
+  return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[2], b[2]), Math.max(a[3], b[3])];
+}
+
 const cache = new WeakMap();
 /**
  * Where each part's pieces are on the print (canvas pixels): `parts` part -> {paths: [front, back] Path2D, boxes}, and
@@ -83,51 +128,77 @@ export function pieceFootprints(painter) {
   const sig = [W, H, f?.minX, f?.maxX, f?.minY, f?.span, painter.kind, painter.partName, keys.join(',')].join('|');
   const was = cache.get(geo);
   if (was?.sig === sig) return was;
-  const uv = geo.getAttribute('uv'), pc = geo.getAttribute('piece'), index = geo.index;
+  // (A model with both print places by its sleeves' seams (main.js altUv): the body's piece is printed from `uvBody`.)
+  const uv = geo.getAttribute('uv'), ub = painter.model.altUv ? geo.getAttribute('uvBody') : null, pc = geo.getAttribute('piece'), index = geo.index;
   if (!uv || !pc) return null;
   const printed = painter.printedParts;
-  const parts = new Map(), keyed = new Map();
+  const parts = new Map(), keyed = new Map(), body = { paths: [null, null], boxes: [null, null] };
   const entry = (map, name) => {
     let e = map.get(name);
-    if (!e) map.set(name, (e = { paths: [null, null], boxes: [null, null], parts: new Set() }));
+    if (!e) map.set(name, (e = { paths: [null, null], boxes: [null, null], parts: new Set(), body: [null, null], bodyBoxes: [null, null] }));
     return e;
   };
+  const grow = (boxes, side, poly) => {
+    const b = (boxes[side] ??= [Infinity, Infinity, -Infinity, -Infinity]);
+    for (const [x, y] of poly) { b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y); }
+  };
+  // (Each triangle wound the same way round before it joins a path: a model's inside faces lie on the same print place as
+  // its outside, wound the other way, and with the nonzero rule the two would cancel out (r4: the RL Jersey's sleeves and
+  // the Football jersey's front painted only in slivers).)
   const addPoly = (e, side, poly) => {
+    let area = 0;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) area += (poly[j][0] - poly[i][0]) * (poly[j][1] + poly[i][1]);
+    if (area < 0) poly = [...poly].reverse();
     const p = (e.paths[side] ??= new Path2D());
     p.moveTo(poly[0][0], poly[0][1]);
     for (let i = 1; i < poly.length; i++) p.lineTo(poly[i][0], poly[i][1]);
     p.closePath();
-    const b = (e.boxes[side] ??= [Infinity, Infinity, -Infinity, -Infinity]);
-    for (const [x, y] of poly) { b[0] = Math.min(b[0], x); b[1] = Math.min(b[1], y); b[2] = Math.max(b[2], x); b[3] = Math.max(b[3], y); }
+    grow(e.boxes, side, poly);
   };
   const emit = (ix, poly) => {
     if (poly.length < 3) return;
     let cx = 0, cy = 0;
     for (const [x, y] of poly) { cx += x; cy += y; }
     cx /= poly.length; cy /= poly.length;
-    const side = cx >= H ? 1 : 0, key = ix >= 0 ? keys[ix] : null, body = ix < 0 || BODY_KEYS.has(key);
-    const named = body ? bodyPart(painter, side === 1) : pieceKeyPart(painter.kind, key, painter.fromCanvas(cx, cy).x);
+    const side = cx >= H ? 1 : 0, key = ix >= 0 ? keys[ix] : null, ofBody = ix < 0 || BODY_KEYS.has(key);
+    if (ofBody) {
+      // (The body's piece: the front or back there, but the made garment's sleeve areas in it are the sleeves.)
+      const named = bodyPart(painter, side === 1);
+      if (!named || !printed.includes(named)) return;
+      addPoly(body, side, poly);
+      const e = entry(parts, named);
+      e.body[side] = 'cut';
+      grow(e.bodyBoxes, side, poly);
+      const sleeve = bodySleeve(painter, painter.fromCanvas(cx, cy));
+      if (sleeve && printed.includes(sleeve)) { const sl = entry(parts, sleeve); sl.body[side] = sleeve; grow(sl.bodyBoxes, side, poly); }
+      return;
+    }
+    const named = pieceKeyPart(painter.kind, key, painter.fromCanvas(cx, cy).x);
     if (!named || RIB.has(named) || !printed.includes(named)) return;
     addPoly(entry(parts, named), side, poly);
-    if (!body) { const e = entry(keyed, ix); e.parts.add(named); addPoly(e, side, poly); }
+    const e = entry(keyed, ix);
+    e.parts.add(named);
+    addPoly(e, side, poly);
   };
   const n = index ? index.count : uv.count;
   for (let t = 0; t + 2 < n; t += 3) {
     const vs = index ? [index.getX(t), index.getX(t + 1), index.getX(t + 2)] : [t, t + 1, t + 2];
     const pts = vs.map((v) => [uv.getX(v) * W, (1 - uv.getY(v)) * H]);
+    const ptsB = ub ? vs.map((v) => [ub.getX(v) * W, (1 - ub.getY(v)) * H]) : pts;
+    const at = (ix) => (ix < 0 ? ptsB : pts);
     const A = vs.map((v) => pc.getX(v)), B = vs.map((v) => pc.getY(v)), Z = vs.map((v) => pc.getZ(v));
     if (A[0] === A[1] && A[1] === A[2] && B[0] === B[1] && B[1] === B[2]) {
       const a = pieceIx(A[0]), b = pieceIx(B[0]);
       // (Two pieces in one triangle: piece A where the distance is above 0, as the shader's pieceSide.)
-      if (a === b) emit(a, pts);
-      else { emit(a, clipPoly(pts, Z, 1)); emit(b, clipPoly(pts, Z, -1)); }
+      if (a === b) emit(a, at(a));
+      else { emit(a, clipPoly(at(a), Z, 1)); emit(b, clipPoly(at(b), Z, -1)); }
     } else {
       // (Corners by different pieces with no line given: the piece in its middle.)
-      const a = pieceIx((A[0] + A[1] + A[2]) / 3), b = pieceIx((B[0] + B[1] + B[2]) / 3);
-      emit(a === b || Z[0] + Z[1] + Z[2] >= 0 ? a : b, pts);
+      const a = pieceIx((A[0] + A[1] + A[2]) / 3), b = pieceIx((B[0] + B[1] + B[2]) / 3), c = a === b || Z[0] + Z[1] + Z[2] >= 0 ? a : b;
+      emit(c, at(c));
     }
   }
-  const out = { sig, parts, keyed };
+  const out = { sig, parts, keyed, body };
   cache.set(geo, out);
   return out;
 }
@@ -138,11 +209,15 @@ function boxOf(painter, b) {
   return [Math.min(p.x, q.x), Math.min(p.y, q.y), Math.max(p.x, q.x), Math.max(p.y, q.y)];
 }
 
-/** The Patterns areas with a pattern on this model: part -> pattern name (the areas' own, texture.js paintZones). */
+/**
+ * The Patterns areas with a pattern on this model: part -> pattern name (the areas' own, texture.js paintZones). 'Solid' is
+ * left out: a model split into pieces never showed the areas' plain fills (texture.js: no paintZones on it), and tiles set
+ * them (the Training Tee's sleeves and sides), so their looks stay as they are; a part's colour is the Parts panel's.
+ */
 function zoneLooks(painter, design, fp) {
   const out = new Map();
   for (const [zone, name] of Object.entries(design.zones ?? {})) {
-    if (!name || name === 'None') continue;
+    if (!name || name === 'None' || name === 'Solid') continue;
     for (const part of zoneParts(painter, zone)) if (fp.parts.has(part)) out.set(part, name);
   }
   return out;
@@ -193,21 +268,23 @@ export function paintPieceParts(painter, design, back) {
     g.restore();
   }
   for (const [part, e] of fp.parts) {
-    const path = e.paths[side], style = path ? painter.partStyle(design, part) : null;
-    if (!style) continue;
-    g.save();
-    clipTo(path);
-    painter.side(back);
-    painter.paintPartLook(design, style, boxOf(painter, e.boxes[side]), painter.baseFill(design));
-    g.restore();
+    const style = painter.partStyle(design, part), box = partBox(e, side);
+    if (!style || !box) continue;
+    for (const clip of partClips(painter, fp, e, side)) {
+      g.save();
+      clip(g);
+      painter.side(back);
+      painter.paintPartLook(design, style, boxOf(painter, box), painter.baseFill(design));
+      g.restore();
+    }
   }
   for (const [part, name] of zones) {
-    const path = fp.parts.get(part).paths[side];
-    if (!path) continue;
-    g.save();
-    clipTo(path);
-    paintZoneLook(painter, design, name, back);
-    g.restore();
+    for (const clip of partClips(painter, fp, fp.parts.get(part), side)) {
+      g.save();
+      clip(g);
+      paintZoneLook(painter, design, name, back);
+      g.restore();
+    }
   }
   painter.side(back);
 }
@@ -264,7 +341,10 @@ export function piecePartAt(painter, hit, at) {
   const a = pieceIx(mix((v) => pc.getX(v))), b = pieceIx(mix((v) => pc.getY(v))), z = mix((v) => pc.getZ(v));
   const ix = a === b || z >= 0 ? a : b, key = ix >= 0 ? painter.model.keys[ix] : null;
   const named = key && !BODY_KEYS.has(key) ? pieceKeyPart(painter.kind, key, at.x) : null;
-  return named ?? bodyPart(painter, at.side === 'back');
+  if (named) return named;
+  // (The body's piece: a sleeve where the made garment's sleeve area is (sleeves not pieces of their own), else the side.)
+  const sleeve = bodySleeve(painter, at);
+  return sleeve && painter.printedParts.includes(sleeve) ? sleeve : bodyPart(painter, at.side === 'back');
 }
 
 /**
@@ -287,15 +367,18 @@ export function pieceMask(painter, g, key, back, k) {
     g.restore();
     return true;
   }
-  const e = pieceFootprints(painter)?.parts.get(key);
+  const fp = pieceFootprints(painter), e = fp?.parts.get(key);
   if (!e) return null;
-  const path = e.paths[back ? 1 : 0];
-  if (!path) return false;
-  g.save();
-  g.setTransform(k, 0, 0, k, 0, 0);
-  g.fillStyle = '#fff';
-  g.fill(path);
-  g.restore();
+  const clips = partClips(painter, fp, e, back ? 1 : 0, k);
+  if (!clips.length) return false;
+  for (const clip of clips) {
+    g.save();
+    clip(g);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = '#fff';
+    g.fillRect(0, 0, g.canvas.width, g.canvas.height);
+    g.restore();
+  }
   return true;
 }
 
@@ -304,19 +387,18 @@ export function pieceMask(painter, g, key, back, k) {
  * `alpha` how much): true when done here (a piece part), false to use the made garment's map.
  */
 export function pieceErase(painter, lg, key, back, alpha) {
-  const e = pieceFootprints(painter)?.parts.get(key);
+  const fp = pieceFootprints(painter), e = fp?.parts.get(key);
   if (!e) return false;
-  const path = e.paths[back ? 1 : 0];
-  if (!path) return true;
-  lg.save();
-  lg.setTransform(1, 0, 0, 1, back ? -painter.canvas.height : 0, 0);
-  lg.clip(path);
-  lg.setTransform(1, 0, 0, 1, 0, 0);
-  lg.globalCompositeOperation = 'destination-out';
-  lg.globalAlpha = alpha;
-  lg.fillStyle = '#000';
-  lg.fillRect(0, 0, lg.canvas.width, lg.canvas.height);
-  lg.restore();
+  for (const clip of partClips(painter, fp, e, back ? 1 : 0, 1, back ? -painter.canvas.height : 0)) {
+    lg.save();
+    clip(lg);
+    lg.setTransform(1, 0, 0, 1, 0, 0);
+    lg.globalCompositeOperation = 'destination-out';
+    lg.globalAlpha = alpha;
+    lg.fillStyle = '#000';
+    lg.fillRect(0, 0, lg.canvas.width, lg.canvas.height);
+    lg.restore();
+  }
   return true;
 }
 

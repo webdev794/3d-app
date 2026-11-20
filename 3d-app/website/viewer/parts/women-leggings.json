@@ -1,0 +1,33 @@
+{
+  "about": "Leggings (women-leggings.glb): the model's own high waistband (from its top edge down to its own seam) in the Waistband part's colour (else Secondary), per triangle (MODELQ2 2026-11-16, viewer/tripo-parts.mjs).",
+  "glb": "../../../tripo/women-leggings.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "part:waistband|main"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.987,
+          0.029
+        ],
+        "len": 84,
+        "mode": "up",
+        "margin": -0.085
+      },
+      "where": "y > 0.75",
+      "part": "part:waistband|main"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}

@@ -227,6 +227,7 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'womenLeggings' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#1c58c8', 'patternColor' => '#16b4f0', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['womenLeggings' => '#27282a', 'pantsStripe' => '#16b4f0'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84, 'scale' => 0.8], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802, 'scale' => 0.8]], 'layers' => []],
         'rugbyVJersey' => ['main' => '#ffca00', 'secondary' => '#ffca00', 'accent' => '#11183f', 'patternColor' => '#11183f', 'parts' => ['leftSleeve' => ['colour' => '#11183f'], 'rightSleeve' => ['colour' => '#11183f']], 'zoneColors' => ['rugbyVJersey' => '#11183f'], 'marks' => ['top_number' => ['color' => '#ffffff'], 'top_frontNumber' => ['hidden' => true], 'top_wordmark' => ['x' => -0.07, 'y' => 0.575, 'scale' => 0.34], 'top_crest' => ['x' => 0.075, 'y' => 0.575, 'scale' => 0.85], 'top_name' => ['color' => '#ffffff']], 'layers' => []],
         'rugbyJersey' => ['main' => '#e2bf3a', 'secondary' => '#e2bf3a', 'accent' => '#32324c', 'patternColor' => '#32324c', 'parts' => ['leftSleeve' => ['colour' => '#32324c'], 'rightSleeve' => ['colour' => '#32324c']], 'zoneColors' => ['rugbyJersey' => '#32324c'], 'marks' => ['top_number' => ['color' => '#32324c'], 'top_frontNumber' => ['x' => 0, 'y' => 0.45], 'top_wordmark' => ['x' => -0.07, 'y' => 0.575, 'scale' => 0.34], 'top_crest' => ['x' => 0.075, 'y' => 0.575, 'scale' => 0.85]], 'layers' => []],
         'tsPants' => ['zoneColors' => ['shoulder' => '#27282a', 'side' => '#16b4f0', 'sideBlade' => '#0a5ae6', 'stripe' => '#16b4f0', 'zip' => '#27282a', 'pantsStripe' => '#16b4f0', 'tsPants' => '#27282a'], 'marks' => ['top_crest' => ['x' => 0.105, 'y' => 0.605, 'scale' => 0.6], 'top_wordmark' => ['x' => 0.105, 'y' => 0.572, 'scale' => 0.75], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802]]],
@@ -441,7 +442,7 @@ $sports = [
             $tile('Racing singlet', 'Featherweight singlet for race day.', 'singlet') + ['design' => $look('singletModel')],
             $tile('Running shorts', 'Split shorts built for speed.', 'shorts'),
             $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
-            $soon('Running tights', 'Long, 3/4 or short compression tights.', 'tights', 'leggings'),
+            $tile('Running tights', 'Long, 3/4 or short compression tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Track jacket', 'Full-zip jacket for warm-ups.', 'trackjacket'),
             $soon('Track pants', 'Tapered pants to match the jacket.', 'track-pants', 'track-pants'),
             $tile('Hoodie', 'Warm hoodie between events.', 'hoodie', 'team-hoodie'),
@@ -576,7 +577,7 @@ $sports = [
             $tile('Hoodie', 'Warm hoodie for the walk-out.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for weigh-ins.', 'ziphoodie'),
             $tile('Corner jacket', 'Full-zip jacket for the team.', 'trackjacket'),
-            $soon('Compression spats', 'Compression tights for grappling.', 'tights', 'leggings'),
+            $tile('Compression spats', 'Compression tights for grappling.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
         ]],
     ['id' => 'fishing', 'name' => 'Fishing', 'description' => 'Sun-smart shirts for the boat and the beach.', 'group' => 'apparel',
         'prompt' => 'fishing: a lightweight long-sleeve fishing shirt with a zip or button collar or a hood, ocean graphics', 'tiles' => [
@@ -606,7 +607,7 @@ $sports = [
             // (Women's fitness top: its own 3D model (booklet card 117908), MODELQ 2026-11-16, the user; the bottoms' tile below.)
             $tile("Women's fitness top", 'Cropped long-sleeve fitness top in stretch fabric.', 'compression', 'nfl-compression-top') + ['design' => $look('fitnessTop')],
             $tile('Gym shorts', 'Light shorts for training.', 'shorts'),
-            $soon('Leggings', 'Squat-proof leggings and tights.', 'tights', 'leggings'),
+            $tile('Leggings', 'Squat-proof leggings and tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Hoodie', 'Warm hoodie for warm-ups.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for the gym.', 'ziphoodie'),
             $tile('Track jacket', 'Full-zip jacket for warm-ups.', 'trackjacket'),

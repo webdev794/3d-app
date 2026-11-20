@@ -1199,6 +1199,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'womenLeggings': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#1c58c8', 'patternColor': '#16b4f0', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'womenLeggings': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.84, 'scale': 0.8}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802, 'scale': 0.8}}, 'layers': []},
     'rugbyVJersey': {'main': '#ffca00', 'secondary': '#ffca00', 'accent': '#11183f', 'patternColor': '#11183f', 'parts': {'leftSleeve': {'colour': '#11183f'}, 'rightSleeve': {'colour': '#11183f'}}, 'zoneColors': {'rugbyVJersey': '#11183f'}, 'marks': {'top_number': {'color': '#ffffff'}, 'top_frontNumber': {'hidden': true}, 'top_wordmark': {'x': -0.07, 'y': 0.575, 'scale': 0.34}, 'top_crest': {'x': 0.075, 'y': 0.575, 'scale': 0.85}, 'top_name': {'color': '#ffffff'}}, 'layers': []},
     'rugbyJersey': {'main': '#e2bf3a', 'secondary': '#e2bf3a', 'accent': '#32324c', 'patternColor': '#32324c', 'parts': {'leftSleeve': {'colour': '#32324c'}, 'rightSleeve': {'colour': '#32324c'}}, 'zoneColors': {'rugbyJersey': '#32324c'}, 'marks': {'top_number': {'color': '#32324c'}, 'top_frontNumber': {'x': 0, 'y': 0.45}, 'top_wordmark': {'x': -0.07, 'y': 0.575, 'scale': 0.34}, 'top_crest': {'x': 0.075, 'y': 0.575, 'scale': 0.85}}, 'layers': []},
     'tsPants': {'zoneColors': {'shoulder': '#27282a', 'side': '#16b4f0', 'sideBlade': '#0a5ae6', 'stripe': '#16b4f0', 'zip': '#27282a', 'pantsStripe': '#16b4f0', 'tsPants': '#27282a'}, 'marks': {'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6}, 'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75}, 'shorts_crest': {'x': 0.17, 'y': 0.84}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802}}},
@@ -1984,11 +1985,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Breathable tee for training and warm-ups.',
       'Training Tee',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Running tights',
       'Long, 3/4 or short compression tights.',
-      'tights',
-      'leggings',
+      'Shorts',
+      image: 'leggings',
+      look: 'womenLeggings',
     ),
     GarmentTile(
       'Track jacket',
@@ -2364,11 +2366,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full-zip jacket for the team.',
       'Track jacket',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Compression spats',
       'Compression tights for grappling.',
-      'tights',
-      'leggings',
+      'Shorts',
+      image: 'leggings',
+      look: 'womenLeggings',
     ),
   ],
   'fishing': [
@@ -2436,11 +2439,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'fitnessTop',
     ),
     GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts'),
-    GarmentTile.soon(
+    GarmentTile(
       'Leggings',
       'Squat-proof leggings and tights.',
-      'tights',
-      'leggings',
+      'Shorts',
+      image: 'leggings',
+      look: 'womenLeggings',
     ),
     GarmentTile(
       'Hoodie',
