@@ -29,7 +29,6 @@
     "collarSigma": 0.015,
     "stitches": {
       "collarFoot": 0.006,
-      "cuff": 0.015,
       "hem": 0.017,
       "sigma": 0.03
     },
@@ -38,7 +37,8 @@
     "looseBits": 200,
     "data": {
       "insideCloth": true,
-      "brandBack": true
+      "brandBack": true,
+      "bandShade": true
     },
     "flatSmoothY": {
       "sigma": 0.02,

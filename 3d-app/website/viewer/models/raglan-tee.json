@@ -1,0 +1,35 @@
+{
+  "about": "Raglan tee (MODELQ7 2026-11-23, coordinator; card 46987): Tripo model raglan-tee-textured.glb (shape only), coloured from raglan-tee-parts.glb by viewer/tripo-glbparts.mjs. Printed through the made tee's pattern. Shown by the flag raglanTee on Touch > 'Touch tee' and the new 'Raglan tee' tiles (after each 'Raglan long-sleeve' tile). The raglan sleeves (neck to cuff) take the Left / Right sleeve colour areas; the round neck band the Collar colour. Look from the card: rose body, deep raspberry sleeves, cuffs and neck band; our marks only.",
+  "glb": "../../../tripo/raglan-tee-textured.glb",
+  "converter": "top",
+  "part": "tee",
+  "garment": "tee",
+  "flag": "raglanTee",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "tee",
+    "creaseDeg": 25
+  },
+  "look": {
+    "main": "#b8566f",
+    "secondary": "#8e2c47",
+    "accent": "#8e2c47",
+    "patternColor": "#c9748a",
+    "parts": {
+      "leftSleeve": { "colour": "#8e2c47" },
+      "rightSleeve": { "colour": "#8e2c47" }
+    },
+    "zoneColors": {
+      "raglanTee": "#b8566f",
+      "labelDark": "#2e3034"
+    },
+    "marks": {
+      "top_wordmark": { "y": 0.515, "scale": 0.55 },
+      "top_crest": { "y": 0.578, "scale": 0.75 }
+    }
+  },
+  "check": { "views": ["Front", "Back", "Q45", "Q-135", "Q90"] }
+}

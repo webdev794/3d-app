@@ -1,0 +1,2 @@
+basketball-Reversible-training-singlet singlet geo 416fa128be/0c4e0b132b/97a902645a print 57b587e1bf rim true tripo false
+tennis-Tennis-singlet singlet geo 416fa128be/0c4e0b132b/97a902645a print 57b587e1bf rim true tripo false

@@ -1,0 +1,12 @@
+basketball-Reversible-training-singlet singlet geo 416fa128be/0c4e0b132b/97a902645a print 4df268b5fe rim true tripo false
+tennis-Tennis-singlet singlet geo 416fa128be/0c4e0b132b/97a902645a print 4df268b5fe rim true tripo false
+netball-Netball-bibs singlet geo 0ae6f9698d/c523bfb4ce/36bda53466 print 8c716f2f96 rim false tripo true
+football-Training-bibs singlet geo 416fa128be/0c4e0b132b/97a902645a print 8b183c3477 rim true tripo false
+netball-Netball-dress netball-dress geo 9235c976f0/d96b1f94f5/0021d31ce3 print 2e881a025f rim false tripo true
+basketball-Basketball-shorts bballshorts geo f8c82b1014/9bf74c90d5/968e21bddb print ea0c97420e rim false tripo true
+rugby-league-Playing-Shorts shorts geo b1abe8ae5f/2dc2c90006/d4f00377f0 print d018bf28b9 rim false tripo true
+rugby-league-Socks socks geo c01073fc45/af23e2ed90/899e631ce2 print 81a3fa90fb rim false tripo true
+rugby-league-Jersey jersey geo 38335cf309/d6c8c158b8/ae9337f509 print 164c9b978e rim false tripo true
+football-Football-jersey jersey geo c297451ec5/46bafc11aa/4d342ef6bb print 6270fd998a rim true tripo false
+basketball-Training-tee tee geo d210b47cfa/e0959835a1/2aa95c160f print 4354466ff1 rim true tripo false
+netballbibs-v      singlet geo 82b969a476/431601e8f6/41a1249172 print 41c06ae01a rim false tripo true

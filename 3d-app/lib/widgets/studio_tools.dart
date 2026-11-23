@@ -16,7 +16,7 @@ import 'showroom.dart' show ColorWheel;
 import 'ui.dart';
 
 // (RUGBYV 2026-11-20: a track jacket on its 3D model has its stand-up collar only: the Style panel offers no hood.)
-bool _trackModelOn(Map<String, String> z) => ['tjModel', 'tsJacket', 'windbreakerJacket', 'pufferVest'].any((f) => RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(z[f] ?? ''));
+bool _trackModelOn(Map<String, String> z) => ['tjModel', 'tsJacket', 'windbreakerJacket', 'pufferVest', 'womenWindbreaker'].any((f) => RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(z[f] ?? ''));
 
 /// "1 panel", "6 panels": a print layout's panels on the kit.
 String _panels(int n) => '$n panel${n == 1 ? '' : 's'}';

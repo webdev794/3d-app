@@ -577,6 +577,9 @@ function paintPlains(part, design) {
     // (On a model split into pieces (main.js `pieced`): a band (collar, waistband) one plain colour all over (w 2); any
     // other piece takes its colour where the print shows the Main (w 1).)
     // (and a trim named by its design part, 'part:<key>' (a hem band, cuffs), MODELQ2 2026-11-17)
+    // (`bandShade` (RUGBYJ 2026-11-23, the football jersey, user 618): its collar band a little darker when it is the body's own
+    // colour, so the neck band still reads as a band.)
+    if (key === 'collar' && part.tripo.data?.bandShade && !layout && c.getHexString() === new THREE.Color(design.main ?? '#ffffff').getHexString()) c.multiplyScalar(0.72);
     tint[k].set(c.r, c.g, c.b, part.tripo.pieces && (key === 'collar' || key === 'waistband' || key.startsWith('part:') || key.startsWith('plain:')) ? 2 : 1);
     // (Its part's own look printed in it: its colour only where the print shows the Main, or the print itself: PATTERNDND-6.)
     if (!layout) { const w = pieceTintW(part.painter, design, k, '#' + c.getHexString()); if (w !== null) tint[k].w = w; }
@@ -768,7 +771,8 @@ function buildKit(kind) {
   // (The made tee's old picture cuts (teeFlare, teeLong) are gone: every tee is on its ready-made model, MODELQ5 2026-11-18.)
   // (FX-V 2026-11-02: the NFL varsity tile (zoneColors.varsityBoxy): a wide, boxy jacket, its sleeves down to the hem
   // and deep rib cuffs and waistband, as its picture: DT11.)
-  const varsityBoxy = list.includes('varsity') && HEX6.test(design.zoneColors?.varsityBoxy ?? '');
+  // (Not on the varsity's ready-made model (CLIENTOPS 2026-11-23): its shape is final.)
+  const varsityBoxy = list.includes('varsity') && !tripoOf('varsity') && HEX6.test(design.zoneColors?.varsityBoxy ?? '');
   // (FX-R, DT10: the rugby jersey tile (look rugbyTile, zoneColors.sweep): sleeves standing out, the body flaring to the
   // hem, as its picture. The Football / Rugby playing shorts (zoneColors.shortsPlain): a rounder, narrower hem, no
   // drawcord; zoneColors.shortsNarrow: the rugby shorts' narrower waist.)
@@ -1088,7 +1092,8 @@ function buildKit(kind) {
     // and welts smoother, with a clear coat), the placket and welt pockets, rib collar, cuffs and waistband printed
     // from their own atlas pieces (with their stripes), the snaps and the quilted lining inside.
     let varsity = null;
-    if (garment.varsity) {
+    // (On the varsity's ready-made model (CLIENTOPS 2026-11-23) none of these made pieces: the model has its own.)
+    if (garment.varsity && !tripo) {
       const v = garment.varsity;
       const finish = finishMap(painter);
       partMaterial.roughness = 1;
@@ -1147,7 +1152,7 @@ function buildKit(kind) {
     const cord = garment.drawstring && !noCord && !(tripo && partKind === 'shorts') ? buildDrawstring(garment) : null;
     if (cord) group.add(cord.group);
     // The cap's eyelets: metal grommets round its air holes (cap.js).
-    if (garment.trims) group.add(garment.trims);
+    if (garment.trims && !tripo) group.add(garment.trims);   // (MODELQ7: a headwear model has its own eyelets, none of the made cap's)
     // A layout's training shorts are shown longer than their flat pattern (as on the client's mock-ups), and as much
     // wider and deeper: the same proportions, only bigger.
     // The cap is shown a little larger than life (cap.js CAP_DISPLAY), so it fills the stage as the others do.
@@ -1243,6 +1248,8 @@ function dressMannequin(list) {
     // (The Rugby League socks' model: no leg forms in it (the made pair's are shaped for the made socks and would show
     // through it); the model is a knitted pair standing as it was made: RGSOCKS.)
     if (part.garment.socks && part.tripo) continue;
+    // (MODELQ7 2026-11-23: the headwear models (cap, beanie, bucket hat): no display head inside; nothing shows inside a garment.)
+    if ((part.garment.cap || part.garment.hat) && part.tripo) continue;
     const group = part.rim.parent;
     // The HQ jersey: the body it was made on (hq.js), else our form made for the garment.
     const form = part.garment.form ? part.garment.form(mannequinMat) : part.hq?.avatar ? new THREE.Group().add(new THREE.Mesh(part.hq.avatar, mannequinMat))

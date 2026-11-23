@@ -59,11 +59,12 @@ $look = function (string $name, array $extra = []): array {
         // (FN13: the netball tee's own cut, narrower than the rugby tee's: viewer zoneColors.teeNetball.)
         'teeSidesNetball' => ['secondary' => '#27282a', 'patternColor' => '#008fdc', 'zones' => $solid('sleeves', 'sides'), 'zoneColors' => ['labelDark' => '#2e3034', 'teeFlare' => '#27282a', 'teeNetball' => '#27282a'], 'marks' => ['top_wordmark' => ['y' => 0.5, 'scale' => 0.55], 'top_crest' => ['y' => 0.565]]],
         // (FN5 2026-10-30, the varsity picture's colours: a cool blue-black body and rib, pale sky blue sleeves, the white
-        // felt border round the chest "3" (the accent).)
-        'varsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1a1e23', 'sleeves' => '#4fb2d0', 'rib' => '#1a1e23', 'ribStripe' => $cyan]],
+        // felt border round the chest "3" (the accent).) (CLIENTOPS 2026-11-23: on the Tripo varsity model every varsity
+        // look takes card 66665's colours: black wool body and rib, golden-yellow sleeves, rib stripes and welt trims.)
+        'varsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1d1d1e', 'sleeves' => '#d9a704', 'rib' => '#1d1d1e', 'ribStripe' => '#d9a704', 'pocketTrim' => '#d9a704']],
         // (FX-V 2026-11-02, DT11: the NFL Varsity Jacket picture: a wide, boxy cut with deep striped cuffs and waistband
         // (zoneColors.varsityBoxy) and cyan snaps.)
-        'nflVarsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1a1e23', 'sleeves' => '#4fb2d0', 'rib' => '#1a1e23', 'ribStripe' => $cyan, 'snaps' => $cyan, 'varsityBoxy' => '#1a1e23']],
+        'nflVarsity' => ['accent' => '#ffffff', 'zoneColors' => ['body' => '#1d1d1e', 'sleeves' => '#d9a704', 'rib' => '#1d1d1e', 'ribStripe' => '#d9a704', 'pocketTrim' => '#d9a704', 'snaps' => '#1d1d1e', 'varsityBoxy' => '#1a1e23']],
         // The football / hockey jersey picture (DT3): a royal blue maze (Swirl) over the raglan shoulders and sleeves with
         // cyan piping on the raglan seam, cyan side panels, a black collar, hem and cuffs.
         // (FX3: the maze on the shoulders up to the collar, fading out down the upper sleeves; the arms mostly plain: the
@@ -170,12 +171,12 @@ $look = function (string $name, array $extra = []): array {
         // (FN3 2026-10-30, the user: the American football pictures use deeper, saturated azure blues, sampled on them and
         // set so the stage renders them: shoulders, cuffs and collar stripe #0096f0, the Game Jersey's side panels deeper
         // #006fc4, the 86's line #00a8ff; the Practice Jersey's 86 a brighter cyan #00c8ff.)
-        'nflgame' => ['secondary' => '#0096f0', 'accent' => '#0096f0', 'patternColor' => '#0096f0', 'zones' => $solid('sleeves', 'sides'), 'number' => '86', 'marks' => ['top_number' => ['color' => '#ffffff', 'look' => ['style' => 'outline', 'width' => 0.07, 'color' => '#00a8ff']], 'top_crest' => ['x' => 0, 'y' => 0.655, 'scale' => 0.6]]],
+        'nflgame' => ['secondary' => '#0096f0', 'accent' => '#0096f0', 'patternColor' => '#0096f0', 'zones' => $solid('sleeves', 'sides'), 'number' => '86', 'marks' => ['top_number' => ['color' => '#ffffff', 'look' => ['style' => 'outline', 'width' => 0.07, 'color' => '#00a8ff']], 'top_crest' => ['x' => 0, 'y' => 0.655, 'scale' => 0.6, 'hidden' => true], 'top_wordmark' => ['x' => -0.045, 'y' => 0.585, 'scale' => 0.65]]],
         'nflpractice' => ['zones' => []] + $number($cyan, null),
         // The Game Jersey picture (DT1): a thin cyan line round the white 86, the front number a little bigger and higher.
         // (NF1: the cyan shoulder caps over the pads with piping, black sleeves, a black collar with a cyan inner stripe.)
         // (FX3: the "3" mark at the V on a small black badge, as big as in the picture.)
-        'nflgameJersey' => ['secondary' => '#0096f0', 'accent' => '#0096f0', 'patternColor' => '#0096f0', 'zones' => $solid('yoke', 'sides'), 'parts' => ['collar' => ['colour' => '#0b0d10'], 'sides' => ['colour' => '#006fc4']], 'zoneColors' => ['afJersey' => '#ffffff', 'collarStripe' => '#0096f0', 'badge' => '#27282a'], 'number' => '86', 'marks' => ['top_number' => ['color' => '#ffffff', 'look' => ['style' => 'outline', 'width' => 0.02, 'color' => '#00a8ff']], 'top_frontNumber' => ['y' => 0.393, 'scale' => 1.17], 'top_crest' => ['x' => 0, 'y' => 0.628, 'scale' => 1.3]]],
+        'nflgameJersey' => ['secondary' => '#0096f0', 'accent' => '#0096f0', 'patternColor' => '#0096f0', 'zones' => $solid('yoke', 'sides'), 'parts' => ['collar' => ['colour' => '#0b0d10'], 'sides' => ['colour' => '#006fc4']], 'zoneColors' => ['afJersey' => '#ffffff', 'collarStripe' => '#0096f0', 'badge' => '#27282a'], 'number' => '86', 'marks' => ['top_number' => ['color' => '#ffffff', 'look' => ['style' => 'outline', 'width' => 0.02, 'color' => '#00a8ff']], 'top_frontNumber' => ['y' => 0.393, 'scale' => 1.17], 'top_crest' => ['x' => 0, 'y' => 0.628, 'scale' => 1.3], 'top_wordmark' => ['x' => -0.03]]],
         // The Practice Jersey picture (DT1): black collar, the cyan 86 just under the chest logo.
         // (NF1: a cyan stripe over each shoulder along the sleeve seam.)
         // (FX3: black side panels: the picture has none; the small cyan insert in the point of the V, the "3" mark a little
@@ -235,6 +236,12 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'bucketModel' => ['main' => '#3f5a3a', 'secondary' => '#2f6b3c', 'accent' => '#2f6b3c', 'zoneColors' => [], 'layers' => []],
+        'beanieModel' => ['main' => '#e8b220', 'secondary' => '#e8b220', 'accent' => '#e8b220', 'zoneColors' => [], 'layers' => []],
+        'capModel' => ['main' => '#f2c418', 'secondary' => '#f2c418', 'accent' => '#f2c418', 'zoneColors' => [], 'layers' => []],
+        'womenWindbreaker' => ['zoneColors' => ['womenWindbreaker' => '#ffffff', 'body' => '#459a8f', 'shoulder' => '#459a8f', 'side' => '#459a8f', 'stripe' => '#459a8f', 'zip' => '#5fb0a5', 'rib' => '#2a8a7d', 'collar' => '#2a8a7d']],
+        'raglanHoodie' => ['main' => '#1d1b1b', 'secondary' => '#f4f4f4', 'accent' => '#f2b705', 'patternColor' => '#f2b705', 'parts' => ['leftSleeve' => ['colour' => '#f2b705'], 'rightSleeve' => ['colour' => '#f2b705']], 'zoneColors' => ['raglanHoodie' => '#1d1b1b', 'zip' => '#e4e5e8', 'rib' => '#1d1b1b', 'hood' => '#1d1b1b', 'lining' => '#1d1b1b', 'cord' => '#f4f4f4']],
+        'raglanTee' => ['main' => '#b8566f', 'secondary' => '#8e2c47', 'accent' => '#8e2c47', 'patternColor' => '#c9748a', 'parts' => ['leftSleeve' => ['colour' => '#8e2c47'], 'rightSleeve' => ['colour' => '#8e2c47']], 'zoneColors' => ['raglanTee' => '#b8566f', 'labelDark' => '#2e3034'], 'marks' => ['top_wordmark' => ['y' => 0.515, 'scale' => 0.55], 'top_crest' => ['y' => 0.578, 'scale' => 0.75]]],
         'afPants' => ['main' => '#e3b623', 'secondary' => '#1e2766', 'accent' => '#1e2766', 'patternColor' => '#1e2766', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#e3b623']], 'zoneColors' => ['afPants' => '#e3b623', 'brandInk' => '#1e2766', 'crestInk' => '#1e2766'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.17, 'y' => 0.26, 'scale' => 0.8], 'shorts_wordmark' => ['x' => -0.17, 'y' => 0.26, 'scale' => 0.8]], 'layers' => []],
         'womenFootballShorts' => ['main' => '#1455b1', 'secondary' => '#1455b1', 'accent' => '#ffffff', 'patternColor' => '#ffffff', 'parts' => ['waistband' => ['colour' => '#1455b1']], 'zoneColors' => ['womenFootballShorts' => '#1455b1'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.13, 'y' => 0.075, 'scale' => 0.7], 'shorts_wordmark' => ['side' => 'front', 'x' => -0.14, 'y' => 0.065, 'scale' => 0.5]], 'layers' => []],
         'runningShorts' => ['main' => '#1a2a52', 'secondary' => '#e9b80c', 'accent' => '#e9b80c', 'patternColor' => '#e9b80c', 'parts' => ['waistband' => ['colour' => '#1a2a52'], 'shortsHem' => ['colour' => '#1a2a52']], 'zoneColors' => ['runningShorts' => '#1a2a52', 'cordTips' => '#1a2a52'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.12, 'y' => 0.13, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.17, 'y' => 0.12, 'scale' => 0.5]], 'layers' => []],
@@ -242,7 +249,7 @@ $look = function (string $name, array $extra = []): array {
         'swimShorts' => ['main' => '#e48a62', 'secondary' => '#b0542c', 'accent' => '#b0542c', 'patternColor' => '#b0542c', 'parts' => ['waistband' => ['colour' => '#e48a62']], 'zoneColors' => ['swimShorts' => '#e48a62', 'cord' => '#f4f4f2'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.13, 'y' => 0.075, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.06, 'scale' => 0.5]], 'layers' => []],
         'womenShorts' => ['main' => '#1c4a8e', 'secondary' => '#27282a', 'accent' => '#27282a', 'patternColor' => '#27282a', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['womenShorts' => '#1c4a8e'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['side' => 'front', 'x' => -0.14, 'y' => 0.1, 'scale' => 0.7], 'shorts_wordmark' => ['side' => 'front', 'x' => -0.14, 'y' => 0.065, 'scale' => 0.5]], 'layers' => []],
         'sportsBra' => ['main' => '#2a5aa6', 'secondary' => '#142c6e', 'accent' => '#ffffff', 'patternColor' => '#142c6e', 'number' => '', 'zones' => [], 'zoneColors' => ['sportsBra' => '#142c6e'], 'parts' => ['collar' => ['colour' => '#2a5aa6']], 'marks' => ['top_wordmark' => ['x' => 0.08, 'y' => 0.5, 'scale' => 0.9], 'top_crest' => ['hidden' => true], 'top_number' => ['hidden' => true], 'top_name' => ['hidden' => true]], 'layers' => []],
-        'pufferVest' => ['zoneColors' => ['pufferVest' => '#ffffff', 'body' => '#24272b', 'shoulder' => '#24272b', 'side' => '#24272b', 'stripe' => '#24272b', 'zip' => '#00c4f0']],
+        'pufferVest' => ['main' => '#a82828', 'zoneColors' => ['pufferVest' => '#ffffff', 'body' => '#a82828', 'shoulder' => '#a82828', 'side' => '#a82828', 'stripe' => '#a82828', 'zip' => '#e4e5e8']],
         'compressionPants' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#1c58c8', 'patternColor' => '#16b4f0', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['compressionPants' => '#27282a', 'pantsStripe' => '#16b4f0'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84, 'scale' => 0.8], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802, 'scale' => 0.8]], 'layers' => []],
         'mtbJersey' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#16b4f0', 'patternColor' => '#16b4f0', 'zones' => [], 'zoneColors' => ['mtbJersey' => '#ffffff'], 'marks' => ['top_crest' => ['x' => 0.09, 'y' => 0.6, 'scale' => 0.55], 'top_wordmark' => ['x' => -0.09, 'y' => 0.6, 'scale' => 0.5]]],
         // (HOODIE 2026-11-20: BMX Race jersey on the MTB jersey model, its own default look + the flag.)
@@ -344,6 +351,7 @@ $sports = [
         $tile('Bucket Hat', 'Wide brim bucket hat.', 'bucket-hat', 'rugby-bucket-hat'),
         $tile('Waterproof Jacket', 'Weatherproof jacket with hood.', 'trackjacket', 'rugby-waterproof-jacket') + ['design' => ['trackStyle' => 'hood']],
         $tile('Windbreaker', 'Light stand-collar jacket that keeps the wind out.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('windbreakerJacket')],
+        $tile("Women's windbreaker", "Fitted women's windbreaker with a rib collar.", 'trackjacket', 'waterproof-jacket') + ['design' => $look('womenWindbreaker')],
         $tile('Puffer vest', 'Quilted puffer vest for the sideline.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('pufferVest')],
     ]],
     ['id' => 'rugby-union', 'name' => 'Rugby Union', 'description' => 'A proud tradition. A kit of your own.', 'group' => 'sports',
@@ -367,6 +375,7 @@ $sports = [
         $tile('Bucket Hat', 'Wide brim bucket hat.', 'bucket-hat', 'rugby-bucket-hat'),
         $tile('Waterproof Jacket', 'Weatherproof jacket with hood.', 'trackjacket', 'rugby-waterproof-jacket') + ['design' => ['trackStyle' => 'hood']],
         $tile('Windbreaker', 'Light stand-collar jacket that keeps the wind out.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('windbreakerJacket')],
+        $tile("Women's windbreaker", "Fitted women's windbreaker for cold match days.", 'trackjacket', 'waterproof-jacket') + ['design' => $look('womenWindbreaker')],
         $tile('Puffer vest', 'Quilted puffer vest for cold match days.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('pufferVest')],
     ]],
     ['id' => 'football', 'name' => 'Football', 'description' => 'Own the pitch, from first whistle to last.', 'group' => 'sports', 'tiles' => [
@@ -472,6 +481,7 @@ $sports = [
             $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'nfl-hooded-tracksuit') + ['design' => ['trackStyle' => 'hood']],
             $tile('Waterproof Jacket', 'Weatherproof jacket with hood.', 'trackjacket', 'nfl-waterproof-jacket') + ['design' => ['trackStyle' => 'hood']],
             $tile('Windbreaker', 'Light stand-collar jacket that keeps the wind out.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('windbreakerJacket')],
+            $tile("Women's windbreaker", "Fitted women's windbreaker for game days.", 'trackjacket', 'waterproof-jacket') + ['design' => $look('womenWindbreaker')],
             $tile('Puffer vest', 'Quilted puffer vest for cold game days.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('pufferVest')],
             $tile('Cap', 'Curved brim sports cap.', 'cap', 'nfl-cap'),
             $tile('Bucket Hat', 'Wide brim bucket hat.', 'bucket-hat', 'nfl-bucket-hat'),
@@ -509,6 +519,8 @@ $sports = [
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
             $tile('Long-sleeve tee', 'Long-sleeve tee for training and travel.', 'compression', 'longsleeve-tee') + ['design' => $look('lsTee')],
             $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
+            $tile('Raglan tee', 'Raglan tee with contrast sleeves for race days.', 'tee', 'tee') + ['design' => $look('raglanTee')],
+            $tile('Raglan hoodie', 'Full-zip raglan hoodie for warm-ups.', 'ziphoodie', 'ziphoodie') + ['design' => $look('raglanHoodie')],
             $tile('Running tights', 'Long, 3/4 or short compression tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Compression pants', 'Full-length compression pants for the track.', 'shorts', 'leggings') + ['design' => $look('compressionPants')],
             $tile("Men's tights", "Full-length men's running tights.", 'shorts', 'leggings') + ['design' => $look('menTights')],
@@ -546,7 +558,7 @@ $sports = [
         ]],
     ['id' => 'touch', 'name' => 'Touch', 'description' => 'Touch football and Oztag, fast and light.', 'group' => 'sports',
         'prompt' => 'Touch football and Oztag: a lightweight raglan tee or singlet with shorts', 'tiles' => [
-            $tile('Touch tee', 'Light raglan tee for fast games.', 'tee'),
+            $tile('Touch tee', 'Light raglan tee for fast games.', 'tee', 'tee') + ['design' => $look('raglanTee')],
             $tile('Touch singlet', 'Sleeveless top for hot days.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for touch.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
             $tile('Touch shorts', 'Light shorts that move with you.', 'shorts'),
@@ -648,6 +660,8 @@ $sports = [
         $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
         $tile('Long-sleeve tee', 'Long-sleeve tee for training and travel.', 'compression', 'longsleeve-tee') + ['design' => $look('lsTee')],
         $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
+        $tile('Raglan tee', 'Raglan tee with contrast sleeves.', 'tee', 'tee') + ['design' => $look('raglanTee')],
+        $tile('Raglan hoodie', 'Full-zip raglan hoodie with contrast sleeves.', 'ziphoodie', 'ziphoodie') + ['design' => $look('raglanHoodie')],
         $tile('Training singlet', 'Lightweight singlet for hot sessions.', 'singlet') + ['design' => $look('singletModel')],
         $tile("Women's singlet", 'Fitted racerback singlet for hot sessions.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
         $tile('Training shorts', 'Light shorts that move with you.', 'shorts', 'shorts') + ['design' => $look('trainingShorts')],
@@ -703,6 +717,8 @@ $sports = [
             $tile('Gym tee', 'Fitted tee for every session.', 'tee'),
             $tile('Long-sleeve tee', 'Long-sleeve tee for training and travel.', 'compression', 'longsleeve-tee') + ['design' => $look('lsTee')],
             $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
+            $tile('Raglan tee', 'Raglan tee with contrast sleeves for the gym.', 'tee', 'tee') + ['design' => $look('raglanTee')],
+            $tile('Raglan hoodie', 'Full-zip raglan hoodie for the gym.', 'ziphoodie', 'ziphoodie') + ['design' => $look('raglanHoodie')],
             // (Women's fitness top: its own 3D model (booklet card 117908), MODELQ 2026-11-16, the user; the bottoms' tile below.)
             $tile("Women's fitness top", 'Cropped long-sleeve fitness top in stretch fabric.', 'compression', 'nfl-compression-top') + ['design' => $look('fitnessTop')],
             $tile('Sports bra', 'Racerback sports bra with a wide underband.', 'singlet', 'netball-training-singlet') + ['design' => $look('sportsBra')],
@@ -725,6 +741,8 @@ $sports = [
             $tile('Club tee', 'Soft tee for the clubhouse.', 'tee'),
             $tile('Long-sleeve tee', 'Long-sleeve tee for training and travel.', 'compression', 'longsleeve-tee') + ['design' => $look('lsTee')],
             $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
+            $tile('Raglan tee', 'Raglan tee with contrast sleeves for the clubhouse.', 'tee', 'tee') + ['design' => $look('raglanTee')],
+            $tile('Raglan hoodie', 'Full-zip raglan hoodie for travel.', 'ziphoodie', 'ziphoodie') + ['design' => $look('raglanHoodie')],
             $tile('Club shorts', 'Casual shorts for travel.', 'shorts'),
             $tile('Club hoodie', 'Warm hoodie for the sideline.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for travel.', 'ziphoodie'),
@@ -778,16 +796,15 @@ $trainingBibs = ['marks' => ['top_name' => ['hidden' => true], 'top_number' => [
 // The netball bibs picture (FN5): a big GS and the cyan binding down each side edge, front and back (the open sides).
 $netballBibs = $letters('GS', 0.38, 0.26);
 foreach (['front', 'back'] as $side) foreach ([1, -1] as $dir) $netballBibs['layers'][] = ['type' => 'shape', 'id' => 'tile-edge-'.$side.($dir > 0 ? '-l' : '-r'), 'name' => 'Side binding', 'part' => 'top', 'side' => $side, 'x' => 0.205 * $dir, 'y' => 0.25, 'shape' => 'rectangle', 'w' => 0.024, 'h' => 0.52, 'color' => '#16b4f0'];
-// The Game Kit picture's cyan "3" sits on the left chest, level with the crest at the V.
-$chestThree = ['layers' => [['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Chest number', 'part' => 'top', 'side' => 'front', 'x' => 0.15, 'y' => 0.631, 'text' => '3', 'size' => 0.072, 'color' => '#00a0f8']]];
+// The Game Kit picture's cyan "3" sits on the right chest, level with the wordmark beside it (CLIENTOPS 115, 23 Nov).
+$chestThree = ['layers' => [['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Chest number', 'part' => 'top', 'side' => 'front', 'x' => 0.115, 'y' => 0.585, 'text' => '3', 'size' => 0.072, 'color' => '#00a0f8']]];
 // The Game Jersey picture (FX3): its chest "3" bold and slanted in the block jersey font with a light cyan edge, clear
 // of the shoulder piping; small white "3"s with a cyan line (as the 86) on the tops of the shoulders.
 // (FN3 2026-10-30: the picture's shoulder numbers are the 86, its "8" on the one shoulder and its "6" on the other,
 // lying along the shoulder.)
 $shoulderThree = fn (int $dir) => ['type' => 'text', 'id' => $dir > 0 ? 'tile-shoulder' : 'tile-shoulder-right', 'name' => 'Shoulder number', 'part' => 'top', 'side' => 'front', 'x' => 0.168 * $dir, 'y' => 0.692, 'rot' => 80 * $dir, 'text' => $dir > 0 ? '8' : '6', 'size' => 0.056, 'color' => '#ffffff', 'font' => 'JerseyBlock', 'look' => ['style' => 'outline', 'width' => 0.08, 'color' => '#00a8ff']];
 $gameThree = ['layers' => [
-    ['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Chest number', 'part' => 'top', 'side' => 'front', 'x' => 0.132, 'y' => 0.632, 'text' => '3', 'size' => 0.072, 'color' => '#00a0f8', 'font' => 'JerseyBlock', 'look' => ['style' => 'outline', 'width' => 0.03, 'color' => '#8fe0ff', 'shape' => 'slant']],
-    $shoulderThree(1), $shoulderThree(-1),
+    ['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Chest number', 'part' => 'top', 'side' => 'front', 'x' => 0.105, 'y' => 0.57, 'text' => '3', 'size' => 0.072, 'color' => '#00a0f8', 'font' => 'JerseyBlock', 'look' => ['style' => 'outline', 'width' => 0.03, 'color' => '#8fe0ff', 'shape' => 'slant']],
 ]];
 // The Compression Top picture (CF1 2026-10-29): the cyan "3" upright on the upper arm, seen from the front. (DT4: the
 // small "3" is on the black neck label inside the back neck, the viewer's own; nothing printed under the crew neck.)

@@ -69,7 +69,7 @@ const suggestions = ['Make it red and gold', 'Add bold chevrons', 'Darker body, 
  * have no shoulders or sleeves and a singlet no sleeves (a pattern there painted nothing); the full kit's jersey has both.
  */
 // (RUGBYV 2026-11-20: a track jacket on its 3D model (flags tjModel, tsJacket) has its stand-up collar only: no hood choice.)
-const trackModelOn = (d: { zoneColors?: object | null }) => ['tjModel', 'tsJacket', 'windbreakerJacket', 'pufferVest'].some((f) => /^#[0-9a-f]{6}$/i.test((d.zoneColors as Record<string, string | undefined> | null | undefined)?.[f] ?? ''));
+const trackModelOn = (d: { zoneColors?: object | null }) => ['tjModel', 'tsJacket', 'windbreakerJacket', 'pufferVest', 'womenWindbreaker'].some((f) => /^#[0-9a-f]{6}$/i.test((d.zoneColors as Record<string, string | undefined> | null | undefined)?.[f] ?? ''));
 function patternAreas(garment: string, trackStyle?: string | null): { key: Zone; label: string }[] {
   // The socks, the cap and the bucket hat: the viewer paints a pattern on the whole garment only (zones.js: one area).
   if (garment === 'socks' || garment === 'cap' || garment === 'five-panel-cap' || garment === 'beanie' || garment === 'bucket-hat') return [{ key: 'body', label: 'Body' }];

@@ -14,13 +14,14 @@
     "creaseDeg": 25
   },
   "look": {
+    "main": "#a82828",
     "zoneColors": {
       "pufferVest": "#ffffff",
-      "body": "#24272b",
-      "shoulder": "#24272b",
-      "side": "#24272b",
-      "stripe": "#24272b",
-      "zip": "#00c4f0"
+      "body": "#a82828",
+      "shoulder": "#a82828",
+      "side": "#a82828",
+      "stripe": "#a82828",
+      "zip": "#e4e5e8"
     }
   },
   "check": {

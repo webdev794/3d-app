@@ -1,0 +1,82 @@
+{
+  "about": "Women's windbreaker (women-windbreaker-textured.glb) coloured from women-windbreaker-parts.glb (17 parts) by viewer/tripo-hoodie.mjs: body pieces 17, 0, 3, 19, 21, 24, 25, 8, 27 and sleeves 5 the print (the made track jacket's pattern), front placket 13 + its small top bits 28, 29 the Zip colour (a smooth region), rib collar 11 the Collar colour (else Rib, Body, Main; a smooth region), cuffs 14 (split left/right) + 30 and hem band 10 the Rib colour (else Body, Main) as even rib rings. CLIENTOPS 2026-11-23.",
+  "hoodieParts": {
+    "glb": "../../../tripo/women-windbreaker-parts.glb",
+    "roles": {
+      "tripo_part_17": "body",
+      "tripo_part_0": "body",
+      "tripo_part_3": "body",
+      "tripo_part_19": "body",
+      "tripo_part_21": "body",
+      "tripo_part_24": "body",
+      "tripo_part_25": "body",
+      "tripo_part_8": "body",
+      "tripo_part_27": "body",
+      "tripo_part_5": "body",
+      "tripo_part_13": "placket",
+      "tripo_part_28": "placket",
+      "tripo_part_29": "placket",
+      "tripo_part_11": "collar",
+      "tripo_part_14": "cuffL",
+      "tripo_part_30": "cuffL",
+      "tripo_part_10": "hem"
+    },
+    "plain": {},
+    "plainKeys": [
+      "plain:zone:collar|zone:rib|zone:body|main",
+      "plain:zone:zip|zone:body|main"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "split": [
+      {
+        "part": "tripo_part_14",
+        "where": "x < 0",
+        "role": "cuffR"
+      }
+    ],
+    "order": [
+      "collar",
+      "placket"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "plain:zone:collar|zone:rib|zone:body|main",
+        "own": true
+      },
+      "placket": {
+        "roles": [
+          "placket"
+        ],
+        "key": "plain:zone:zip|zone:body|main"
+      }
+    },
+    "rings": {
+      "cuffL": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "out"
+      },
+      "cuffR": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "out"
+      },
+      "hem": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "about": "Varsity jacket (every tile of the made Varsity jacket garment: Basketball, American Football, Softball, Esports, Training, Club Casual, School Leavers and all others, the Studio's Varsity jacket, saved designs, presets): Tripo model varsity-jacket-textured.glb (its shape only), coloured from varsity-jacket-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/varsity-jacket.json): body the print through the made varsity pattern, the sleeves the Sleeves colour (else Secondary), the rib collar, cuffs and waistband the Rib colour (else Main), the welt pocket trims the Pocket trim colour (else Sleeves). Card 66665 (D:/3d-app/tripo/cards/66665.jpg): black wool body, golden-yellow leather sleeves, black rib trims with yellow stripes (stripes not drawn yet: pending_on_models.md), yellow welt trims; our marks only (the chenille '3' on the right chest, the '3' mark over the 3DEEZI wordmark on the left chest, as the made varsity's). WIDE: on every tile of its garment with the tile's own look; `look` is the check design. CLIENTOPS 2026-11-23.",
+  "glb": "../../../tripo/varsity-jacket-textured.glb",
+  "converter": "top",
+  "part": "varsity",
+  "wide": true,
+  "flag": "varsityJacket",
+  "ownNeck": "stand",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "varsity",
+    "creaseDeg": 25,
+    "top": 0.92
+  },
+  "look": {
+    "main": "#1d1d1e",
+    "secondary": "#d9a704",
+    "accent": "#1d1d1e",
+    "patternColor": "#d9a704",
+    "number": "23",
+    "zoneColors": {
+      "body": "#1d1d1e",
+      "sleeves": "#d9a704",
+      "rib": "#1d1d1e",
+      "ribStripe": "#d9a704",
+      "snaps": "#1d1d1e",
+      "pocketTrim": "#d9a704"
+    },
+    "marks": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

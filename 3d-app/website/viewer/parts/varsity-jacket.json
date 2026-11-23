@@ -1,0 +1,59 @@
+{
+  "about": "Varsity jacket (varsity-jacket-textured.glb) coloured from varsity-jacket-parts.glb (9 parts) by viewer/tripo-hoodie.mjs: body 7, placket 41 and the small back piece 33 the print (the made varsity pattern), sleeves 2 the Sleeves colour (a smooth region), rib collar 10 (a smooth region) and the cuffs 8 + cuff ends 30/31 the Rib colour, the waistband (part of the body piece) a rib ring 5 cm from the hem fold, welt pocket trims 18 the Pocket trim colour. CLIENTOPS 2026-11-23.",
+  "hoodieParts": {
+    "glb": "../../../tripo/varsity-jacket-parts.glb",
+    "roles": {
+      "tripo_part_7": "body",
+      "tripo_part_41": "body",
+      "tripo_part_33": "body",
+      "tripo_part_2": "sleeve",
+      "tripo_part_10": "collar",
+      "tripo_part_8": "rib",
+      "tripo_part_30": "rib",
+      "tripo_part_31": "rib",
+      "tripo_part_18": "welt"
+    },
+    "plain": {
+      "rib": "plain:zone:rib|main",
+      "welt": "plain:zone:pocketTrim|zone:sleeves|secondary"
+    },
+    "plainKeys": [
+      "plain:zone:collar|zone:rib|main",
+      "plain:zone:rib|main",
+      "plain:zone:sleeves|secondary"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    },
+    "order": [
+      "collar",
+      "sleeve"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "plain:zone:collar|zone:rib|main"
+      },
+      "sleeve": {
+        "roles": [
+          "sleeve"
+        ],
+        "key": "plain:zone:sleeves|secondary"
+      }
+    },
+    "rings": {
+      "body": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "width": 0.05
+      }
+    }
+  }
+}

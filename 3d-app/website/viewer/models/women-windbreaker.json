@@ -1,0 +1,37 @@
+{
+  "about": "Women's windbreaker (new \"Women's windbreaker\" tile after each Windbreaker tile: Rugby League, Rugby Union, American football; coordinator 23 Nov, card 131105): Tripo model women-windbreaker-textured.glb (fitted bomber-style windbreaker: rib stand collar, full-length front placket, rib cuffs and hem band; shape only), coloured from women-windbreaker-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/women-windbreaker.json): body and sleeves printed through the made track jacket's pattern, the front placket the Zip colour, the rib collar, cuffs and hem band the Rib colour (else Body, else Main). Look womenWindbreaker = card 131105's teal (body), a lighter teal placket, deeper teal ribs; the card's fabric texture, text and logos not copied (our 3DEEZI marks only). CLIENTOPS 2026-11-23.",
+  "glb": "../../../tripo/women-windbreaker-textured.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "womenWindbreaker",
+  "ownNeck": "stand",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25,
+    "top": 0.92
+  },
+  "look": {
+    "zoneColors": {
+      "womenWindbreaker": "#ffffff",
+      "body": "#459a8f",
+      "shoulder": "#459a8f",
+      "side": "#459a8f",
+      "stripe": "#459a8f",
+      "zip": "#5fb0a5",
+      "rib": "#2a8a7d",
+      "collar": "#2a8a7d"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

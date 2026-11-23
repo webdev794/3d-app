@@ -328,8 +328,8 @@ List<Map<String, dynamic>> _tileObjects(String? picture) {
         'type': 'text',
         'part': 'top',
         'side': 'front',
-        'x': 0.132,
-        'y': 0.632,
+        'x': 0.105,
+        'y': 0.57,
         'text': '3',
         'size': 0.072,
         'color': '#00a0f8',
@@ -341,24 +341,9 @@ List<Map<String, dynamic>> _tileObjects(String? picture) {
           'shape': 'slant',
         },
       },
-      for (final dir in const [1, -1])
-        {
-          'id': dir > 0 ? 'tile-shoulder' : 'tile-shoulder-right',
-          'name': 'Shoulder number',
-          'type': 'text',
-          'part': 'top',
-          'side': 'front',
-          'x': 0.168 * dir,
-          'y': 0.692,
-          'rot': 80 * dir,
-          'text': dir > 0 ? '8' : '6',
-          'size': 0.056,
-          'color': '#ffffff',
-          'font': 'JerseyBlock',
-          'look': {'style': 'outline', 'width': 0.08, 'color': '#00a8ff'},
-        },
     ],
-    // The Game Kit picture's cyan "3" sits on the left chest, level with the crest at the V.
+    // The Game Kit picture's cyan "3" sits on the right chest, level with the
+    // wordmark beside it (CLIENTOPS 115, 23 Nov).
     'nfl-kit' => [
       {
         'id': 'tile-sleeve',
@@ -366,8 +351,8 @@ List<Map<String, dynamic>> _tileObjects(String? picture) {
         'type': 'text',
         'part': 'top',
         'side': 'front',
-        'x': 0.15,
-        'y': 0.631,
+        'x': 0.115,
+        'y': 0.585,
         'text': '3',
         'size': 0.072,
         'color': '#00a0f8',
@@ -548,13 +533,15 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // (FN5 2026-10-30, the varsity picture's colours: a cool blue-black body
     // and rib, pale sky blue sleeves, the white felt border round the chest
     // "3" (the accent).)
+    // (CLIENTOPS 2026-11-23: card 66665's colours on the Tripo varsity model.)
     'varsity': {
       'accent': '#ffffff',
       'zoneColors': {
-        'body': '#1a1e23',
-        'sleeves': '#4fb2d0',
-        'rib': '#1a1e23',
-        'ribStripe': cyan,
+        'body': '#1d1d1e',
+        'sleeves': '#d9a704',
+        'rib': '#1d1d1e',
+        'ribStripe': '#d9a704',
+        'pocketTrim': '#d9a704',
       },
     },
     // (FX-V 2026-11-02, DT11: the NFL Varsity Jacket picture: a wide, boxy cut
@@ -563,11 +550,12 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'nflVarsity': {
       'accent': '#ffffff',
       'zoneColors': {
-        'body': '#1a1e23',
-        'sleeves': '#4fb2d0',
-        'rib': '#1a1e23',
-        'ribStripe': cyan,
-        'snaps': cyan,
+        'body': '#1d1d1e',
+        'sleeves': '#d9a704',
+        'rib': '#1d1d1e',
+        'ribStripe': '#d9a704',
+        'pocketTrim': '#d9a704',
+        'snaps': '#1d1d1e',
         'varsityBoxy': '#1a1e23',
       },
     },
@@ -1049,7 +1037,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'number': '86',
       'marks': {
         ...(number('#ffffff', '#00a8ff')['marks'] as Map<String, dynamic>),
-        'top_crest': {'x': 0, 'y': 0.655, 'scale': 0.6},
+        'top_crest': {'x': 0, 'y': 0.655, 'scale': 0.6, 'hidden': true},
+        'top_wordmark': {'x': -0.045, 'y': 0.585, 'scale': 0.65},
       },
     },
     'nflpractice': number(cyan, null),
@@ -1077,6 +1066,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         },
         'top_frontNumber': {'y': 0.393, 'scale': 1.17},
         'top_crest': {'x': 0, 'y': 0.628, 'scale': 1.3},
+        'top_wordmark': {'x': -0.03},
       },
     },
     // The Practice Jersey picture (DT1): black collar, the cyan 86 just under
@@ -1240,6 +1230,12 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'bucketModel': {'main': '#3f5a3a', 'secondary': '#2f6b3c', 'accent': '#2f6b3c', 'zoneColors': {}, 'layers': []},
+    'beanieModel': {'main': '#e8b220', 'secondary': '#e8b220', 'accent': '#e8b220', 'zoneColors': {}, 'layers': []},
+    'capModel': {'main': '#f2c418', 'secondary': '#f2c418', 'accent': '#f2c418', 'zoneColors': {}, 'layers': []},
+    'womenWindbreaker': {'zoneColors': {'womenWindbreaker': '#ffffff', 'body': '#459a8f', 'shoulder': '#459a8f', 'side': '#459a8f', 'stripe': '#459a8f', 'zip': '#5fb0a5', 'rib': '#2a8a7d', 'collar': '#2a8a7d'}},
+    'raglanHoodie': {'main': '#1d1b1b', 'secondary': '#f4f4f4', 'accent': '#f2b705', 'patternColor': '#f2b705', 'parts': {'leftSleeve': {'colour': '#f2b705'}, 'rightSleeve': {'colour': '#f2b705'}}, 'zoneColors': {'raglanHoodie': '#1d1b1b', 'zip': '#e4e5e8', 'rib': '#1d1b1b', 'hood': '#1d1b1b', 'lining': '#1d1b1b', 'cord': '#f4f4f4'}},
+    'raglanTee': {'main': '#b8566f', 'secondary': '#8e2c47', 'accent': '#8e2c47', 'patternColor': '#c9748a', 'parts': {'leftSleeve': {'colour': '#8e2c47'}, 'rightSleeve': {'colour': '#8e2c47'}}, 'zoneColors': {'raglanTee': '#b8566f', 'labelDark': '#2e3034'}, 'marks': {'top_wordmark': {'y': 0.515, 'scale': 0.55}, 'top_crest': {'y': 0.578, 'scale': 0.75}}},
     'afPants': {'main': '#e3b623', 'secondary': '#1e2766', 'accent': '#1e2766', 'patternColor': '#1e2766', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#e3b623'}}, 'zoneColors': {'afPants': '#e3b623', 'brandInk': '#1e2766', 'crestInk': '#1e2766'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.26, 'scale': 0.8}, 'shorts_wordmark': {'x': -0.17, 'y': 0.26, 'scale': 0.8}}, 'layers': []},
     'womenFootballShorts': {'main': '#1455b1', 'secondary': '#1455b1', 'accent': '#ffffff', 'patternColor': '#ffffff', 'parts': {'waistband': {'colour': '#1455b1'}}, 'zoneColors': {'womenFootballShorts': '#1455b1'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.13, 'y': 0.075, 'scale': 0.7}, 'shorts_wordmark': {'side': 'front', 'x': -0.14, 'y': 0.065, 'scale': 0.5}}, 'layers': []},
     'runningShorts': {'main': '#1a2a52', 'secondary': '#e9b80c', 'accent': '#e9b80c', 'patternColor': '#e9b80c', 'parts': {'waistband': {'colour': '#1a2a52'}, 'shortsHem': {'colour': '#1a2a52'}}, 'zoneColors': {'runningShorts': '#1a2a52', 'cordTips': '#1a2a52'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.12, 'y': 0.13, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': 0.17, 'y': 0.12, 'scale': 0.5}}, 'layers': []},
@@ -1247,7 +1243,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'swimShorts': {'main': '#e48a62', 'secondary': '#b0542c', 'accent': '#b0542c', 'patternColor': '#b0542c', 'parts': {'waistband': {'colour': '#e48a62'}}, 'zoneColors': {'swimShorts': '#e48a62', 'cord': '#f4f4f2'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.13, 'y': 0.075, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.06, 'scale': 0.5}}, 'layers': []},
     'womenShorts': {'main': '#1c4a8e', 'secondary': '#27282a', 'accent': '#27282a', 'patternColor': '#27282a', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'womenShorts': '#1c4a8e'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'side': 'front', 'x': -0.14, 'y': 0.1, 'scale': 0.7}, 'shorts_wordmark': {'side': 'front', 'x': -0.14, 'y': 0.065, 'scale': 0.5}}, 'layers': []},
     'sportsBra': {'main': '#2a5aa6', 'secondary': '#142c6e', 'accent': '#ffffff', 'patternColor': '#142c6e', 'number': '', 'zones': [], 'zoneColors': {'sportsBra': '#142c6e'}, 'parts': {'collar': {'colour': '#2a5aa6'}}, 'marks': {'top_wordmark': {'x': 0.08, 'y': 0.5, 'scale': 0.9}, 'top_crest': {'hidden': true}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
-    'pufferVest': {'zoneColors': {'pufferVest': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#24272b', 'stripe': '#24272b', 'zip': '#00c4f0'}},
+    'pufferVest': {'main': '#a82828', 'zoneColors': {'pufferVest': '#ffffff', 'body': '#a82828', 'shoulder': '#a82828', 'side': '#a82828', 'stripe': '#a82828', 'zip': '#e4e5e8'}},
     'compressionPants': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#1c58c8', 'patternColor': '#16b4f0', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'compressionPants': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.84, 'scale': 0.8}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802, 'scale': 0.8}}, 'layers': []},
     'mtbJersey': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#16b4f0', 'patternColor': '#16b4f0', 'zones': [], 'zoneColors': {'mtbJersey': '#ffffff'}, 'marks': {'top_crest': {'x': 0.09, 'y': 0.6, 'scale': 0.55}, 'top_wordmark': {'x': -0.09, 'y': 0.6, 'scale': 0.5}}},
     'bmxRaceJersey': {'zoneColors': {'mtbJersey': '#ffffff'}},
@@ -1582,6 +1578,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'windbreakerJacket',
     ),
     GarmentTile(
+      "Women's windbreaker",
+      "Fitted women's windbreaker with a rib collar.",
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'womenWindbreaker',
+    ),
+    GarmentTile(
       'Puffer vest',
       'Quilted puffer vest for the sideline.',
       'Track jacket',
@@ -1682,6 +1685,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Track jacket',
       image: 'waterproof-jacket',
       look: 'windbreakerJacket',
+    ),
+    GarmentTile(
+      "Women's windbreaker",
+      "Fitted women's windbreaker for cold match days.",
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'womenWindbreaker',
     ),
     GarmentTile(
       'Puffer vest',
@@ -2107,6 +2117,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'windbreakerJacket',
     ),
     GarmentTile(
+      "Women's windbreaker",
+      "Fitted women's windbreaker for game days.",
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'womenWindbreaker',
+    ),
+    GarmentTile(
       'Puffer vest',
       'Quilted puffer vest for cold game days.',
       'Track jacket',
@@ -2251,6 +2268,20 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'raglanLs',
     ),
     GarmentTile(
+      'Raglan tee',
+      'Raglan tee with contrast sleeves for race days.',
+      'Training Tee',
+      image: 'tee',
+      look: 'raglanTee',
+    ),
+    GarmentTile(
+      'Raglan hoodie',
+      'Full-zip raglan hoodie for warm-ups.',
+      'Zip hoodie',
+      image: 'ziphoodie',
+      look: 'raglanHoodie',
+    ),
+    GarmentTile(
       'Running tights',
       'Long, 3/4 or short compression tights.',
       'Shorts',
@@ -2370,6 +2401,8 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Touch tee',
       'Light raglan tee for fast games.',
       'Training Tee',
+      image: 'tee',
+      look: 'raglanTee',
     ),
     GarmentTile(
       'Touch singlet',
@@ -2703,6 +2736,20 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'raglanLs',
     ),
     GarmentTile(
+      'Raglan tee',
+      'Raglan tee with contrast sleeves.',
+      'Training Tee',
+      image: 'tee',
+      look: 'raglanTee',
+    ),
+    GarmentTile(
+      'Raglan hoodie',
+      'Full-zip raglan hoodie with contrast sleeves.',
+      'Zip hoodie',
+      image: 'ziphoodie',
+      look: 'raglanHoodie',
+    ),
+    GarmentTile(
       'Training singlet',
       'Lightweight singlet for hot sessions.',
       'Singlet',
@@ -2910,6 +2957,20 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'raglan-longsleeve',
       look: 'raglanLs',
     ),
+    GarmentTile(
+      'Raglan tee',
+      'Raglan tee with contrast sleeves for the gym.',
+      'Training Tee',
+      image: 'tee',
+      look: 'raglanTee',
+    ),
+    GarmentTile(
+      'Raglan hoodie',
+      'Full-zip raglan hoodie for the gym.',
+      'Zip hoodie',
+      image: 'ziphoodie',
+      look: 'raglanHoodie',
+    ),
     // (In the website's order: config/catalog.php gymwear.)
     GarmentTile(
       "Women's fitness top",
@@ -3011,6 +3072,20 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Compression top',
       image: 'raglan-longsleeve',
       look: 'raglanLs',
+    ),
+    GarmentTile(
+      'Raglan tee',
+      'Raglan tee with contrast sleeves for the clubhouse.',
+      'Training Tee',
+      image: 'tee',
+      look: 'raglanTee',
+    ),
+    GarmentTile(
+      'Raglan hoodie',
+      'Full-zip raglan hoodie for travel.',
+      'Zip hoodie',
+      image: 'ziphoodie',
+      look: 'raglanHoodie',
     ),
     GarmentTile('Club shorts', 'Casual shorts for travel.', 'Shorts'),
     GarmentTile(

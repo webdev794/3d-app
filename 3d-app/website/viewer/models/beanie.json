@@ -1,0 +1,33 @@
+{
+  "about": "Beanies (every tile of the made Beanie garment: Headwear, American Football): Tripo model beanie-textured.glb (card 141316: a rib-knit beanie with a deep folded cuff, no pom-pom; shape only), placed on the made beanie's place and printed through its pattern (beanieprint.js) by viewer/tripo-hat.mjs. WIDE, tile looks kept; `look` the card's mustard. No display head inside. MODELQ7 2026-11-23.",
+  "glb": "../../../tripo/beanie-textured.glb",
+  "converter": "hat",
+  "part": "beanie",
+  "wide": true,
+  "flag": "beanieModel",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "beanie",
+    "weld": true,
+    "align": "centre",
+    "smooth": 20
+  },
+  "look": {
+    "main": "#e8b220",
+    "secondary": "#e8b220",
+    "accent": "#e8b220",
+    "zoneColors": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

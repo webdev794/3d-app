@@ -1,0 +1,34 @@
+{
+  "about": "Bucket hats (every tile of the made Bucket hat garment): Tripo model bucket-hat-textured.glb (card 82642: a crown with a band, eyelets, a wide sloping brim and a chin cord; shape only), placed on the made hat's place and printed through its pattern (hatprint.js) by viewer/tripo-hat.mjs. WIDE, tile looks kept; `look` the card's olive green (its camouflage is the card's artwork, not copied). No display head inside. MODELQ7 2026-11-23.",
+  "glb": "../../../tripo/bucket-hat-textured.glb",
+  "converter": "hat",
+  "part": "bucket-hat",
+  "wide": true,
+  "flag": "bucketModel",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "bucket-hat",
+    "weld": true,
+    "align": "centre",
+    "alignY": "top",
+    "smooth": 10
+  },
+  "look": {
+    "main": "#3f5a3a",
+    "secondary": "#2f6b3c",
+    "accent": "#2f6b3c",
+    "zoneColors": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "about": "Raglan tee (raglan-tee-textured.glb, MODELQ7 2026-11-23): coloured from the same garment split into parts by Tripo (raglan-tee-parts.glb) by viewer/tripo-glbparts.mjs: body and hem band the print; each raglan sleeve from the neck band to the cuff, cuff included, its Left (+x) / Right (-x) sleeve part (part 20 holds both sleeves: split at the middle); the round neck band (27 + 15) the Collar colour; linings as the cloth behind them. Settings as the raglan long-sleeve.",
+  "glbParts": {
+    "glb": "../../../tripo/raglan-tee-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_6": null,
+      "tripo_part_7": null,
+      "tripo_part_10": null,
+      "tripo_part_18": null,
+      "tripo_part_19": null,
+      "tripo_part_22": null,
+      "tripo_part_24": null,
+      "tripo_part_15": "collar",
+      "tripo_part_27": "collar",
+      "tripo_part_4": "part:rightSleeve",
+      "tripo_part_13": "part:rightSleeve",
+      "tripo_part_26": "part:rightSleeve",
+      "tripo_part_20": "part:rightSleeve",
+      "tripo_part_5": "part:leftSleeve",
+      "tripo_part_14": "part:leftSleeve",
+      "tripo_part_25": "part:leftSleeve"
+    },
+    "collar": "collar",
+    "sleeves": ["part:leftSleeve", "part:rightSleeve"],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 150,
+    "speck": 40,
+    "collarSigma": 0.015,
+    "evenCollar": false,
+    "looseBits": 200,
+    "data": { "insideCloth": true },
+    "twoWayOut": true,
+    "keysWhere": [
+      { "part": "tripo_part_20", "where": "x > 0", "key": "part:leftSleeve" }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "about": "Raglan hoodie (MODELQ7 2026-11-23, coordinator; card 43498): Tripo model raglan-hoodie-textured.glb (shape only: a full-zip raglan hoodie, lined hood with cords, rib cuffs and hem), coloured from raglan-hoodie-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/raglan-hoodie.json). Printed through the made zip hoodie's pattern. Shown by the flag raglanHoodie on the new 'Raglan hoodie' tiles (after each 'Raglan long-sleeve' tile). Look from the card: black body, hood, lining and rib trims, golden-yellow sleeves, white cords and zip; our marks only.",
+  "glb": "../../../tripo/raglan-hoodie-textured.glb",
+  "converter": "top",
+  "part": "ziphoodie",
+  "flag": "raglanHoodie",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "ziphoodie",
+    "creaseDeg": 25,
+    "top": 0.84,
+    "pit": 0.515,
+    "weld": true
+  },
+  "look": {
+    "main": "#1d1b1b",
+    "secondary": "#f4f4f4",
+    "accent": "#f2b705",
+    "patternColor": "#f2b705",
+    "parts": {
+      "leftSleeve": {
+        "colour": "#f2b705"
+      },
+      "rightSleeve": {
+        "colour": "#f2b705"
+      }
+    },
+    "zoneColors": {
+      "raglanHoodie": "#1d1b1b",
+      "zip": "#e4e5e8",
+      "rib": "#1d1b1b",
+      "hood": "#1d1b1b",
+      "lining": "#1d1b1b",
+      "cord": "#f4f4f4"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  },
+  "garment": "ziphoodie"
+}

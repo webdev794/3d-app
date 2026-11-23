@@ -1,0 +1,34 @@
+{
+  "about": "Caps (every tile of the made Cap garment in every sport: Cap, Club cap, Golf cap, Cricket cap, Cycling cap, Headwear Cap; not the 5 panel cap, its own garment): Tripo model cap-textured.glb (card 95707: a six-panel cap with a curved brim and a top button; shape only, its plain texture not used), placed on the made cap's place and printed through the made cap's own pattern (capprint.js) by viewer/tripo-hat.mjs, so the tile's look, artwork on the front and our marks print as on the made cap. WIDE: on every tile of its garment with the tile's own look; `look` is only the check design (the card's yellow). No display head inside (main.js). MODELQ7 2026-11-23.",
+  "glb": "../../../tripo/cap-textured.glb",
+  "converter": "hat",
+  "part": "cap",
+  "wide": true,
+  "flag": "capModel",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "cap",
+    "weld": true,
+    "align": "back",
+    "tilt": 19,
+    "smooth": 10
+  },
+  "look": {
+    "main": "#f2c418",
+    "secondary": "#f2c418",
+    "accent": "#f2c418",
+    "zoneColors": {},
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

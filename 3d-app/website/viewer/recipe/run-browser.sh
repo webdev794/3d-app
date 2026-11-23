@@ -23,6 +23,10 @@ while true; do
   node -e "setTimeout(()=>{},2000)"
   ok=1; for LOCK in $L1 $L2; do [ "$(cat "$LOCK" 2>/dev/null)" = "$STAMP" ] || ok=0; done
   [ $ok = 1 ] && break
+  # (RUGBYJ 2026-11-23, coordinator: another stamp won in one folder: take ours back out of the other folder before
+  #  waiting again, or the next round sees our own stamp there and waits on itself for ever.)
+  for LOCK in $L1 $L2; do [ "$(cat "$LOCK" 2>/dev/null)" = "$STAMP" ] && rm -f "$LOCK"; done
+  node -e "setTimeout(()=>{},$(( (RANDOM % 3000) + 1000 )))"
 done
 "$@"; rc=$?
 # (Only our own lock is removed: another agent may hold it now.)
