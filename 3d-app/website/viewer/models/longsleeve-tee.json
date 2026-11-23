@@ -1,0 +1,43 @@
+{
+  "about": "Long-sleeve tee (RUGBYV 2026-11-20, the user: all pending models on their tiles; cards 10730 front / 10732 back): Tripo model longsleeve-tee-textured.glb (shape only), coloured from longsleeve-tee-parts.glb by viewer/tripo-glbparts.mjs. Printed through the made compression top's long-sleeve pattern. Shown by the flag lsTee on the new 'Long-sleeve tee' tiles. Look: the Training tee tile look (teeTile) without its solid-sleeves area.",
+  "glb": "../../../tripo/longsleeve-tee-textured.glb",
+  "converter": "top",
+  "part": "compression",
+  "garment": "compression",
+  "flag": "lsTee",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "compression",
+    "creaseDeg": 25
+  },
+  "look": {
+    "secondary": "#27282a",
+    "patternColor": "#00688a",
+    "zoneColors": {
+      "lsTee": "#27282a",
+      "labelDark": "#2e3034"
+    },
+    "marks": {
+      "top_wordmark": {
+        "y": 0.515,
+        "scale": 0.55
+      },
+      "top_crest": {
+        "y": 0.578,
+        "scale": 0.75
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90"
+    ]
+  }
+}

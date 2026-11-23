@@ -1,0 +1,61 @@
+{
+  "about": "Compression pants (new \"Compression pants\" tile after each Running tights, Compression spats and Leggings tile; coordinator 23 Nov, cards 53847 / 54199): Tripo model compression-pants-textured.glb (shape only), coloured like the leggings (tripo-parts edge rule: its own waistband, 0.06 deep as in compression-pants-parts.glb tripo_part_1, in the Waistband colour; the rest the print). Look = the leggings tile look. First version (models live first). MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/compression-pants-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "trackpants",
+    "legs": 0.689,
+    "creaseDeg": 25
+  },
+  "part": "trackpants",
+  "garment": "shorts",
+  "flag": "compressionPants",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#27282a",
+    "secondary": "#16b4f0",
+    "accent": "#1c58c8",
+    "patternColor": "#16b4f0",
+    "pattern": "None",
+    "number": "",
+    "parts": {
+      "waistband": {
+        "colour": "#27282a"
+      }
+    },
+    "zoneColors": {
+      "compressionPants": "#27282a",
+      "pantsStripe": "#16b4f0"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": 0.17,
+        "y": 0.84,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "x": 0.17,
+        "y": 0.802,
+        "scale": 0.8
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D70P72",
+      "zoomQ-160D70P72"
+    ]
+  }
+}

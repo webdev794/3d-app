@@ -1,0 +1,37 @@
+{
+  "about": "Women's tee (women-tee-textured.glb, RUGBYV 2026-11-20): coloured from the same garment split into parts by Tripo (women-tee-parts.glb) by viewer/tripo-glbparts.mjs: the round neck band the Collar colour, one even width from the neck fold, inside and out; body, sleeves and hems the print; linings as the cloth behind them.",
+  "glbParts": {
+    "glb": "../../../tripo/women-tee-parts.glb",
+    "keys": {
+      "tripo_part_1": null,
+      "tripo_part_12": null,
+      "tripo_part_17": null,
+      "tripo_part_18": null,
+      "tripo_part_2": null,
+      "tripo_part_20": null,
+      "tripo_part_24": null,
+      "tripo_part_26": null,
+      "tripo_part_29": null,
+      "tripo_part_30": null,
+      "tripo_part_31": null,
+      "tripo_part_32": "collar",
+      "tripo_part_33": null,
+      "tripo_part_36": null,
+      "tripo_part_4": null
+    },
+    "collar": "collar",
+    "sleeves": [],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "evenCollar": true,
+    "twoWayOut": true,
+    "looseBits": 200,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

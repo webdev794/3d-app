@@ -1,0 +1,51 @@
+{
+  "about": "Cycling > Cycling jersey (HOODIE/MODELQ6 2026-11-20, first version): Tripo model cycling-jersey-textured.glb (its shape only; coloured from cycling-jersey-parts.glb by viewer/tripo-hoodie.mjs), booklet cards 24817 (front) / 24823 (back): a close-fitting full-zip cycling jersey with a low stand collar, raglan sleeves with grippers, side panels and three rear pockets (the model's own); our marks only. Our own front zip (tape in the Collar colour, metal teeth). The tile keeps its stand-in jersey picture.",
+  "glb": "../../../tripo/cycling-jersey-textured.glb",
+  "converter": "top",
+  "part": "jersey",
+  "flag": "cyclingJersey",
+  "ownNeck": "stand",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Cycling jersey",
+      "image": "jersey"
+    }
+  ],
+  "pictures": [],
+  "convert": {
+    "made": "jersey",
+    "creaseDeg": 25,
+    "top": 0.92
+  },
+  "look": {
+    "main": "#27282a",
+    "secondary": "#16b4f0",
+    "accent": "#16b4f0",
+    "patternColor": "#16b4f0",
+    "zones": [],
+    "zoneColors": {
+      "cyclingJersey": "#ffffff"
+    },
+    "marks": {
+      "top_crest": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.55
+      },
+      "top_wordmark": {
+        "x": -0.09,
+        "y": 0.6,
+        "scale": 0.5
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

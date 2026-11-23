@@ -1,0 +1,71 @@
+{
+  "about": "Puffer vest (puffer-vest-textured.glb) coloured from puffer-vest-parts.glb (8 parts) by viewer/tripo-hoodie.mjs: quilted body 34 the print, zip 40 and pocket zips 46 count as the body (the made track jacket pattern prints the zip line), stand-up collar 42 (outside) + 2 (inside) the Collar colour, armhole bindings 9 the rib, hem band 6 + its inside 0 the rib. MODELQ5 2026-11-23.",
+  "hoodieParts": {
+    "glb": "../../../tripo/puffer-vest-parts.glb",
+    "roles": {
+      "tripo_part_34": "body",
+      "tripo_part_40": "body",
+      "tripo_part_46": "body",
+      "tripo_part_42": "collar",
+      "tripo_part_2": "collar",
+      "tripo_part_9": "arm",
+      "tripo_part_6": "hem",
+      "tripo_part_0": "hem"
+    },
+    "order": [
+      "collar",
+      "arm"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "plain:zone:collar|zone:body|main"
+      },
+      "arm": {
+        "roles": [
+          "arm"
+        ],
+        "key": "plain:zone:rib|zone:body|main"
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "down"
+      }
+    },
+    "plainKeys": [
+      "plain:zone:collar|zone:body|main",
+      "plain:zone:rib|zone:body|main"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "collar",
+          "at": -0.006
+        },
+        {
+          "region": "arm",
+          "at": -0.005
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

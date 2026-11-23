@@ -1,0 +1,160 @@
+{
+  "about": "Cycling jersey (cycling-jersey-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (cycling-jersey-parts.glb) by viewer/tripo-hoodie.mjs: the body, side panels and rear pockets the print; the raglan sleeves the Left / Right sleeve areas (else the print); the stand collar the Collar colour (else the trim); the sleeve grippers and the hem band the Rib colour (else Main); our own front zip down the centre from the collar to the hem (zipLine, main.js; tape in the Collar colour). Stitch lines beside the raglan seams and the bands.",
+  "hoodieParts": {
+    "glb": "../../../tripo/cycling-jersey-parts.glb",
+    "roles": {
+      "tripo_part_2": "sleeveL",
+      "tripo_part_3": "body",
+      "tripo_part_4": "body",
+      "tripo_part_6": "body",
+      "tripo_part_7": "sleeveL",
+      "tripo_part_9": "body",
+      "tripo_part_10": "body",
+      "tripo_part_12": "sleeveR",
+      "tripo_part_14": "body",
+      "tripo_part_19": "sleeveR",
+      "tripo_part_20": "body",
+      "tripo_part_21": "body",
+      "tripo_part_23": "body",
+      "tripo_part_27": "sleeveR",
+      "tripo_part_29": "collar",
+      "tripo_part_30": "body",
+      "tripo_part_31": "cuffR",
+      "tripo_part_32": "body",
+      "tripo_part_34": "body",
+      "tripo_part_35": "body",
+      "tripo_part_36": "body",
+      "tripo_part_38": "sleeveL",
+      "tripo_part_39": "body"
+    },
+    "split": [
+      {
+        "part": "tripo_part_12",
+        "where": "y < 0.08 && Math.abs(x) < 0.34",
+        "role": "hem"
+      },
+      {
+        "part": "tripo_part_12",
+        "where": "x > 0",
+        "role": "sleeveL"
+      },
+      {
+        "part": "tripo_part_31",
+        "where": "x > 0",
+        "role": "cuffL"
+      }
+    ],
+    "order": [
+      "collar",
+      "cuffL",
+      "cuffR",
+      "sleeveL",
+      "sleeveR"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "collar",
+        "own": true,
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "cuffL": {
+        "roles": [
+          "cuffL"
+        ],
+        "key": "plain:zone:rib|main@cuff",
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "cuffR": {
+        "roles": [
+          "cuffR"
+        ],
+        "key": "plain:zone:rib|main@cuff",
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "sleeveL": {
+        "roles": [
+          "sleeveL"
+        ],
+        "key": "area:leftSleeve",
+        "steps": 60,
+        "sigma": 0.02,
+        "oneSide": true
+      },
+      "sleeveR": {
+        "roles": [
+          "sleeveR"
+        ],
+        "key": "area:rightSleeve",
+        "steps": 60,
+        "sigma": 0.02,
+        "oneSide": true
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR",
+          "sleeveL",
+          "sleeveR"
+        ],
+        "margin": 0.03,
+        "first": true
+      }
+    },
+    "plain": {},
+    "plainKeys": [
+      "plain:zone:rib|main@cuff",
+      "collar"
+    ],
+    "zipLine": {
+      "top": 1.0
+    },
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "sleeveL",
+          "at": -0.005
+        },
+        {
+          "region": "sleeveR",
+          "at": -0.005
+        },
+        {
+          "region": "cuffL",
+          "at": 0.004
+        },
+        {
+          "region": "cuffR",
+          "at": 0.004
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

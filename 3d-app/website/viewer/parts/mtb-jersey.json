@@ -1,0 +1,121 @@
+{
+  "about": "MTB jersey (mtb-jersey-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (mtb-jersey-parts.glb) by viewer/tripo-hoodie.mjs: the body and sleeves the print (the parts file has them as one piece); the V-neck band the Collar colour (else the trim); the cuffs and the hem band the Rib colour (else Main). Stitch lines beside the neck band, the cuffs and the hem band.",
+  "hoodieParts": {
+    "glb": "../../../tripo/mtb-jersey-parts.glb",
+    "roles": {
+      "tripo_part_0": "body",
+      "tripo_part_1": "body",
+      "tripo_part_2": "collar",
+      "tripo_part_4": "body",
+      "tripo_part_7": "body",
+      "tripo_part_9": "cuffL",
+      "tripo_part_13": "body",
+      "tripo_part_14": "body",
+      "tripo_part_15": "body",
+      "tripo_part_17": "hem",
+      "tripo_part_18": "body",
+      "tripo_part_20": "body",
+      "tripo_part_26": "body",
+      "tripo_part_31": "cuffR",
+      "tripo_part_32": "body",
+      "tripo_part_33": "body",
+      "tripo_part_34": "body",
+      "tripo_part_38": "body",
+      "tripo_part_39": "body",
+      "tripo_part_40": "body",
+      "tripo_part_42": "body",
+      "tripo_part_43": "body",
+      "tripo_part_48": "body",
+      "tripo_part_49": "body",
+      "tripo_part_51": "body",
+      "tripo_part_55": "body",
+      "tripo_part_57": "body",
+      "tripo_part_60": "body",
+      "tripo_part_61": "body",
+      "tripo_part_63": "body",
+      "tripo_part_65": "body"
+    },
+    "order": [
+      "collar",
+      "cuffL",
+      "cuffR"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "collar",
+        "own": true,
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "cuffL": {
+        "roles": [
+          "cuffL"
+        ],
+        "key": "plain:zone:rib|main@cuff",
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      },
+      "cuffR": {
+        "roles": [
+          "cuffR"
+        ],
+        "key": "plain:zone:rib|main@cuff",
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR"
+        ],
+        "margin": 0.03,
+        "first": true
+      }
+    },
+    "plainKeys": [
+      "collar",
+      "plain:zone:rib|main@cuff"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "collar",
+          "at": -0.004
+        },
+        {
+          "region": "cuffL",
+          "at": 0.004
+        },
+        {
+          "region": "cuffR",
+          "at": 0.004
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

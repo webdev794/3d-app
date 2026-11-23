@@ -1,0 +1,42 @@
+{
+  "about": "Women's tee (RUGBYV 2026-11-20, coordinator: a new 'Women's tee' tile after each Training tee tile; cards 30907 front / 30929 back): Tripo model women-tee-textured.glb (shape only), coloured from women-tee-parts.glb by viewer/tripo-glbparts.mjs. Printed through the made tee's pattern. Shown by the flag womenTee on the new tiles. Look: the Training tee tile look (teeTile) without its solid-sleeves area.",
+  "glb": "../../../tripo/women-tee-textured.glb",
+  "converter": "top",
+  "part": "tee",
+  "flag": "womenTee",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "tee",
+    "creaseDeg": 25
+  },
+  "look": {
+    "secondary": "#27282a",
+    "patternColor": "#00688a",
+    "zoneColors": {
+      "womenTee": "#27282a",
+      "labelDark": "#2e3034"
+    },
+    "marks": {
+      "top_wordmark": {
+        "y": 0.515,
+        "scale": 0.55
+      },
+      "top_crest": {
+        "y": 0.578,
+        "scale": 0.75
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90"
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "about": "Raglan long-sleeve tee (raglan-longsleeve-textured.glb, RUGBYV 2026-11-20): coloured from the same garment split into parts by Tripo (raglan-longsleeve-parts.glb): body and hem band the print; each raglan sleeve from the neck band to the cuff, cuff included, its Left (+x) / Right (-x) sleeve part (Tripo gives both sleeves as one part, split at the middle); the round neck band the Collar colour, one even width from the neck's fold; linings as the cloth behind them. (Even-width collar off: with it the sleeve tops stopped short of the neck band in a ragged print strip; speck 40 / island 150 take in collar flecks.)",
+  "glbParts": {
+    "glb": "../../../tripo/raglan-longsleeve-parts.glb",
+    "keys": {
+      "tripo_part_10": "collar",
+      "tripo_part_12": "part:leftSleeve",
+      "tripo_part_13": "part:rightSleeve",
+      "tripo_part_14": "part:rightSleeve",
+      "tripo_part_16": "part:leftSleeve",
+      "tripo_part_19": null,
+      "tripo_part_20": "collar",
+      "tripo_part_21": "part:leftSleeve",
+      "tripo_part_24": null,
+      "tripo_part_25": "part:leftSleeve",
+      "tripo_part_27": "part:rightSleeve",
+      "tripo_part_28": "part:leftSleeve",
+      "tripo_part_29": "part:rightSleeve",
+      "tripo_part_31": null,
+      "tripo_part_32": null,
+      "tripo_part_34": null,
+      "tripo_part_4": null,
+      "tripo_part_6": null,
+      "tripo_part_7": null,
+      "tripo_part_9": null
+    },
+    "collar": "collar",
+    "sleeves": [
+      "part:leftSleeve",
+      "part:rightSleeve"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 150,
+    "speck": 40,
+    "collarSigma": 0.015,
+    "evenCollar": false,
+    "looseBits": 200,
+    "data": {
+      "insideCloth": true
+    },
+    "twoWayOut": true,
+    "keysWhere": [
+      {
+        "part": "tripo_part_13",
+        "where": "x > 0",
+        "key": "part:leftSleeve"
+      }
+    ]
+  }
+}

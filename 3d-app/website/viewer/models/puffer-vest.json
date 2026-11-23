@@ -1,0 +1,34 @@
+{
+  "about": "Puffer vest (new \"Puffer vest\" tile after each Windbreaker tile: Rugby League, Rugby Union, American football; and after Track jacket in Club Casual; coordinator 23 Nov, card 75957): Tripo model puffer-vest-textured.glb (quilted, sleeveless, stand-up collar, full zip; shape only), coloured from puffer-vest-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/puffer-vest.json): body the print through the made track jacket pattern (zip line in the Zip colour), the stand-up collar (outside and inside) the Collar colour (else Body, else Main), the armhole bindings and the hem band the Rib colour (else Body, else Main). Look pufferVest = the windbreaker colours (dark shell, cyan zip). First version (models live first). MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/puffer-vest-textured.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "pufferVest",
+  "ownNeck": "stand",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25
+  },
+  "look": {
+    "zoneColors": {
+      "pufferVest": "#ffffff",
+      "body": "#24272b",
+      "shoulder": "#24272b",
+      "side": "#24272b",
+      "stripe": "#24272b",
+      "zip": "#00c4f0"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

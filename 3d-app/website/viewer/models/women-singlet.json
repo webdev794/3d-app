@@ -1,0 +1,59 @@
+{
+  "about": "Women's running singlet (new 'Women's singlet' tile after each of the 11 Training singlet tiles; coordinator 20 Nov, cards 42239 / 42244): Tripo model women-singlet-textured.glb (shape only), coloured from women-singlet-parts.glb by viewer/tripo-glbparts.mjs (same method as the training singlet): front, back, side panels and hem the print; the neck band the Collar colour; the armhole bands the trim colour. Shown by the flag womenSinglet. First version (user: integrate first, fixes later). MODELQ5 2026-11-20.",
+  "glb": "../../../tripo/women-singlet-textured.glb",
+  "converter": "top",
+  "part": "singlet",
+  "flag": "womenSinglet",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "singlet",
+    "creaseDeg": 25
+  },
+  "look": {
+    "main": "#f4f5f7",
+    "secondary": "#1e2a44",
+    "accent": "#1e2a44",
+    "patternColor": "#1e2a44",
+    "number": "",
+    "zoneColors": {
+      "womenSinglet": "#1e2a44"
+    },
+    "parts": {
+      "collar": {
+        "colour": "#1e2a44"
+      }
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0,
+        "y": 0.6,
+        "scale": 0.45
+      },
+      "top_crest": {
+        "hidden": true
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-45",
+      "Q90",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

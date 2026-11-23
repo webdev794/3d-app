@@ -158,6 +158,7 @@ const modelOwnNecks = {
   'fbJersey': 'round',
   'womenRugbyJersey': 'v',
   'womenFootballJersey': 'v',
+  'womenSinglet': 'round',
 };
 
 /// A model's own neck by its name where it is not a plain round or V neck

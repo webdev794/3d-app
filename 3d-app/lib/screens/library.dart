@@ -801,6 +801,191 @@ class _AssetsScreenState extends State<AssetsScreen> {
   void _select(String tab) {
     setState(() => _tab = tab);
     if (tab == 'Artboard' && _designs == null) _loadDesigns();
+    if (tab == 'Saved' && _saved == null) _loadSaved();
+  }
+
+  /// Assets › Saved (task 9.92, as the website's Assets page): what is kept on
+  /// the account (GET /assets), newest first; null until loaded. Pictures are
+  /// fetched one by one into [_thumbs] (by asset id).
+  List<Map<String, dynamic>>? _saved;
+  String? _savedError;
+  int? _savedStatus;
+  bool _savedLoading = false;
+  final _thumbs = <int, Uint8List>{};
+
+  static const _savedTypes = {
+    'logo': 'Logo',
+    'pattern': 'Pattern',
+    'artwork': 'Artwork',
+    'mockup': 'Mockup',
+    'reference': 'Reference',
+    'design': 'Design file',
+    'layout': 'Print layout',
+  };
+
+  Future<void> _loadSaved() async {
+    if (_savedLoading || !c.signedIn) return;
+    setState(() {
+      _savedLoading = true;
+      _savedError = null;
+      _savedStatus = null;
+    });
+    try {
+      final list = await c.api.assets();
+      if (!mounted) return;
+      setState(() => _saved = list);
+      // Their pictures, one at a time (a file that does not load keeps its icon).
+      for (final a in list.take(60)) {
+        final id = a['id'];
+        if (id is! int || _thumbs.containsKey(id) || !_isPicture(a)) continue;
+        try {
+          final url = await c.api.assetDataUrl(id);
+          if (!mounted) return;
+          if (!url.startsWith('data:image/')) continue;
+          setState(
+            () => _thumbs[id] = base64Decode(url.substring(url.indexOf(',') + 1)),
+          );
+        } on Object {
+          // Left as its icon.
+        }
+      }
+    } on ApiException catch (e) {
+      if (mounted) {
+        setState(() {
+          _savedError = e.message;
+          _savedStatus = e.status;
+        });
+      }
+    } on Object {
+      if (mounted) {
+        setState(() => _savedError = 'That did not work. Please try again.');
+      }
+    } finally {
+      _savedLoading = false;
+      if (mounted) setState(() {});
+    }
+  }
+
+  /// A picture (PNG, JPG, WebP), not a PDF / SVG / design file.
+  static bool _isPicture(Map<String, dynamic> a) {
+    final mime = '${a['mime'] ?? a['mime_type'] ?? ''}';
+    if (mime.isNotEmpty) return mime.startsWith('image/') && !mime.contains('svg');
+    final name = '${a['path'] ?? a['name'] ?? ''}'.toLowerCase();
+    return a['type'] != 'design' && a['type'] != 'layout' ||
+        RegExp(r'\.(png|jpe?g|webp)$').hasMatch(name);
+  }
+
+  Widget _savedTab() {
+    Widget scroll(Widget child) => SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+      child: child,
+    );
+    if (!c.signedIn || _savedStatus == 401) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-saved-signin'),
+          icon: Icons.cloud_outlined,
+          title: 'Saved on your account',
+          text: _savedStatus == 401
+              ? 'Your session has expired. Sign in again to see what you keep on your account.'
+              : 'Sign in to see the logos, artwork, mockups and designs kept on your account, on the website and in the app.',
+          action: 'SIGN IN',
+          onAction: () => c.go(AppScreen.auth),
+        ),
+      );
+    }
+    if (_savedError case final error?) {
+      return scroll(
+        _EmptyCard(
+          key: const ValueKey('assets-saved-error'),
+          icon: Icons.cloud_off_outlined,
+          title: 'Could not load your saved assets',
+          text: error,
+          action: 'TRY AGAIN',
+          onAction: _loadSaved,
+        ),
+      );
+    }
+    final saved = _saved;
+    if (saved == null) {
+      return const Center(
+        child: CircularProgressIndicator(color: Palette.cyan),
+      );
+    }
+    if (saved.isEmpty) {
+      return scroll(
+        const _EmptyCard(
+          key: ValueKey('assets-saved-empty'),
+          icon: Icons.cloud_outlined,
+          title: 'Nothing saved yet',
+          text:
+              'Logos, artwork, mockups and designs you keep on your account (also from the website and the 3DEEZI TEAM) show here.',
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: () async {
+        _saved = null;
+        await _loadSaved();
+      },
+      child: GridView(
+        key: const ValueKey('assets-saved-grid'),
+        padding: const EdgeInsets.fromLTRB(2, 12, 2, 12),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          childAspectRatio: .8,
+        ),
+        children: [
+          for (final a in saved) _savedCard(a),
+        ],
+      ),
+    );
+  }
+
+  Widget _savedCard(Map<String, dynamic> a) {
+    final bytes = _thumbs[a['id']];
+    return GlowCard(
+              key: ValueKey('assets-saved-${a['id']}'),
+              radius: 12,
+              glow: false,
+              onTap: bytes == null
+                  ? () => showToast(
+                      context,
+                      '${a['name'] ?? 'This file'} is kept on your account; open Assets on the website to download it.',
+                    )
+                  : () => _use(bytes),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: bytes != null
+                        ? artImage(bytes: bytes, fit: BoxFit.contain)
+                        : const Center(
+                            child: Icon(
+                              Icons.insert_drive_file_outlined,
+                              color: Palette.muted,
+                              size: 28,
+                            ),
+                          ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(4, 4, 4, 6),
+                    child: Text(
+                      '${a['name'] ?? _savedTypes[a['type']] ?? 'Asset'}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 10, color: Color(0xffd3dee8)),
+                    ),
+                  ),
+                  Text(
+                    _savedTypes[a['type']] ?? '${a['type'] ?? ''}',
+                    style: const TextStyle(fontSize: 9, color: Palette.muted),
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
+            );
   }
 
   void _loadDesigns() {
@@ -998,7 +1183,10 @@ class _AssetsScreenState extends State<AssetsScreen> {
         );
         if (edited == null || !mounted) return;
         setState(() => list.add(edited));
-        showToast(context, 'Saved as a new picture in $tab.');
+        showToast(
+          context,
+          'Saved as a new picture in ${tab == 'Saved' ? 'Uploads' : tab}.',
+        );
     }
   }
 
@@ -1028,6 +1216,7 @@ class _AssetsScreenState extends State<AssetsScreen> {
               'Artwork',
               'Artboard',
               'Uploads',
+              'Saved',
             ],
             selected: _tab,
             onSelect: _select,
@@ -1035,6 +1224,9 @@ class _AssetsScreenState extends State<AssetsScreen> {
           // The designs saved in the Artboard (as on the website's Assets).
           if (_tab == 'Artboard')
             Expanded(child: _artboardTab())
+          // What is kept on the account (task 9.92).
+          else if (_tab == 'Saved')
+            Expanded(child: _savedTab())
           // Uploads and Artwork hold only the customer's own pictures: empty,
           // the website's "No assets yet" card.
           else if (items.isEmpty && (_tab == 'Uploads' || _tab == 'Artwork'))

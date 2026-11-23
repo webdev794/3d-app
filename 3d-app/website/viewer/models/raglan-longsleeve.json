@@ -1,0 +1,52 @@
+{
+  "about": "Raglan long-sleeve tee (RUGBYV 2026-11-20, coordinator; cards 68399 front / 68400 back): Tripo model raglan-longsleeve-textured.glb (shape only), coloured from raglan-longsleeve-parts.glb by viewer/tripo-glbparts.mjs. Printed through the made compression top's long-sleeve pattern. Shown by the flag raglanLs on the new 'Raglan long-sleeve' tiles (after each Long-sleeve tee tile). The raglan sleeves (shoulder to cuff) take the Left / Right sleeve colour areas.",
+  "glb": "../../../tripo/raglan-longsleeve-textured.glb",
+  "converter": "top",
+  "part": "compression",
+  "garment": "compression",
+  "flag": "raglanLs",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "compression",
+    "creaseDeg": 25
+  },
+  "look": {
+    "secondary": "#27282a",
+    "accent": "#c8102e",
+    "patternColor": "#00688a",
+    "parts": {
+      "leftSleeve": {
+        "colour": "#c8102e"
+      },
+      "rightSleeve": {
+        "colour": "#c8102e"
+      }
+    },
+    "zoneColors": {
+      "raglanLs": "#27282a",
+      "labelDark": "#2e3034"
+    },
+    "marks": {
+      "top_wordmark": {
+        "y": 0.515,
+        "scale": 0.55
+      },
+      "top_crest": {
+        "y": 0.578,
+        "scale": 0.75
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-135",
+      "Q90"
+    ]
+  }
+}

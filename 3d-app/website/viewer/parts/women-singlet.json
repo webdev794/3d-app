@@ -1,0 +1,53 @@
+{
+  "about": "Women's running singlet (women-singlet-textured.glb) coloured from women-singlet-parts.glb (22 parts) by viewer/tripo-glbparts.mjs: front 19, back 34, side panels and inside 20, hem band new_0 and small bits the print; neck band 7 the Collar colour; armhole bands 3 (x+) and 5 (x-) the trim colour. MODELQ5 2026-11-20.",
+  "glbParts": {
+    "glb": "../../../tripo/women-singlet-parts.glb",
+    "keys": {
+      "tripo_part_15": null,
+      "tripo_part_19": null,
+      "tripo_part_20": null,
+      "tripo_part_26": null,
+      "tripo_part_27": null,
+      "tripo_part_28": null,
+      "tripo_part_29": null,
+      "tripo_part_3": "part:leftCuff",
+      "tripo_part_30": null,
+      "tripo_part_34": null,
+      "tripo_part_35": null,
+      "tripo_part_36": null,
+      "tripo_part_38": null,
+      "tripo_part_39": null,
+      "tripo_part_40": null,
+      "tripo_part_41": null,
+      "tripo_part_42": null,
+      "tripo_part_5": "part:rightCuff",
+      "tripo_part_7": "collar",
+      "tripo_part_8": null,
+      "tripo_part_new_0": null,
+      "tripo_part_new_1": null
+    },
+    "collar": "collar",
+    "sleeves": [
+      "part:leftCuff",
+      "part:rightCuff"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.006,
+      "cuff": 0.015,
+      "hem": 0.017,
+      "sigma": 0.03
+    },
+    "evenCuffs": true,
+    "evenCollar": true,
+    "data": {
+      "insideCloth": true
+    },
+    "cuffWidth": 0.01
+  }
+}

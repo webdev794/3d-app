@@ -1,0 +1,46 @@
+{
+  "about": "Cycling > MTB jersey (NEW tile after the Cycling jersey; HOODIE/MODELQ6 2026-11-20, first version): Tripo model mtb-jersey-textured.glb (its shape only; coloured from mtb-jersey-parts.glb by viewer/tripo-hoodie.mjs), booklet cards 39560 (front) / 39638 (back): a loose long-sleeve V-neck trail jersey with a V-neck band, cuffs and a hem band; our marks only. Shown as the Jersey part; stand-in jersey picture.",
+  "glb": "../../../tripo/mtb-jersey-textured.glb",
+  "converter": "top",
+  "part": "jersey",
+  "flag": "mtbJersey",
+  "ownNeck": "v",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "jersey",
+    "creaseDeg": 25,
+    "top": 0.93
+  },
+  "look": {
+    "main": "#27282a",
+    "secondary": "#16b4f0",
+    "accent": "#16b4f0",
+    "patternColor": "#16b4f0",
+    "zones": [],
+    "zoneColors": {
+      "mtbJersey": "#ffffff"
+    },
+    "marks": {
+      "top_crest": {
+        "x": 0.09,
+        "y": 0.6,
+        "scale": 0.55
+      },
+      "top_wordmark": {
+        "x": -0.09,
+        "y": 0.6,
+        "scale": 0.5
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}
