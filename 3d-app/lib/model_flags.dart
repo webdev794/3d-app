@@ -54,6 +54,9 @@ const modelFlags = [
   'pufferVest',
   'sportsBra',
   'womenShorts',
+  'swimShorts',
+  'menTights',
+  'runningShorts',
 ];
 
 /// [next] zoneColors with the model flags of [was] it lacks put back.

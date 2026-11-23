@@ -235,6 +235,9 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'runningShorts' => ['main' => '#1a2a52', 'secondary' => '#e9b80c', 'accent' => '#e9b80c', 'patternColor' => '#e9b80c', 'zones' => ['sides' => 'Solid'], 'parts' => ['waistband' => ['colour' => '#1a2a52'], 'shortsHem' => ['colour' => '#1a2a52'], 'shortsSides' => ['colour' => '#e9b80c']], 'zoneColors' => ['runningShorts' => '#1a2a52', 'cordTips' => '#1a2a52'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.12, 'y' => 0.13, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.17, 'y' => 0.12, 'scale' => 0.5]], 'layers' => []],
+        'menTights' => ['main' => '#3b3b3d', 'secondary' => '#646466', 'accent' => '#646466', 'patternColor' => '#646466', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#646466']], 'zoneColors' => ['menTights' => '#3b3b3d', 'pantsStripe' => '#646466'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84, 'scale' => 0.8], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802, 'scale' => 0.8]], 'layers' => []],
+        'swimShorts' => ['main' => '#e48a62', 'secondary' => '#b0542c', 'accent' => '#b0542c', 'patternColor' => '#b0542c', 'parts' => ['waistband' => ['colour' => '#e48a62']], 'zoneColors' => ['swimShorts' => '#e48a62', 'cord' => '#f4f4f2'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.13, 'y' => 0.075, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.06, 'scale' => 0.5]], 'layers' => []],
         'womenShorts' => ['main' => '#1c4a8e', 'secondary' => '#27282a', 'accent' => '#27282a', 'patternColor' => '#27282a', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['womenShorts' => '#1c4a8e'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['side' => 'front', 'x' => -0.14, 'y' => 0.1, 'scale' => 0.7], 'shorts_wordmark' => ['side' => 'front', 'x' => -0.14, 'y' => 0.065, 'scale' => 0.5]], 'layers' => []],
         'sportsBra' => ['main' => '#2a5aa6', 'secondary' => '#142c6e', 'accent' => '#ffffff', 'patternColor' => '#142c6e', 'number' => '', 'zones' => [], 'zoneColors' => ['sportsBra' => '#142c6e'], 'parts' => ['collar' => ['colour' => '#2a5aa6']], 'marks' => ['top_wordmark' => ['x' => 0.08, 'y' => 0.5, 'scale' => 0.9], 'top_crest' => ['hidden' => true], 'top_number' => ['hidden' => true], 'top_name' => ['hidden' => true]], 'layers' => []],
         'pufferVest' => ['zoneColors' => ['pufferVest' => '#ffffff', 'body' => '#24272b', 'shoulder' => '#24272b', 'side' => '#24272b', 'stripe' => '#24272b', 'zip' => '#00c4f0']],
@@ -497,7 +500,7 @@ $sports = [
         'prompt' => 'athletics and running: a racing singlet with split shorts; a crop top for women', 'tiles' => [
             $tile('Racing singlet', 'Featherweight singlet for race day.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for race day.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
-            $tile('Running shorts', 'Split shorts built for speed.', 'shorts'),
+            $tile('Running shorts', 'Split shorts built for speed.', 'shorts', 'shorts') + ['design' => $look('runningShorts')],
             $tile("Women's shorts", 'Fitted sport shorts for the track.', 'shorts', 'shorts') + ['design' => $look('womenShorts')],
             $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
@@ -505,6 +508,7 @@ $sports = [
             $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
             $tile('Running tights', 'Long, 3/4 or short compression tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Compression pants', 'Full-length compression pants for the track.', 'shorts', 'leggings') + ['design' => $look('compressionPants')],
+            $tile("Men's tights", "Full-length men's running tights.", 'shorts', 'leggings') + ['design' => $look('menTights')],
             $tile('Track jacket', 'Full-zip jacket for warm-ups.', 'trackjacket'),
             $tile('Track pants', 'Tapered pants to match the jacket.', 'shorts', 'track-pants') + ['design' => $look('tpModel')],
             $tile('Hoodie', 'Warm hoodie between events.', 'hoodie', 'team-hoodie'),
@@ -516,6 +520,7 @@ $sports = [
             $tile('Club singlet', 'Light singlet for squad training.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for squad training.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
             $tile('Deck shorts', 'Quick-dry shorts for the pool deck.', 'shorts'),
+            $tile('Swim shorts', 'Drawstring swim shorts in quick-dry fabric.', 'shorts', 'shorts') + ['design' => $look('swimShorts')],
             $tile('Club hoodie', 'Warm hoodie between races.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for early starts.', 'ziphoodie'),
             $tile('Deck polo', 'Smart polo for coaches and officials.', 'polo'),
@@ -665,6 +670,7 @@ $sports = [
             $tile('Corner jacket', 'Full-zip jacket for the team.', 'trackjacket'),
             $tile('Compression spats', 'Compression tights for grappling.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Compression pants', 'Full-length compression pants for the mat.', 'shorts', 'leggings') + ['design' => $look('compressionPants')],
+            $tile("Men's tights", "Full-length men's tights for the mat.", 'shorts', 'leggings') + ['design' => $look('menTights')],
         ]],
     ['id' => 'fishing', 'name' => 'Fishing', 'description' => 'Sun-smart shirts for the boat and the beach.', 'group' => 'apparel',
         'prompt' => 'fishing: a lightweight long-sleeve fishing shirt with a zip or button collar or a hood, ocean graphics', 'tiles' => [
@@ -702,6 +708,7 @@ $sports = [
             $tile('Gym shorts', 'Light shorts for training.', 'shorts'),
             $tile('Leggings', 'Squat-proof leggings and tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Compression pants', 'Full-length compression pants for lifting.', 'shorts', 'leggings') + ['design' => $look('compressionPants')],
+            $tile("Men's tights", "Full-length men's tights for training.", 'shorts', 'leggings') + ['design' => $look('menTights')],
             $tile('Hoodie', 'Warm hoodie for warm-ups.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for the gym.', 'ziphoodie'),
             $tile('Sleeveless hoodie', 'Sleeveless hoodie for training.', 'hoodie', 'team-hoodie') + ['design' => $look('sleevelessHoodie')],

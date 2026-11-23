@@ -1,0 +1,61 @@
+{
+  "about": "Men's tights (new \"Men's tights\" tile after Compression pants in Athletics, Fight wear and Gymwear (no men's tights tile before); coordinator 23 Nov, card 95147): Tripo model men-leggings-textured.glb (shape only) in card 95147's colours (charcoal body; its own waistband a lighter grey, the Waistband part, 0.06 deep as men-leggings-parts.glb tripo_part_17; our 3 mark and wordmark on the front left hip where the card has its label). The card's big script logo on the right leg is not ours and not used. Method as the compression pants. First version (models live first). MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/men-leggings-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "trackpants",
+    "legs": 0.702,
+    "creaseDeg": 25
+  },
+  "part": "trackpants",
+  "garment": "shorts",
+  "flag": "menTights",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#3b3b3d",
+    "secondary": "#646466",
+    "accent": "#646466",
+    "patternColor": "#646466",
+    "pattern": "None",
+    "number": "",
+    "parts": {
+      "waistband": {
+        "colour": "#646466"
+      }
+    },
+    "zoneColors": {
+      "menTights": "#3b3b3d",
+      "pantsStripe": "#646466"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": 0.17,
+        "y": 0.84,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "x": 0.17,
+        "y": 0.802,
+        "scale": 0.8
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D70P72",
+      "zoomQ-160D70P72"
+    ]
+  }
+}

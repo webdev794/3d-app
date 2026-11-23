@@ -1,0 +1,60 @@
+{
+  "about": "Swimming > Swim shorts (new \"Swim shorts\" tile after Deck shorts (no swim or board shorts tile before); coordinator 23 Nov, card 103770): Tripo model swim-shorts-textured.glb (shape only) in card 103770's colours (warm orange body; its own elastic waistband in the same orange, the Waistband part; its own drawcord white, the Cord zone; our 3 mark and wordmark low on the legs; the card has no label). The card's leaf print is not used (no such pattern; leaf orange kept as Secondary). Pieces method as the training shorts (tripo-parts edge rule: its own waistband from its top edge to its foot, the depth of swim-shorts-parts.glb tripo_part_2/3; tripo-pieces fromParts). First version (models live first). MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/swim-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.281,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "swimShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#e48a62",
+    "secondary": "#b0542c",
+    "accent": "#b0542c",
+    "patternColor": "#b0542c",
+    "parts": {
+      "waistband": {
+        "colour": "#e48a62"
+      }
+    },
+    "zoneColors": {
+      "swimShorts": "#e48a62",
+      "cord": "#f4f4f2"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": -0.13,
+        "y": 0.075,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": 0.15,
+        "y": 0.06,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

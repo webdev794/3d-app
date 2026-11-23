@@ -1,0 +1,74 @@
+{
+  "about": "Athletics > Running shorts (RUGBYV 2026-11-23, coordinator; booklet card 37496): Tripo model running-shorts-textured.glb (shape only), coloured from running-shorts-parts.glb by viewer/tripo-glbparts.mjs: its gathered waistband the Waistband part, its hem bindings the Hem part, its side panels the Side panels part; body the print. Look: booklet card 37496 (D:/3d-app/tripo/cards/37496.jpg, colours sampled there): navy body, waistband and hem bindings, golden-yellow side panels; our 3 mark low on the front leg (as the card's label) and our wordmark low on the other front leg (first version; the card's lettering down the side panel is pending_on_models.md); the card's own text and script never copied.",
+  "glb": "../../../tripo/running-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.26,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "runningShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Running shorts",
+      "image": "shorts"
+    }
+  ],
+  "look": {
+    "main": "#1a2a52",
+    "secondary": "#e9b80c",
+    "accent": "#e9b80c",
+    "patternColor": "#e9b80c",
+    "zones": {
+      "sides": "Solid"
+    },
+    "parts": {
+      "waistband": {
+        "colour": "#1a2a52"
+      },
+      "shortsHem": {
+        "colour": "#1a2a52"
+      },
+      "shortsSides": {
+        "colour": "#e9b80c"
+      }
+    },
+    "zoneColors": {
+      "runningShorts": "#1a2a52",
+      "cordTips": "#1a2a52"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": -0.12,
+        "y": 0.13,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": 0.17,
+        "y": 0.12,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

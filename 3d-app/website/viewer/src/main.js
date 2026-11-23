@@ -583,6 +583,20 @@ function paintPlains(part, design) {
   });
 }
 
+/** A strip line's normal at point `i` (data `n`): a point whose normal came out zero (HOODIE 2026-11-23: 14 such points on the
+ * zip hoodie's zip line) takes the nearest point's good one, else +z. A zero normal on a lit strip (the zip's tape, teeth and
+ * pull, a piping strip) made NaN in its shading, and the glow pass spread it over the whole frame: a fully black picture from
+ * the front. */
+function stripNormal(s, i) {
+  const n = s.n.length / 3;
+  for (let d = 0; d < n; d++) for (const j of d ? [i - d, i + d] : [i]) {
+    if (j < 0 || j >= n) continue;
+    const v = new THREE.Vector3(s.n[j * 3], s.n[j * 3 + 1], s.n[j * 3 + 2]);
+    if (v.lengthSq() > 1e-6) return v.normalize();
+  }
+  return new THREE.Vector3(0, 0, 1);
+}
+
 /** A model's stitch lines (data `stitches`: [{ c: [x, y, z, ...] on the cloth, n: its normals, closed }]) as one mesh of thin
  * strips, `width` wide, lifted `lift` off the cloth, black at low opacity: the cloth under it a shade darker. */
 function stitchStrips(stitches, width = 0.0016, lift = 0.0007) {
@@ -591,7 +605,7 @@ function stitchStrips(stitches, width = 0.0016, lift = 0.0007) {
     const n = s.c.length / 3, at = (i) => [s.c[i * 3], s.c[i * 3 + 1], s.c[i * 3 + 2]], base = P.length / 3;
     for (let i = 0; i < n; i++) {
       const p = at(i), q = at(s.closed ? (i + 1) % n : Math.min(n - 1, i + 1)), o = at(s.closed ? (i - 1 + n) % n : Math.max(0, i - 1));
-      const N = new THREE.Vector3(s.n[i * 3], s.n[i * 3 + 1], s.n[i * 3 + 2]).normalize(), T = new THREE.Vector3(q[0] - o[0], q[1] - o[1], q[2] - o[2]);
+      const N = stripNormal(s, i), T = new THREE.Vector3(q[0] - o[0], q[1] - o[1], q[2] - o[2]);
       const side = new THREE.Vector3().crossVectors(T, N).normalize().multiplyScalar(width / 2), c = new THREE.Vector3(...p).addScaledVector(N, lift);
       P.push(c.x + side.x, c.y + side.y, c.z + side.z, c.x - side.x, c.y - side.y, c.z - side.z);
       NN.push(N.x, N.y, N.z, N.x, N.y, N.z);
@@ -633,7 +647,7 @@ function zipStrips(lines) {
         const p = at(i), T = at(Math.min(n - 1, i + 1)).sub(at(Math.max(0, i - 1)));
         if (i) len += p.distanceTo(at(i - 1));
         if (len > upTo + 0.002) break;
-        const Nn = new THREE.Vector3(s.n[i * 3], s.n[i * 3 + 1], s.n[i * 3 + 2]).normalize();
+        const Nn = stripNormal(s, i);
         const side = new THREE.Vector3().crossVectors(T, Nn).normalize().multiplyScalar(width / 2), c = p.clone().addScaledVector(Nn, lift);
         P.push(c.x + side.x, c.y + side.y, c.z + side.z, c.x - side.x, c.y - side.y, c.z - side.z);
         N.push(Nn.x, Nn.y, Nn.z, Nn.x, Nn.y, Nn.z);

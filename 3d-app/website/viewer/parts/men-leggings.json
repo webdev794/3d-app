@@ -1,0 +1,33 @@
+{
+  "about": "Men's tights (men-leggings-textured.glb): the model's own waistband (its top edge down 0.06, the depth of tripo_part_17 in men-leggings-parts.glb) in the Waistband part colour (else Main), per triangle (MODELQ5 2026-11-23, as the compression pants).",
+  "glb": "../../../tripo/men-leggings-textured.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "part:waistband|main"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.986,
+          0
+        ],
+        "mode": "up",
+        "margin": -0.058,
+        "min": 40
+      },
+      "where": "y > 0.85",
+      "part": "part:waistband|main"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}
