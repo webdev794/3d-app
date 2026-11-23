@@ -59,9 +59,9 @@ class SportGarmentTilesTest extends TestCase
     {
         $sports = collect(config('catalog.sports'))->keyBy('id');
         $netball = $sports['netball']['tiles'];
-        $this->assertSame(['Netball dress', 'Netball skirt', 'Singlet with bib', 'Training singlet', "Women's singlet", 'Training T-shirt', 'Netball bibs', 'Tracksuit', 'Hoodie'], array_column($netball, 'name'));
+        $this->assertSame(['Netball dress', 'Netball skirt', "Women's shorts", 'Singlet with bib', 'Training singlet', "Women's singlet", 'Training T-shirt', 'Netball bibs', 'Tracksuit', 'Hoodie'], array_column($netball, 'name'));
         // The dress is its own 3D garment since task 9.126, the skirt since 2026-10-29 (COMING SOON 10).
-        $this->assertSame(['netball-dress', 'skirt', 'singlet', 'singlet', 'singlet', 'tee', 'singlet', 'trackjacket', 'hoodie'], array_column($netball, 'garment'));
+        $this->assertSame(['netball-dress', 'skirt', 'shorts', 'singlet', 'singlet', 'singlet', 'tee', 'singlet', 'trackjacket', 'hoodie'], array_column($netball, 'garment'));
         $this->assertSame('Fitted netball dress with skirt hem.', $netball[0]['description']);
         $this->assertSame(['exact', 'exact'], [$netball[0]['fit'], $netball[1]['fit']]);
         $this->assertNotSame(false, $sports['netball']['more'] ?? true);

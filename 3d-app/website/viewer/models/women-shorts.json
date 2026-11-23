@@ -1,0 +1,60 @@
+{
+  "about": "Women's sport shorts (new \"Women's shorts\" tile after Women's fitness bottoms (Gymwear), after Running shorts (Athletics: no Training shorts tile there) and after Netball skirt (Netball: no shorts tile there); coordinator 23 Nov, card 48846): Tripo model women-shorts-textured.glb (shape only) in card 48846's colours (royal blue body; its own waistband in black, the Waistband part; our 3 mark over our wordmark low on the right leg front where the card has its small label). Pieces method as the training shorts (tripo-parts edge rule: its own waistband from its top edge down to its foot, the depth of women-shorts-parts.glb tripo_part_27; tripo-pieces fromParts). Our marks only (none of the card's text). First version (models live first). MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/women-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.201,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "womenShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#1c4a8e",
+    "secondary": "#27282a",
+    "accent": "#27282a",
+    "patternColor": "#27282a",
+    "parts": {
+      "waistband": {
+        "colour": "#27282a"
+      }
+    },
+    "zoneColors": {
+      "womenShorts": "#1c4a8e"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "side": "front",
+        "x": -0.14,
+        "y": 0.1,
+        "scale": 0.7
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": -0.14,
+        "y": 0.065,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

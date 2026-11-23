@@ -1063,7 +1063,17 @@ async function flatGarment(src: string): Promise<{ flat: boolean; panels: number
   const bg = clear > rim * 0.3 ? -1 : [...edge.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? -1;
   const near = (q: number) => bg >= 0 && Math.abs((q >> 8) - (bg >> 8)) + Math.abs(((q >> 4) & 15) - ((bg >> 4) & 15)) + Math.abs((q & 15) - (bg & 15)) <= 2;
   const label = new Int32Array(w * h).fill(-1);
-  for (let i = 0; i < w * h; i++) if (px[i * 4 + 3] < 40 || near(key(i * 4))) label[i] = -2;
+  // (The page's own colour, measured round the edge: a white stripe on a cream page is the garment, not the page; QATEST
+  // 2026-11-23.)
+  const rimPx: number[] = [];
+  const addRim = (x: number, y: number) => { const at = (y * w + x) * 4; if (px[at + 3] >= 40 && near(key(at))) rimPx.push(at); };
+  for (let x = 0; x < w; x++) { addRim(x, 0); addRim(x, h - 1); }
+  for (let y = 0; y < h; y++) { addRim(0, y); addRim(w - 1, y); }
+  const mean = [0, 1, 2].map(j => rimPx.reduce((t, at) => t + px[at + j], 0) / Math.max(1, rimPx.length));
+  const off = (at: number) => Math.abs(px[at] - mean[0]) + Math.abs(px[at + 1] - mean[1]) + Math.abs(px[at + 2] - mean[2]);
+  const spread = rimPx.map(off).sort((a, b) => a - b), limit = Math.max(18, 1.5 * (spread[Math.floor(0.95 * (spread.length - 1))] ?? 0));
+  const page = (at: number) => near(key(at)) && (!rimPx.length || off(at) <= limit);
+  for (let i = 0; i < w * h; i++) if (px[i * 4 + 3] < 40 || page(i * 4)) label[i] = -2;
   const apart = (a: number, b: number) => Math.abs((a >> 8) - (b >> 8)) + Math.abs(((a >> 4) & 15) - ((b >> 4) & 15)) + Math.abs((a & 15) - (b & 15)) > 4;
   // The shapes (4-neighbour), each with its size and box.
   const shapes: { n: number; x0: number; y0: number; x1: number; y1: number }[] = [];
@@ -1098,6 +1108,31 @@ async function flatGarment(src: string): Promise<{ flat: boolean; panels: number
   const largest = Math.max(0, ...counted.map(s => s.n));
   const big = counted.filter(s => s.n >= 0.35 * largest);
   if (!big.length || big.length > 2 || counted.some(s => s.n >= 0.08 * largest && s.n < 0.35 * largest)) return { flat: false, panels };
+  // (Front and back side by side touching at a sleeve tip in the small copy: cut apart at the narrowest column near the
+  // middle; QATEST 2026-11-23.)
+  if (big.length === 1) {
+    const S = big[0], id = shapes.indexOf(S), bw = S.x1 - S.x0 + 1, bh = S.y1 - S.y0 + 1;
+    if (bh < 0.6 * bw) {
+      let xc = -1, least = Infinity;
+      for (let x = S.x0 + Math.round(0.35 * bw); x <= S.x1 - Math.round(0.35 * bw); x++) {
+        let n = 0;
+        for (let y = S.y0; y <= S.y1; y++) if (label[y * w + x] === id) n++;
+        if (n < least) { least = n; xc = x; }
+      }
+      if (xc >= 0 && least <= Math.max(2, 0.06 * bh)) {
+        const A = { n: 0, x0: w, y0: h, x1: 0, y1: 0 }, B = { n: 0, x0: w, y0: h, x1: 0, y1: 0 }, nid = shapes.length;
+        for (let y = S.y0; y <= S.y1; y++) for (let x = S.x0; x <= S.x1; x++) {
+          const i = y * w + x;
+          if (label[i] !== id) continue;
+          const T = x > xc ? B : A;
+          if (x > xc) label[i] = nid;
+          T.n++; T.x0 = Math.min(T.x0, x); T.x1 = Math.max(T.x1, x); T.y0 = Math.min(T.y0, y); T.y1 = Math.max(T.y1, y);
+        }
+        if (Math.min(A.n, B.n) >= 0.35 * Math.max(A.n, B.n)) { Object.assign(S, A); shapes.push(B); big.push(B); }
+        else for (let i = 0; i < w * h; i++) if (label[i] === nid) label[i] = id;
+      }
+    }
+  }
   const filled = (id: number, y: number, from: number, to: number) => { let n = 0; for (let x = from; x <= to; x++) if (label[y * w + x] === id) n++; return n; };
   // (The hem: the widest of the rows just above it, as a white hem band can melt into a light background.)
   const shapeOk = (s: typeof big[number]) => { const bw = s.x1 - s.x0 + 1, bh = s.y1 - s.y0 + 1; return bh >= 0.6 * bw && bh <= 2.4 * bw && Math.max(...[0.03, 0.06, 0.09, 0.12, 0.15].map(f => filled(shapes.indexOf(s), s.y1 - Math.round(f * bh), s.x0, s.x1))) >= 0.45 * bw; };
@@ -1107,7 +1142,28 @@ async function flatGarment(src: string): Promise<{ flat: boolean; panels: number
     const on = (from: number, to: number) => { const xs: number[] = []; for (let x = from; x <= to; x++) if (label[y * w + x] === id) xs.push(x); return xs; };
     const left = on(s.x0, Math.round(cx - 0.1 * bw)), right = on(Math.round(cx + 0.1 * bw), s.x1), at = (x: number) => key((y * w + x) * 4);
     if (!left.length || !right.length) return false;
-    return label[y * w + cx] !== id || (apart(at(cx), at(left[left.length >> 1])) && apart(at(cx), at(right[right.length >> 1])));
+    if (label[y * w + cx] !== id || (apart(at(cx), at(left[left.length >> 1])) && apart(at(cx), at(right[right.length >> 1])))) return true;
+    // (A neck drawn only as its outline, the body's colour inside (a ring, a U): on a top edge across most of the shape, a
+    // line each side of the middle, as far from it; lower down both come closer, as a U does (a waistband's cords do not).
+    // QATEST 2026-11-23.)
+    let r0 = -1, r1 = -1;
+    for (let x = s.x0; x <= s.x1; x++) if (label[y * w + x] === id) { if (r0 < 0) r0 = x; r1 = x; }
+    if (r1 - r0 < 0.45 * bw) return false;
+    const hit = (step: number, yy: number) => {
+      for (let t = 1; t <= Math.round(0.3 * bw); t++) {
+        const x = cx + step * t;
+        if (x < 0 || x >= w || label[yy * w + x] !== id) return -1;
+        if (apart(key((yy * w + x) * 4), key((yy * w + cx) * 4))) return t;
+      }
+      return -1;
+    };
+    const l = hit(-1, y), r = hit(1, y);
+    if (l < 0 || r < 0 || Math.abs(l - r) > 0.08 * bw + 1) return false;
+    for (let yy = y + 1; yy <= Math.min(s.y1, y + Math.max(2, Math.round(0.08 * bh))); yy++) {
+      const l2 = hit(-1, yy), r2 = hit(1, yy);
+      if (l2 >= 0 && r2 >= 0 && l2 < l && r2 < r) return true;
+    }
+    return false;
   };
   return { flat: big.every(shapeOk) && big.some(neck), panels };
 }
@@ -1242,7 +1298,8 @@ export function ConvertPage({ catalog, draft, onChange, requireAuth, onStudio, o
     try {
       const preview = type === 'application/pdf' ? await artworkPicture({ file: kept, type }, 1200) : await readFileData(kept, type);
       const img = new Image(); img.src = preview; await img.decode().catch(() => undefined);
-      const wide = (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1) > 1.45;
+      // (1.4: a print layout on A4 landscape, 1.41, too; QATEST 2026-11-23.)
+      const wide = (img.naturalWidth || 1) / Math.max(1, img.naturalHeight || 1) > 1.4;
       const look = await artworkLook(preview).catch(() => plainLook);
       const { flat, panels } = await flatGarment(preview).catch(() => ({ flat: false, panels: 2 }));
       setArt({ file: kept, type, name, preview, wide, look, flat, panels });

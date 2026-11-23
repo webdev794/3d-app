@@ -53,6 +53,18 @@ export default {
   lib: "export { buildGarment, SPECS } from './garment.js';",
   async convert({ glb, lib, tools, settings }) {  // eslint-disable-line no-param-reassign
     const C = settings.convert ?? {}, log = [];
+    // (HOODIE 2026-11-23: `weld`: points that are the same point (identical place and normal; a textured model splits them
+    // along its texture's seams) taken as one, so a fine model stays under the 65535 points of the data. Nothing moves.)
+    if (C.weld) {
+      const at = new Map(), keep = [], to = new Uint32Array(glb.pos.length / 3);
+      for (let i = 0; i < to.length; i++) {
+        const k = `${glb.pos[i * 3]},${glb.pos[i * 3 + 1]},${glb.pos[i * 3 + 2]},${glb.nor[i * 3]},${glb.nor[i * 3 + 1]},${glb.nor[i * 3 + 2]}`;
+        if (!at.has(k)) { at.set(k, keep.length); keep.push(i); }
+        to[i] = at.get(k);
+      }
+      const pick = (A) => Float32Array.from({ length: keep.length * 3 }, (_, j) => A[keep[Math.floor(j / 3)] * 3 + (j % 3)]);
+      glb = { ...glb, pos: pick(glb.pos), nor: pick(glb.nor), idx: glb.idx.map((v) => to[v]) };
+    }
     const { neighbours } = tools;
     const made = lib.buildGarment(C.made ?? settings.part, { detail: true });
     made.geometry.computeBoundingBox();

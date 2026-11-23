@@ -1,0 +1,57 @@
+{
+  "about": "Sports bra (sports-bra-textured.glb, HOODIE 2026-11-23, first version): coloured from the same garment split into parts by Tripo (sports-bra-parts.glb, 4 parts) by viewer/tripo-hoodie.mjs: the cups, straps and racerback the print (part 22); the neck binding (part 10) the Collar colour (else the trim); the armhole bindings (part 6, which Tripo made together with the inside lining) the print for now (pending); the underband (part 25) an even band in the Rib colour (else the trim) from the bottom edge. Stitch lines beside the neck binding.",
+  "hoodieParts": {
+    "glb": "../../../tripo/sports-bra-parts.glb",
+    "roles": {
+      "tripo_part_22": "body",
+      "tripo_part_10": "collar",
+      "tripo_part_6": "body",
+      "tripo_part_25": "hem"
+    },
+    "order": [
+      "collar"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "collar",
+        "own": true,
+        "steps": 30,
+        "sigma": 0.012,
+        "oneSide": true
+      }
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|secondary",
+        "dir": "down",
+        "margin": 0.03,
+        "first": true,
+        "width": 0.062
+      }
+    },
+    "plainKeys": [
+      "collar"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "collar",
+          "at": -0.004
+        }
+      ],
+      "rings": []
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

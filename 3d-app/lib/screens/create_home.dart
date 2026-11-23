@@ -3317,9 +3317,39 @@ Future<({bool flat, int panels})> _flatGarment(ui.Image image) async {
               (((q >> 4) & 15) - ((bg >> 4) & 15)).abs() +
               ((q & 15) - (bg & 15)).abs() <=
           2;
+  // (The page's own colour, measured round the edge: a white stripe on a
+  // cream page is the garment, not the page; QATEST 2026-11-23, as Create.tsx.)
+  final rimPx = <int>[];
+  void addRim(int x, int y) {
+    final at = (y * w + x) * 4;
+    if (px[at + 3] >= 40 && near(key(at))) rimPx.add(at);
+  }
+
+  for (var x = 0; x < w; x++) {
+    addRim(x, 0);
+    addRim(x, h - 1);
+  }
+  for (var y = 0; y < h; y++) {
+    addRim(0, y);
+    addRim(w - 1, y);
+  }
+  final mean = [
+    for (var j = 0; j < 3; j++)
+      rimPx.fold<int>(0, (t, at) => t + px[at + j]) / math.max(1, rimPx.length),
+  ];
+  double off(int at) =>
+      (px[at] - mean[0]).abs() +
+      (px[at + 1] - mean[1]).abs() +
+      (px[at + 2] - mean[2]).abs();
+  final spread = rimPx.map(off).toList()..sort();
+  final limit = math.max(
+    18.0,
+    1.5 * (spread.isEmpty ? 0 : spread[(0.95 * (spread.length - 1)).floor()]),
+  );
+  bool page(int at) => near(key(at)) && (rimPx.isEmpty || off(at) <= limit);
   final label = Int32List(w * h)..fillRange(0, w * h, -1);
   for (var i = 0; i < w * h; i++) {
-    if (px[i * 4 + 3] < 40 || near(key(i * 4))) label[i] = -2;
+    if (px[i * 4 + 3] < 40 || page(i * 4)) label[i] = -2;
   }
   // The shapes (4-neighbour): [size, x0, y0, x1, y1] each.
   final shapes = <List<int>>[];
@@ -3399,6 +3429,55 @@ Future<({bool flat, int panels})> _flatGarment(ui.Image image) async {
       )) {
     return (flat: false, panels: panels);
   }
+  // (Front and back side by side touching at a sleeve tip in the small copy:
+  // cut apart at the narrowest column near the middle; QATEST 2026-11-23.)
+  if (big.length == 1) {
+    final id = big.first, S = shapes[id];
+    final bw = S[3] - S[1] + 1, bh = S[4] - S[2] + 1;
+    if (bh < 0.6 * bw) {
+      var xc = -1, least = 1 << 30;
+      for (
+        var x = S[1] + (0.35 * bw).round();
+        x <= S[3] - (0.35 * bw).round();
+        x++
+      ) {
+        var n = 0;
+        for (var y = S[2]; y <= S[4]; y++) {
+          if (label[y * w + x] == id) n++;
+        }
+        if (n < least) {
+          least = n;
+          xc = x;
+        }
+      }
+      if (xc >= 0 && least <= math.max(2, 0.06 * bh)) {
+        final A = [0, w, h, 0, 0], B = [0, w, h, 0, 0], nid = shapes.length;
+        for (var y = S[2]; y <= S[4]; y++) {
+          for (var x = S[1]; x <= S[3]; x++) {
+            final i = y * w + x;
+            if (label[i] != id) continue;
+            final T = x > xc ? B : A;
+            if (x > xc) label[i] = nid;
+            T[0]++;
+            T[1] = math.min(T[1], x);
+            T[3] = math.max(T[3], x);
+            T[2] = math.min(T[2], y);
+            T[4] = math.max(T[4], y);
+          }
+        }
+        if (math.min(A[0], B[0]) >= 0.35 * math.max(A[0], B[0])) {
+          shapes[id] = A;
+          shapes.add(B);
+          root.add(nid);
+          big.add(nid);
+        } else {
+          for (var i = 0; i < w * h; i++) {
+            if (label[i] == nid) label[i] = id;
+          }
+        }
+      }
+    }
+  }
   int filled(int id, int y, int from, int to) {
     var n = 0;
     for (var x = from; x <= to; x++) {
@@ -3438,9 +3517,43 @@ Future<({bool flat, int panels})> _flatGarment(ui.Image image) async {
     final right = on((cx + 0.1 * bw).round(), s[3]);
     if (left.isEmpty || right.isEmpty) return false;
     int at(int x) => key((y * w + x) * 4);
-    return label[y * w + cx] != id ||
+    if (label[y * w + cx] != id ||
         (apart(at(cx), at(left[left.length >> 1])) &&
-            apart(at(cx), at(right[right.length >> 1])));
+            apart(at(cx), at(right[right.length >> 1])))) {
+      return true;
+    }
+    // (A neck drawn only as its outline, the body's colour inside (a ring, a
+    // U): on a top edge across most of the shape, a line each side of the
+    // middle, as far from it; lower down both come closer, as a U does (a
+    // waistband's cords do not). QATEST 2026-11-23, as Create.tsx.)
+    var r0 = -1, r1 = -1;
+    for (var x = s[1]; x <= s[3]; x++) {
+      if (label[y * w + x] == id) {
+        if (r0 < 0) r0 = x;
+        r1 = x;
+      }
+    }
+    if (r1 - r0 < 0.45 * bw) return false;
+    int hit(int step, int yy) {
+      for (var t = 1; t <= (0.3 * bw).round(); t++) {
+        final x = cx + step * t;
+        if (x < 0 || x >= w || label[yy * w + x] != id) return -1;
+        if (apart(key((yy * w + x) * 4), key((yy * w + cx) * 4))) return t;
+      }
+      return -1;
+    }
+
+    final l = hit(-1, y), r = hit(1, y);
+    if (l < 0 || r < 0 || (l - r).abs() > 0.08 * bw + 1) return false;
+    for (
+      var yy = y + 1;
+      yy <= math.min(s[4], y + math.max(2, (0.08 * bh).round()));
+      yy++
+    ) {
+      final l2 = hit(-1, yy), r2 = hit(1, yy);
+      if (l2 >= 0 && r2 >= 0 && l2 < l && r2 < r) return true;
+    }
+    return false;
   }
 
   return (flat: big.every(shapeOk) && big.any(neck), panels: panels);
@@ -3515,7 +3628,8 @@ Future<void> artworkTo3dFlow(BuildContext context, AppController c) async {
       flat = read.flat;
       // (A wide picture with no panels, a wordmark: a design for the front,
       // QATEST 2026-11-18.)
-      wide = image.width > image.height * 1.45 && read.panels >= 2;
+      // (1.4: a print layout on A4 landscape, 1.41, too; QATEST 2026-11-23.)
+      wide = image.width > image.height * 1.4 && read.panels >= 2;
     } on Object {
       wide = false;
     }

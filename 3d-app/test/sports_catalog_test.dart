@@ -253,8 +253,10 @@ void main() {
     expect(GarmentScreen.tilesFor('Netball').map((t) => t.name), [
       'Netball dress',
       'Netball skirt',
+      "Women's shorts",
       'Singlet with bib',
       'Training singlet',
+      "Women's singlet",
       'Training T-shirt',
       'Netball bibs',
       'Tracksuit',
@@ -268,7 +270,6 @@ void main() {
     expect(GarmentScreen.moreFor('Netball').map((t) => t.garment), [
       'Full Kit',
       'Jersey',
-      'Shorts',
       'Football jersey',
       'Compression top',
       'Shooting shirt',

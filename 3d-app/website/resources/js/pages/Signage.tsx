@@ -89,7 +89,10 @@ export function SignagePage() {
     const fit = () => {
       const s = page.style, tiles = tilesRef.current, cta = ctaRef.current, setup = setupRef.current;
       if (!tiles || !cta || !setup || window.matchMedia('(max-width: 760px)').matches) { vars.forEach(v => s.removeProperty(v)); return; }
-      const p = page.getBoundingClientRect(), e = SCENE_FIT[design.size] ?? SCENE_FIT['3x3'];
+      // (tasks.md: the Back view put the pull-up banner and table cover on the left, behind MARQUEE SETUP at 1280-1440
+      // wide: seen from behind the scene is the front mirrored, so its left and right reach swap; 360: the wider of both.)
+      const f = SCENE_FIT[design.size] ?? SCENE_FIT['3x3'], wide = Math.max(f.left, f.right);
+      const p = page.getBoundingClientRect(), e = view === 'Back' ? { ...f, left: f.right, right: f.left } : view === '360°' ? { ...f, left: wide, right: wide } : f;
       const top = tiles.getBoundingClientRect().bottom - p.top + STAGE_GAP, bottom = cta.getBoundingClientRect().top - p.top - STAGE_GAP;
       const cx = p.width / 2, left = setup.getBoundingClientRect().right - p.left + STAGE_GAP, right = p.width - STAGE_GAP;
       const h = Math.max(200, Math.min((bottom - top) / (e.bottom - e.top), (cx - left) / e.left, (right - cx) / e.right));
@@ -107,7 +110,7 @@ export function SignagePage() {
     window.addEventListener('resize', fit);
     document.fonts?.ready.then(fit).catch(() => {});
     return () => { watch.disconnect(); window.removeEventListener('resize', fit); };
-  }, [design.size]);
+  }, [design.size, view]);
   async function uploaded(file?: File | null) {
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { setSoon('Upload a PNG, JPEG or WebP picture.'); return; }

@@ -1,0 +1,32 @@
+{
+  "about": "Women's shorts (women-shorts-textured.glb): the model's own waistband (from its top edge down to its own foot, about the depth of women-shorts-parts.glb tripo_part_27) is its own part (tripo-parts edge rule); tripo-pieces fromParts: the band piece takes the Waistband colour. MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/women-shorts-textured.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "waistband"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.75,
+          0
+        ],
+        "mode": "up",
+        "margin": -0.11,
+        "min": 40
+      },
+      "where": "y > 0.55",
+      "part": "waistband"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}

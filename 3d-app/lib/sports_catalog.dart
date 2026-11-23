@@ -1240,6 +1240,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'womenShorts': {'main': '#1c4a8e', 'secondary': '#27282a', 'accent': '#27282a', 'patternColor': '#27282a', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'womenShorts': '#1c4a8e'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'side': 'front', 'x': -0.14, 'y': 0.1, 'scale': 0.7}, 'shorts_wordmark': {'side': 'front', 'x': -0.14, 'y': 0.065, 'scale': 0.5}}, 'layers': []},
+    'sportsBra': {'main': '#2a5aa6', 'secondary': '#142c6e', 'accent': '#ffffff', 'patternColor': '#142c6e', 'number': '', 'zones': [], 'zoneColors': {'sportsBra': '#142c6e'}, 'parts': {'collar': {'colour': '#2a5aa6'}}, 'marks': {'top_wordmark': {'x': 0.08, 'y': 0.5, 'scale': 0.9}, 'top_crest': {'hidden': true}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
     'pufferVest': {'zoneColors': {'pufferVest': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#24272b', 'stripe': '#24272b', 'zip': '#00c4f0'}},
     'compressionPants': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#1c58c8', 'patternColor': '#16b4f0', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#27282a'}}, 'zoneColors': {'compressionPants': '#27282a', 'pantsStripe': '#16b4f0'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.84, 'scale': 0.8}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802, 'scale': 0.8}}, 'layers': []},
     'mtbJersey': {'main': '#27282a', 'secondary': '#16b4f0', 'accent': '#16b4f0', 'patternColor': '#16b4f0', 'zones': [], 'zoneColors': {'mtbJersey': '#ffffff'}, 'marks': {'top_crest': {'x': 0.09, 'y': 0.6, 'scale': 0.55}, 'top_wordmark': {'x': -0.09, 'y': 0.6, 'scale': 0.5}}},
@@ -1825,6 +1827,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'netball-skirt',
     ),
     GarmentTile(
+      "Women's shorts",
+      'Fitted sport shorts for the court.',
+      'Shorts',
+      image: 'shorts',
+      look: 'womenShorts',
+    ),
+    GarmentTile(
       'Singlet with bib',
       'Netball singlet with removable bib.',
       'Singlet',
@@ -2189,6 +2198,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'womenSinglet',
     ),
     GarmentTile('Running shorts', 'Split shorts built for speed.', 'Shorts'),
+    GarmentTile(
+      "Women's shorts",
+      'Fitted sport shorts for the track.',
+      'Shorts',
+      image: 'shorts',
+      look: 'womenShorts',
+    ),
     GarmentTile(
       'Training tee',
       'Breathable tee for training and warm-ups.',
@@ -2863,11 +2879,25 @@ const _sportTiles = <String, List<GarmentTile>>{
       look: 'fitnessTop',
     ),
     GarmentTile(
+      'Sports bra',
+      'Racerback sports bra with a wide underband.',
+      'Singlet',
+      image: 'netball-training-singlet',
+      look: 'sportsBra',
+    ),
+    GarmentTile(
       "Women's fitness bottoms",
       'High-waisted fitness bottoms in stretch fabric.',
       'Shorts',
       image: 'leggings',
       look: 'fitnessBottoms',
+    ),
+    GarmentTile(
+      "Women's shorts",
+      'Fitted sport shorts for training.',
+      'Shorts',
+      image: 'shorts',
+      look: 'womenShorts',
     ),
     GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts'),
     GarmentTile(

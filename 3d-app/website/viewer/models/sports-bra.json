@@ -1,0 +1,59 @@
+{
+  "about": "Gymwear > Sports bra (NEW tile after the Women's fitness top; HOODIE 2026-11-23, first version, the user's second file): Tripo model sports-bra-textured.glb (its shape only; coloured from sports-bra-parts.glb by viewer/tripo-hoodie.mjs), card 43539 (D:/3d-app/tripo/cards/43539.jpg: royal blue bra and neck binding, darker navy underband; their text and logos not used): a scoop-neck racerback sports bra with neck and armhole bindings and a wide underband; our marks only. Scaled by width (a bra on the made singlet's full height would hang to the waist) and lifted so the straps reach the shoulders. Shown as the Singlet part; stand-in singlet picture.",
+  "glb": "../../../tripo/sports-bra-textured.glb",
+  "converter": "top",
+  "part": "singlet",
+  "flag": "sportsBra",
+  "ownNeck": "round",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "singlet",
+    "creaseDeg": 25,
+    "fit": "width",
+    "weld": true,
+    "lift": 0.361
+  },
+  "look": {
+    "main": "#2a5aa6",
+    "secondary": "#142c6e",
+    "accent": "#ffffff",
+    "patternColor": "#142c6e",
+    "number": "",
+    "zones": [],
+    "zoneColors": {
+      "sportsBra": "#142c6e"
+    },
+    "parts": {
+      "collar": {
+        "colour": "#2a5aa6"
+      }
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": 0.08,
+        "y": 0.5,
+        "scale": 0.9
+      },
+      "top_crest": {
+        "hidden": true
+      },
+      "top_number": {
+        "hidden": true
+      },
+      "top_name": {
+        "hidden": true
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

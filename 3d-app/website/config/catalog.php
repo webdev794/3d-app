@@ -235,6 +235,8 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'womenShorts' => ['main' => '#1c4a8e', 'secondary' => '#27282a', 'accent' => '#27282a', 'patternColor' => '#27282a', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['womenShorts' => '#1c4a8e'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['side' => 'front', 'x' => -0.14, 'y' => 0.1, 'scale' => 0.7], 'shorts_wordmark' => ['side' => 'front', 'x' => -0.14, 'y' => 0.065, 'scale' => 0.5]], 'layers' => []],
+        'sportsBra' => ['main' => '#2a5aa6', 'secondary' => '#142c6e', 'accent' => '#ffffff', 'patternColor' => '#142c6e', 'number' => '', 'zones' => [], 'zoneColors' => ['sportsBra' => '#142c6e'], 'parts' => ['collar' => ['colour' => '#2a5aa6']], 'marks' => ['top_wordmark' => ['x' => 0.08, 'y' => 0.5, 'scale' => 0.9], 'top_crest' => ['hidden' => true], 'top_number' => ['hidden' => true], 'top_name' => ['hidden' => true]], 'layers' => []],
         'pufferVest' => ['zoneColors' => ['pufferVest' => '#ffffff', 'body' => '#24272b', 'shoulder' => '#24272b', 'side' => '#24272b', 'stripe' => '#24272b', 'zip' => '#00c4f0']],
         'compressionPants' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#1c58c8', 'patternColor' => '#16b4f0', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#27282a']], 'zoneColors' => ['compressionPants' => '#27282a', 'pantsStripe' => '#16b4f0'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => 0.17, 'y' => 0.84, 'scale' => 0.8], 'shorts_wordmark' => ['x' => 0.17, 'y' => 0.802, 'scale' => 0.8]], 'layers' => []],
         'mtbJersey' => ['main' => '#27282a', 'secondary' => '#16b4f0', 'accent' => '#16b4f0', 'patternColor' => '#16b4f0', 'zones' => [], 'zoneColors' => ['mtbJersey' => '#ffffff'], 'marks' => ['top_crest' => ['x' => 0.09, 'y' => 0.6, 'scale' => 0.55], 'top_wordmark' => ['x' => -0.09, 'y' => 0.6, 'scale' => 0.5]]],
@@ -400,6 +402,7 @@ $sports = [
         $tile('Netball dress', 'Fitted netball dress with skirt hem.', 'netball-dress', 'netball-dress') + ['design' => $look('netballDress')],
         // Its own 3D garment since 2026-10-29 (COMING SOON 10): the A-line skirt with a gathered waistband.
         $tile('Netball skirt', 'Athletic skirt with team styling.', 'skirt', 'netball-skirt'),
+        $tile("Women's shorts", 'Fitted sport shorts for the court.', 'shorts', 'shorts') + ['design' => $look('womenShorts')],
         $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib'),
         $tile('Training singlet', 'Lightweight top for training.', 'singlet', 'netball-training-singlet') + ['design' => $look('bladesSidesModel')],
         $tile("Women's singlet", 'Fitted racerback singlet for training.', 'singlet', 'netball-training-singlet') + ['design' => $look('womenSinglet')],
@@ -495,6 +498,7 @@ $sports = [
             $tile('Racing singlet', 'Featherweight singlet for race day.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for race day.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
             $tile('Running shorts', 'Split shorts built for speed.', 'shorts'),
+            $tile("Women's shorts", 'Fitted sport shorts for the track.', 'shorts', 'shorts') + ['design' => $look('womenShorts')],
             $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
             $tile('Long-sleeve tee', 'Long-sleeve tee for training and travel.', 'compression', 'longsleeve-tee') + ['design' => $look('lsTee')],
@@ -692,7 +696,9 @@ $sports = [
             $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
             // (Women's fitness top: its own 3D model (booklet card 117908), MODELQ 2026-11-16, the user; the bottoms' tile below.)
             $tile("Women's fitness top", 'Cropped long-sleeve fitness top in stretch fabric.', 'compression', 'nfl-compression-top') + ['design' => $look('fitnessTop')],
+            $tile('Sports bra', 'Racerback sports bra with a wide underband.', 'singlet', 'netball-training-singlet') + ['design' => $look('sportsBra')],
             $tile("Women's fitness bottoms", 'High-waisted fitness bottoms in stretch fabric.', 'shorts', 'leggings') + ['design' => $look('fitnessBottoms')],
+            $tile("Women's shorts", 'Fitted sport shorts for training.', 'shorts', 'shorts') + ['design' => $look('womenShorts')],
             $tile('Gym shorts', 'Light shorts for training.', 'shorts'),
             $tile('Leggings', 'Squat-proof leggings and tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Compression pants', 'Full-length compression pants for lifting.', 'shorts', 'leggings') + ['design' => $look('compressionPants')],
