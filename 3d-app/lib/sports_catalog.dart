@@ -1240,6 +1240,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'afPants': {'main': '#e3b623', 'secondary': '#1e2766', 'accent': '#1e2766', 'patternColor': '#1e2766', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#e3b623'}}, 'zoneColors': {'afPants': '#e3b623', 'brandInk': '#1e2766', 'crestInk': '#1e2766'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.26, 'scale': 0.8}, 'shorts_wordmark': {'x': -0.17, 'y': 0.26, 'scale': 0.8}}, 'layers': []},
     'womenFootballShorts': {'main': '#1455b1', 'secondary': '#1455b1', 'accent': '#ffffff', 'patternColor': '#ffffff', 'parts': {'waistband': {'colour': '#1455b1'}}, 'zoneColors': {'womenFootballShorts': '#1455b1'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.13, 'y': 0.075, 'scale': 0.7}, 'shorts_wordmark': {'side': 'front', 'x': -0.14, 'y': 0.065, 'scale': 0.5}}, 'layers': []},
     'runningShorts': {'main': '#1a2a52', 'secondary': '#e9b80c', 'accent': '#e9b80c', 'patternColor': '#e9b80c', 'parts': {'waistband': {'colour': '#1a2a52'}, 'shortsHem': {'colour': '#1a2a52'}}, 'zoneColors': {'runningShorts': '#1a2a52', 'cordTips': '#1a2a52'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.12, 'y': 0.13, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': 0.17, 'y': 0.12, 'scale': 0.5}}, 'layers': []},
     'menTights': {'main': '#3b3b3d', 'secondary': '#646466', 'accent': '#646466', 'patternColor': '#646466', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#646466'}}, 'zoneColors': {'menTights': '#3b3b3d', 'pantsStripe': '#646466'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.17, 'y': 0.84, 'scale': 0.8}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802, 'scale': 0.8}}, 'layers': []},
@@ -2019,11 +2020,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       fabric: 'Standard',
       look: 'nflgameJersey',
     ),
-    GarmentTile.soon(
+    GarmentTile(
       'Game Pants',
       'Game pants with belt and knee pads.',
-      'nfl-pants',
-      'nfl-pants',
+      'Shorts',
+      image: 'nfl-pants',
+      look: 'afPants',
     ),
     GarmentTile(
       'Practice Jersey',

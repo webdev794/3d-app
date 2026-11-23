@@ -1,0 +1,29 @@
+{
+  "about": "American football pants (afootball-pants-textured.glb, RUGBYV 2026-11-23): coloured from the same garment split into parts by Tripo (afootball-pants-parts.glb) by viewer/tripo-glbparts.mjs: the waistband with its belt (tripo_part_16) the Waistband part, one smooth line at its foot; the two leg cuffs (tripo_part_3, tripo_part_6) the Cuffs part (listed as `sleeves`: one piece each with a smooth border; pastBody 1: the sleeves' 'past the body's side' rule off); body (tripo_part_71, its pads in its own shape) and the small label bits the print. Inside: the cloth's own colour in shade.",
+  "glbParts": {
+    "glb": "../../../tripo/afootball-pants-parts.glb",
+    "keys": {
+      "tripo_part_16": "part:waistband|main",
+      "tripo_part_3": "part:cuffs|main",
+      "tripo_part_6": "part:cuffs|main",
+      "tripo_part_71": null,
+      "tripo_part_74": null,
+      "tripo_part_76": null
+    },
+    "collar": "part:waistband|main",
+    "sleeves": [
+      "part:cuffs|main"
+    ],
+    "pastBody": 1,
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.02,
+    "data": {
+      "insideCloth": true
+    },
+    "localSide": true
+  }
+}

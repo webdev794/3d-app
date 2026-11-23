@@ -1,0 +1,66 @@
+{
+  "about": "American Football > Game Pants (until now coming soon; RUGBYV 2026-11-23, coordinator; booklet cards 55833 front / 56345 back, D:/3d-app/tripo/cards): Tripo model afootball-pants-textured.glb (shape only; its pads and knee panels are its own shape), coloured from afootball-pants-parts.glb by viewer/tripo-glbparts.mjs: its waistband with the belt the Waistband part, its leg cuffs the Cuffs part (both the Main colour unless given their own). Shown by the flag afPants on a Shorts tile (the viewer part trackpants, as the track pants and leggings). Look: the cards' golden yellow all over (body, belt, cuffs) with the jersey's navy as Secondary; our 3 mark and wordmark low on the legs in the cards' navy (brandInk/crestInk; the wordmark on the wearer's right leg where the cards have their script, the 3 mark on the left where they have the number); the cards' number on the legs and their own text are not copied.",
+  "glb": "../../../tripo/afootball-pants-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "trackpants",
+    "legs": 0.49,
+    "creaseDeg": 25,
+    "weld": true
+  },
+  "part": "trackpants",
+  "garment": "shorts",
+  "flag": "afPants",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Game Pants",
+      "image": "nfl-pants"
+    }
+  ],
+  "look": {
+    "main": "#e3b623",
+    "secondary": "#1e2766",
+    "accent": "#1e2766",
+    "patternColor": "#1e2766",
+    "pattern": "None",
+    "number": "",
+    "parts": {
+      "waistband": {
+        "colour": "#e3b623"
+      }
+    },
+    "zoneColors": {
+      "afPants": "#e3b623",
+      "brandInk": "#1e2766",
+      "crestInk": "#1e2766"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": 0.17,
+        "y": 0.26,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "x": -0.17,
+        "y": 0.26,
+        "scale": 0.8
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q270",
+      "Q35",
+      "Q215"
+    ]
+  }
+}
