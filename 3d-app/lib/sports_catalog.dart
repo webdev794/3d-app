@@ -665,20 +665,22 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'main': '#313234',
       'secondary': '#27282a',
       'zoneColors': {'quarterZip': '#c9ccd1', 'collarPiping': cyan},
+      // (CLIENT598 2026-11-23, client 617: the approved lockup, the "3"
+      // centred over the wordmark, on the right chest; config/catalog.php.)
       'marks': {
-        'top_wordmark': {'y': 0.503, 'scale': 0.55},
-        'top_crest': {'x': 0.09, 'y': 0.607, 'scale': 1.0},
+        'top_wordmark': {'x': -0.09, 'y': 0.581, 'scale': 0.258},
+        'top_crest': {'x': -0.09, 'y': 0.617, 'scale': 0.9},
       },
     },
     'poloZipPocket': {
       'main': '#313234',
       'secondary': '#27282a',
       'zoneColors': {'quarterZip': '#c9ccd1', 'collarPiping': cyan},
+      // (CLIENT598 2026-11-23, client 617: the approved lockup, the "3"
+      // centred over the wordmark, on the right chest; config/catalog.php.)
       'marks': {
-        'top_wordmark': {'x': 0, 'y': 0.503, 'scale': 2.5},
-        // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" and
-        // wordmark: the "3" on the right chest, across from the pocket.)
-        'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.8},
+        'top_wordmark': {'x': -0.09, 'y': 0.581, 'scale': 0.258},
+        'top_crest': {'x': -0.09, 'y': 0.617, 'scale': 0.9},
       },
     },
     'bladesSides': {

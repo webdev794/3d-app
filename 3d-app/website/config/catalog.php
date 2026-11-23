@@ -88,8 +88,11 @@ $look = function (string $name, array $extra = []): array {
         // (BR1 2026-11-02, the user: every item carries the 3DEEZI "3" and wordmark: the Darts shirt's "3" on the right chest,
         // across from the pocket, level with it.)
         // (MODELQ5 2026-11-19: on the polo's 3D model (every polo tile) the wordmark smaller, all of it on the body.)
-        'poloZip' => ['main' => '#313234', 'secondary' => '#27282a', 'zoneColors' => ['quarterZip' => '#c9ccd1', 'collarPiping' => $cyan], 'marks' => ['top_wordmark' => ['y' => 0.503, 'scale' => 0.55], 'top_crest' => ['x' => 0.09, 'y' => 0.607, 'scale' => 1.0]]],
-        'poloZipPocket' => ['main' => '#313234', 'secondary' => '#27282a', 'zoneColors' => ['quarterZip' => '#c9ccd1', 'collarPiping' => $cyan], 'marks' => ['top_wordmark' => ['x' => 0, 'y' => 0.503, 'scale' => 2.5], 'top_crest' => ['x' => -0.1, 'y' => 0.6, 'scale' => 0.8]]],
+        // (CLIENT598 2026-11-23, client 617 "both polo lock ups are wrong": the approved 3DEEZI lockup, the "3" centred
+        // over the wordmark 92 % as wide (as the Rugby League crest's and the neck label's), on the right chest: clear of
+        // the zip placket and across from the Darts shirt's pocket. viewer: "3" 0.0936 m x scale wide, the word 0.3 m.)
+        'poloZip' => ['main' => '#313234', 'secondary' => '#27282a', 'zoneColors' => ['quarterZip' => '#c9ccd1', 'collarPiping' => $cyan], 'marks' => ['top_wordmark' => ['x' => -0.09, 'y' => 0.581, 'scale' => 0.258], 'top_crest' => ['x' => -0.09, 'y' => 0.617, 'scale' => 0.9]]],
+        'poloZipPocket' => ['main' => '#313234', 'secondary' => '#27282a', 'zoneColors' => ['quarterZip' => '#c9ccd1', 'collarPiping' => $cyan], 'marks' => ['top_wordmark' => ['x' => -0.09, 'y' => 0.581, 'scale' => 0.258], 'top_crest' => ['x' => -0.09, 'y' => 0.617, 'scale' => 0.9]]],
         // The bibs pictures (FN5 2026-10-30): black hems; the training bibs' blades up the sides; the netball bibs plain
         // black with bound cyan edges (their objects below).
         'bibs' => ['pattern' => 'Blades', 'zones' => $solid('sides'), 'parts' => ['hem' => ['colour' => '#27282a']]],

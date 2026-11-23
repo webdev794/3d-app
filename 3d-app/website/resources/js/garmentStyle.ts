@@ -64,11 +64,13 @@ export const isZipPolo = (design: Pick<Design, 'zoneColors'>) => POLO_ZIP_READY 
  * small onto the right chest, clear of it; with the Button-up collar back to the Darts & Pool polos' own place (their look
  * 'poloZip': centred, y 0.503), unless it was moved in between. The app keeps the same (lib/garment_style.dart).
  */
-export const ZIP_POLO_WORDMARK = { x: -0.09, y: 0.607, scale: 0.42 };
+// (CLIENT598 2026-11-23, client 617: the polos' own lockup, the "3" over the wordmark on the right chest (config/catalog.php
+// poloZip), is already clear of the zip: only a wordmark still across the centre front moves there, with the "3" over it.)
+export const ZIP_POLO_WORDMARK = { x: -0.09, y: 0.581, scale: 0.258 };
+export const ZIP_POLO_CREST = { x: -0.09, y: 0.617, scale: 0.9 };
 export function poloCollarMarks(marks: Design['marks'], zip: boolean): Design['marks'] {
     const all = { ...(marks ?? {}) }, w = all.top_wordmark ?? {};
-    if (zip) all.top_wordmark = { ...w, ...ZIP_POLO_WORDMARK };
-    else if (w.x === ZIP_POLO_WORDMARK.x && w.y === ZIP_POLO_WORDMARK.y && w.scale === ZIP_POLO_WORDMARK.scale) all.top_wordmark = { ...w, x: 0, y: 0.503, scale: 1 };
+    if (zip && !w.x) { all.top_wordmark = { ...w, ...ZIP_POLO_WORDMARK }; all.top_crest = { ...(all.top_crest ?? {}), ...ZIP_POLO_CREST }; }
     return all;
 }
 export const hasRugbyStyle = (sport: string | null | undefined, garment: string) => isRugby(sport) && (garment === 'jersey' || garment === 'fullkit');

@@ -77,18 +77,25 @@ bool isZipPolo(Map<String, String> zoneColors) =>
 /// garmentStyle.ts poloCollarMarks): small on the right chest, clear of the
 /// zip down the centre front; back to the Darts & Pool polos' own place
 /// (centred, y 0.503) with Button-up, unless it was moved in between.
-const zipPoloWordmark = {'x': -0.09, 'y': 0.607, 'scale': 0.42};
+/// (CLIENT598 2026-11-23, client 617: the polos' own lockup, the "3" over
+/// the wordmark on the right chest, is already clear of the zip: only a
+/// wordmark still across the centre front moves there, the "3" over it.)
+const zipPoloWordmark = {'x': -0.09, 'y': 0.581, 'scale': 0.258};
+const zipPoloCrest = {'x': -0.09, 'y': 0.617, 'scale': 0.9};
 Map<String, dynamic> poloCollarMarks(Map<String, dynamic> marks, bool zip) {
   final all = Map<String, dynamic>.from(marks);
   final w = Map<String, dynamic>.from(
     (all['top_wordmark'] as Map?) ?? const <String, dynamic>{},
   );
-  if (zip) {
+  final x = (w['x'] as num?) ?? 0;
+  if (zip && x == 0) {
     all['top_wordmark'] = {...w, ...zipPoloWordmark};
-  } else if (w['x'] == zipPoloWordmark['x'] &&
-      w['y'] == zipPoloWordmark['y'] &&
-      w['scale'] == zipPoloWordmark['scale']) {
-    all['top_wordmark'] = {...w, 'x': 0.0, 'y': 0.503, 'scale': 1.0};
+    all['top_crest'] = {
+      ...Map<String, dynamic>.from(
+        (all['top_crest'] as Map?) ?? const <String, dynamic>{},
+      ),
+      ...zipPoloCrest,
+    };
   }
   return all;
 }

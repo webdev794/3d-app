@@ -13,6 +13,8 @@ import { RECIPE_MODELS } from './recipemodels.js';
  */
 
 const loading = new Map();
+/** Every model file still loading (LAZY MODEL LOADING): main.js paintAll waits for them before setDesign answers. */
+export const modelsSettled = () => Promise.all([...loading.values()]);
 /**
  * A model's data. Since LIVEFIX L1 (2026-11-12) every model is in the viewer page itself (build.mjs puts each
  * tripo-<name>.js inline before the viewer's code), so it is there as soon as the viewer is: no second download that can
@@ -25,7 +27,9 @@ export function loadTripo(name) {
   if (!loading.has(name)) {
     loading.set(name, new Promise((resolve) => {
       const s = document.createElement('script');
-      s.src = `tripo-${name}.js`;
+      // (LAZY MODEL LOADING, RUGBYV 2026-11-20: the page's own version on the file, so no old model stays cached.)
+      const ver = new URLSearchParams(location.search).get('v');
+      s.src = `tripo-${name}.js${ver ? `?v=${encodeURIComponent(ver)}` : ''}`;
       s.onload = () => { if (!window.TRIPO_MESHES?.[name]) loading.delete(name); resolve(window.TRIPO_MESHES?.[name] ?? null); };
       s.onerror = () => { loading.delete(name); s.remove(); resolve(null); };
       document.head.appendChild(s);

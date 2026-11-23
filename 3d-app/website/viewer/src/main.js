@@ -25,7 +25,7 @@ import { buildBucketHat } from './bucket.js';
 import { buildBeanie } from './beanie.js';
 import { buildMannequin, mannequinMaterial, buildStand } from './mannequin.js';
 import { hqWanted, loadHQ, hqJersey } from './hq.js';
-import { loadTripo, tripoReady, tripoGarment, tripoNeckOutline, bballRoundOutline, BAND_SWATCH } from './tripomesh.js';
+import { loadTripo, modelsSettled, tripoReady, tripoGarment, tripoNeckOutline, bballRoundOutline, BAND_SWATCH } from './tripomesh.js';
 import { RECIPE_MODELS } from './recipemodels.js';
 import { modelCollarOf, modelCollarV, buildModelCollar } from './modelcollars.js';
 import { FB_JERSEY, FB_SPEC, FB_SWATCH, FB_CUFF_STRIPE, isFbJersey, buildModelFoldCollar, buildModelWing } from './fbjersey.js';
@@ -677,7 +677,9 @@ function paintZip(part, design) {
   part.zip.pull.material.color.set(metal);
 }
 
-function buildKit(kind) {
+/** The parts buildKit shows for a garment (shared with paintAll, which loads their models first: LAZY MODEL LOADING, RUGBYV
+ *  2026-11-20; the models are no longer inside the page). */
+function kitList(kind) {
   // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
   // shorts or the full kit.
   let list = PARTS[PARTS[kind] ? kind : 'jersey'];
@@ -699,6 +701,13 @@ function buildKit(kind) {
     const pick = kind === 'fullkit' ? own : kind === 'shorts' || kind === 'bballshorts' ? own.filter((p) => p === 'shorts') : own.filter((p) => p !== 'shorts');
     list = pick.length ? pick : own;
   }
+  return list;
+}
+
+function buildKit(kind) {
+  // A print layout brings its own parts (a raglan top, shorts or both); the garment chosen shows its top, its
+  // shorts or the full kit.
+  const list = kitList(kind);
   // A layout's shorts are training shorts (cut like its leg pieces), so the key says which; a drawing's top is the
   // garment itself, cut like the drawing when it can be (drawnCut).
   const cut = layout?.drawing ? layout.cut : null;
@@ -1399,7 +1408,8 @@ async function paintAll() {
   step('reading the print layout');
   await prepareLayout();
   // A part with a ready-made model: its data file first (loaded once; the made shape if it cannot be read).
-  for (const part of PARTS[design.garment] ?? []) if (tripoOf(part)) { step('loading the 3D garment model'); await loadTripo(tripoOf(part)); }
+  // (Every part buildKit will show (kitList): since LAZY MODEL LOADING each model is its own file, loaded here once.)
+  for (const part of new Set([...(PARTS[design.garment] ?? []), ...kitList(design.garment)])) if (tripoOf(part)) { step('loading the 3D garment model'); await loadTripo(tripoOf(part)); }
   // (The basketball shorts are the Shorts with the bballBand look, buildKit: their model too.)
   if (design.garment === 'shorts' && !layout && HEX6.test(design.zoneColors?.bballBand ?? '')) { step('loading the 3D garment model'); await loadTripo(TRIPO_PARTS.bballshorts); }
   // (The Basketball kit: both basketball models, BBTILES.)
@@ -1491,6 +1501,13 @@ async function paintAll() {
   pool.material.color.set(design.secondary);
   step('updating the 2D panels');
   await board.refresh();
+  // (LAZY MODEL LOADING, RUGBYV 2026-11-23: setDesign answers only once every model this design asked for is here and the
+  // garment has been drawn once: the models still loading, the shaders compiled, two frames. Each with a time limit.)
+  step('drawing the 3D garment');
+  const capped = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
+  await capped(modelsSettled(), 60000);
+  try { if (renderer.compileAsync) await capped(renderer.compileAsync(scene, camera), 8000); } catch { /* drawn by the next frame anyway */ }
+  await capped(new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))), 600);
   // Not while the user types or slides in the bar (the host's echo would take the focus away).
   // The bar is built once per selection (a repaint only moves the outline), so typing and sliding are never cut off.
   if (selected) { outlineSelected(); if (barPending && !dragObj && !bar.contains(document.activeElement)) { barPending = false; drawBar(); } }

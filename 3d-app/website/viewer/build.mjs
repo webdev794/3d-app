@@ -17,8 +17,9 @@ const js = outputFiles[0].text.replaceAll('</script', '<\\/script');
 // The ready-made garment models (tripo-<name>.js) inline in the page, before the viewer's code (LIVEFIX L1 2026-11-12):
 // there as soon as the viewer is, with no second download that can stall or fail (the old made shape is never shown in
 // their place, the client refused it). About 0.23 MB each after the server's compression; the page is cached by version.
-const models = fs.readdirSync(here).filter((f) => /^tripo-[a-z0-9-]+\.js$/.test(f)).sort()
-  .map((f) => `<script>${fs.readFileSync(path.join(here, f), 'utf8').replaceAll('</script', '<\\/script')}</script>`).join('\n');
+// (LAZY MODEL LOADING, RUGBYV 2026-11-20, coordinator: no longer inline; the page had grown to ~46-54 MB. Each model is its
+// own file beside the page (copied below) and is loaded only when a design needs it: tripomesh.js loadTripo.)
+const models = '';
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <title>3DEEZI — Cinematic 3D Studio</title><style>
