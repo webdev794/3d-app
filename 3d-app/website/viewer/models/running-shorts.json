@@ -1,5 +1,5 @@
 {
-  "about": "Athletics > Running shorts (RUGBYV 2026-11-23, coordinator; booklet card 37496): Tripo model running-shorts-textured.glb (shape only), coloured from running-shorts-parts.glb by viewer/tripo-glbparts.mjs: its gathered waistband the Waistband part, its hem bindings the Hem part, its side panels the Side panels part; body the print. Look: booklet card 37496 (D:/3d-app/tripo/cards/37496.jpg, colours sampled there): navy body, waistband and hem bindings, golden-yellow side panels; our 3 mark low on the front leg (as the card's label) and our wordmark low on the other front leg (first version; the card's lettering down the side panel is pending_on_models.md); the card's own text and script never copied.",
+  "about": "Athletics > Running shorts (RUGBYV 2026-11-23, coordinator; booklet card 37496): Tripo model running-shorts-textured.glb (shape only), coloured from running-shorts-parts.glb by viewer/tripo-glbparts.mjs: its gathered waistband the Waistband part, its hem bindings the Hem part; body the print. Look (first version, coordinator 23 Nov): card 37496's navy (D:/3d-app/tripo/cards/37496.jpg) for body, waistband and hem bindings; our 3 mark low on the left front leg and our wordmark low on the right front leg; the card's golden-yellow side panels (kept as the Secondary) are not drawn yet (pending_on_models.md), the card's own text never copied.",
   "glb": "../../../tripo/running-shorts-textured.glb",
   "converter": "legs",
   "convert": {
@@ -23,18 +23,12 @@
     "secondary": "#e9b80c",
     "accent": "#e9b80c",
     "patternColor": "#e9b80c",
-    "zones": {
-      "sides": "Solid"
-    },
     "parts": {
       "waistband": {
         "colour": "#1a2a52"
       },
       "shortsHem": {
         "colour": "#1a2a52"
-      },
-      "shortsSides": {
-        "colour": "#e9b80c"
       }
     },
     "zoneColors": {

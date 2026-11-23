@@ -1,0 +1,33 @@
+{
+  "about": "Women's football shorts (women-football-shorts-textured.glb): the model's own elastic waistband (from its top edge down 0.10, about the depth of women-football-shorts-parts.glb tripo_part_14) in the Waistband part's colour (else Main), per triangle (MODELQ5 2026-11-23, viewer/tripo-parts.mjs, as the women's rugby shorts).",
+  "glb": "../../../tripo/women-football-shorts-textured.glb",
+  "creaseDeg": 25,
+  "keys": [
+    "waistband"
+  ],
+  "rules": [
+    {
+      "edge": {
+        "near": [
+          0,
+          0.713,
+          0.036
+        ],
+        "mode": "up",
+        "margin": -0.1,
+        "min": 200
+      },
+      "where": "y > 0.55",
+      "part": "waistband"
+    }
+  ],
+  "partBands": [],
+  "pieces": {
+    "fromParts": true,
+    "snap": 0,
+    "sigma": 6,
+    "noTapes": true,
+    "seamLip": 0,
+    "lipsBandsOnly": true
+  }
+}

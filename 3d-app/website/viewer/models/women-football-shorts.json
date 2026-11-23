@@ -1,0 +1,59 @@
+{
+  "about": "Women's football shorts (new \"Women's football shorts\" tile in Football right after Women's football jersey; coordinator 23 Nov, cards 67909 front / 67787 back): Tripo model women-football-shorts-textured.glb (shape only) in the cards' shorts colours: royal blue all over, its own elastic waistband the same blue (the Waistband part); our 3 mark low on the front left leg where the card has its mark, our wordmark beside it small (the card has no other text on the shorts). Method as the women's rugby shorts (tripo-parts edge rule: its own waistband from its top edge down; tripo-pieces fromParts). First version (models live first). MODELQ5 2026-11-23.",
+  "glb": "../../../tripo/women-football-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.124,
+    "creaseDeg": 25
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "womenFootballShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#1455b1",
+    "secondary": "#1455b1",
+    "accent": "#ffffff",
+    "patternColor": "#ffffff",
+    "parts": {
+      "waistband": {
+        "colour": "#1455b1"
+      }
+    },
+    "zoneColors": {
+      "womenFootballShorts": "#1455b1"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": 0.13,
+        "y": 0.075,
+        "scale": 0.7
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": -0.14,
+        "y": 0.065,
+        "scale": 0.5
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145",
+      "zoomQ20D50P72",
+      "zoomQ-160D50P72"
+    ]
+  }
+}

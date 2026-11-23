@@ -294,13 +294,20 @@ async function buildExtras() {
   flag.traverse((o) => { o.castShadow = true; });
   // The pull-up banner: a tall print in a cassette base.
   const banner = new THREE.Group();
-  const bannerMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 2.0), await print(0.85, 2.0));
+  // (tasks.md 694, user 2026-11-23: printed on its front only; from behind its plain fabric, no print. The feather
+  // flag stays printed through, like a real one.)
+  const bannerPrint = await print(0.85, 2.0);
+  bannerPrint.side = THREE.FrontSide;
+  const bannerMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 2.0), bannerPrint);
   bannerMesh.position.y = 1.1;
+  const bannerBack = new THREE.Mesh(new THREE.PlaneGeometry(0.85, 2.0), new THREE.MeshStandardMaterial({ color: 0x05080c, roughness: 0.85 }));
+  bannerBack.rotation.y = Math.PI;
+  bannerBack.position.set(0, 1.1, -0.002);
   const cassette = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.1, 0.18), metal);
   cassette.position.y = 0.05;
   const bar = new THREE.Mesh(new THREE.BoxGeometry(0.88, 0.025, 0.025), metal);
   bar.position.y = 2.1;
-  banner.add(bannerMesh, cassette, bar);
+  banner.add(bannerMesh, bannerBack, cassette, bar);
   banner.traverse((o) => { o.castShadow = true; });
   // The table cover: a fitted throw over a 1.8 m table.
   const table = new THREE.Group();

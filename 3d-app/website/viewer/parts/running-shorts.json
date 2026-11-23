@@ -1,11 +1,11 @@
 {
-  "about": "Running shorts (running-shorts-textured.glb, RUGBYV 2026-11-23): coloured from the same garment split into parts by Tripo (running-shorts-parts.glb) by viewer/tripo-glbparts.mjs: the gathered waistband (tripo_part_56) the Waistband part, one smooth line at its foot; the hem bindings (tripo_part_11) the Hem part; the side panels (tripo_part_44) the Side panels part (a model split into pieces never gets the made shorts' own side panels: texture.js bare). Hem and side panels are listed as `sleeves` (each one piece with smoothed borders, sigma 3 cm; pastBody 1: the sleeves' 'past the body's side' rule off). Body and small bits the print. Inside: the cloth's own colour in shade.",
+  "about": "Running shorts (running-shorts-textured.glb, RUGBYV 2026-11-23): coloured from the same garment split into parts by Tripo (running-shorts-parts.glb) by viewer/tripo-glbparts.mjs: the gathered waistband (tripo_part_56) the Waistband part, one smooth line at its foot; the hem bindings (tripo_part_11) the Hem part (listed as `sleeves`: one piece with one smooth border; pastBody 1 turns the sleeves' 'past the body's side' rule off). The side panels (tripo_part_44) are NOT coloured (coordinator 23 Nov: their parts-file edges are ragged; the card's yellow panels are a fixer item in pending_on_models.md): body, side panels and small bits the print. Inside: the cloth's own colour in shade.",
   "glbParts": {
     "glb": "../../../tripo/running-shorts-parts.glb",
     "keys": {
       "tripo_part_56": "waistband",
       "tripo_part_11": "part:shortsHem",
-      "tripo_part_44": "part:shortsSides",
+      "tripo_part_44": null,
       "tripo_part_55": null,
       "tripo_part_35": null,
       "tripo_part_43": null,
@@ -16,14 +16,13 @@
     },
     "collar": "waistband",
     "sleeves": [
-      "part:shortsSides",
       "part:shortsHem"
     ],
-    "sigma": 0.03,
+    "sigma": 0.015,
     "reach": 0.03,
     "far": 0.03,
-    "island": 200,
-    "speck": 30,
+    "island": 60,
+    "speck": 8,
     "collarSigma": 0.02,
     "data": {
       "insideCloth": true

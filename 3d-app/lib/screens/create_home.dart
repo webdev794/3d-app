@@ -3488,14 +3488,18 @@ Future<({bool flat, int panels})> _flatGarment(ui.Image image) async {
 
   // (The hem: the widest of the rows just above it, as a white hem band can
   // melt into a light background.)
+  // (Straight, task 585: just above the hem the shape is already nearly as
+  // wide as a little higher up; a round badge or logo narrows towards its
+  // bottom and is not a garment.)
   bool shapeOk(int id) {
     final s = shapes[id], bw = s[3] - s[1] + 1, bh = s[4] - s[2] + 1;
+    int at(double f) => filled(id, s[4] - (f * bh).round(), s[1], s[3]);
+    final low = [.03, .06, .09].map(at).reduce(math.max);
+    final up = [.18, .24].map(at).reduce(math.max);
     return bh >= 0.6 * bw &&
         bh <= 2.4 * bw &&
-        [.03, .06, .09, .12, .15]
-                .map((f) => filled(id, s[4] - (f * bh).round(), s[1], s[3]))
-                .reduce(math.max) >=
-            0.45 * bw;
+        [.03, .06, .09, .12, .15].map(at).reduce(math.max) >= 0.45 * bw &&
+        low >= 0.78 * up;
   }
 
   // The neck opening at the top: the background, or drawn in a colour of its

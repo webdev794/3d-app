@@ -1135,7 +1135,13 @@ async function flatGarment(src: string): Promise<{ flat: boolean; panels: number
   }
   const filled = (id: number, y: number, from: number, to: number) => { let n = 0; for (let x = from; x <= to; x++) if (label[y * w + x] === id) n++; return n; };
   // (The hem: the widest of the rows just above it, as a white hem band can melt into a light background.)
-  const shapeOk = (s: typeof big[number]) => { const bw = s.x1 - s.x0 + 1, bh = s.y1 - s.y0 + 1; return bh >= 0.6 * bw && bh <= 2.4 * bw && Math.max(...[0.03, 0.06, 0.09, 0.12, 0.15].map(f => filled(shapes.indexOf(s), s.y1 - Math.round(f * bh), s.x0, s.x1))) >= 0.45 * bw; };
+  // (Straight, task 585: just above the hem the shape is already nearly as wide as a little higher up; a round badge or
+  // logo narrows towards its bottom and is not a garment.)
+  const shapeOk = (s: typeof big[number]) => {
+    const id = shapes.indexOf(s), bw = s.x1 - s.x0 + 1, bh = s.y1 - s.y0 + 1, at = (f: number) => filled(id, s.y1 - Math.round(f * bh), s.x0, s.x1);
+    const low = Math.max(at(0.03), at(0.06), at(0.09)), up = Math.max(at(0.18), at(0.24));
+    return bh >= 0.6 * bw && bh <= 2.4 * bw && Math.max(...[0.03, 0.06, 0.09, 0.12, 0.15].map(at)) >= 0.45 * bw && low >= 0.78 * up;
+  };
   // The neck opening at the top: the background, or drawn in a colour of its own (a dark inside), between the shoulders.
   const neck = (s: typeof big[number]) => {
     const id = shapes.indexOf(s), bw = s.x1 - s.x0 + 1, bh = s.y1 - s.y0 + 1, cx = Math.round((s.x0 + s.x1) / 2), y = s.y0 + Math.max(1, Math.round(0.03 * bh));
