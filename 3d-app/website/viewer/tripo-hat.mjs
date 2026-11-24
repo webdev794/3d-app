@@ -16,8 +16,35 @@
 //   scaleBy  an extra factor on that scale (default 1)
 //   smooth   passes evening out each point's print place with its neighbours' on the same half and facing the same
 //            way (a ribbed knit: its ridges and grooves otherwise snap to uneven places)
+//   innerRay  the inside marked per point (data `inner`, tripomesh.js innerOf): a point whose ray along its normal meets the
+//            hat again further than `innerMin` metres away (default 0.02) faces into the hat; drawn in the inside's plain colour
+//            (the normal-only rule marked the beanie's rib grooves on the outside)
 //   tilt     degrees turned round the side-to-side axis first (+: its front down), so its band lies as the made hat's band
 //            (placing only: the cap model sits tipped back as worn; the made cap's band is level)
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const here = path.dirname(fileURLToPath(import.meta.url));
+// (`plainParts` (MODELQ7 2026-11-24): { glb: the same model split into parts by Tripo (from viewer/), keys: { <part node>: key } }:
+// the triangles nearest those parts drawn in one plain colour by their key (data triPart / partKeys, main.js; texture.js
+// paintModelSwatches: 'plain:zone:cord|secondary' = the Cord colour, else the trim colour): the bucket hat's chin cord.)
+function readParts(file) {
+  const buf = fs.readFileSync(file);
+  let off = 12, json = null, bin = null;
+  while (off + 8 <= buf.length) { const len = buf.readUInt32LE(off), type = buf.readUInt32LE(off + 4), chunk = buf.subarray(off + 8, off + 8 + len); if (type === 0x4e4f534a) json = JSON.parse(chunk.toString('utf8')); else if (type === 0x004e4942) bin = chunk; off += 8 + len; }
+  const read = (i) => { const a = json.accessors[i], bv = json.bufferViews[a.bufferView], comps = { SCALAR: 1, VEC2: 2, VEC3: 3 }[a.type], Type = { 5126: Float32Array, 5125: Uint32Array, 5123: Uint16Array, 5121: Uint8Array }[a.componentType]; const st = bin.byteOffset + (bv.byteOffset ?? 0) + (a.byteOffset ?? 0); return new Type(bin.buffer.slice(st, st + a.count * comps * Type.BYTES_PER_ELEMENT)); };
+  const out = [];
+  for (const node of json.nodes) {
+    if (node.mesh == null) continue;
+    const t = node.translation ?? [0, 0, 0], sc = node.scale ?? [1, 1, 1], cents = [];
+    for (const prim of json.meshes[node.mesh].primitives) {
+      const p = read(prim.attributes.POSITION), ix = prim.indices != null ? read(prim.indices) : Uint32Array.from({ length: p.length / 3 }, (_, i) => i);
+      for (let k = 0; k < ix.length; k += 3) { const c = [0, 0, 0]; for (let j = 0; j < 3; j++) for (let a = 0; a < 3; a++) c[a] += (p[ix[k + j] * 3 + a] * sc[a] + t[a]) / 3; cents.push(c); }
+    }
+    out.push({ name: node.name, cents });
+  }
+  return out;
+}
 const BUILD = { cap: 'buildCap', beanie: 'buildBeanie', 'bucket-hat': 'buildBucketHat' };
 
 export default {
@@ -101,12 +128,75 @@ export default {
       for (let k = 0; k < 3; k++) idx.push(out(I[t * 3 + k], h));
     }
     log.push(`${OP.length / 3} points written (${OP.length / 3 - count} copies across the halves), ${T} triangles`);
+    // ---- Plain parts: each written triangle's part by the parts file's nearest triangle (placed as the model was).
+    let plain = null, plainTri = null;
+    const PP = settings.convert?.plainParts;
+    if (PP) {
+      const parts = readParts(path.resolve(here, PP.glb)), keys = [...new Set(Object.values(PP.keys))];
+      const a = ((C.tilt ?? 0) * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
+      const placeP = ([x, y, z]) => [x * scale + move[0], (y * ca - z * sa) * scale + move[1], (y * sa + z * ca) * scale + move[2]];
+      const G = 0.01, grid = new Map(), gk = (p) => p.map((v) => Math.floor(v / G)).join(',');
+      parts.forEach((p) => { const k = p.name in PP.keys ? keys.indexOf(PP.keys[p.name]) + 1 : 0; for (const c0 of p.cents) { const c = placeP(c0), kk = gk(c); (grid.get(kk) ?? grid.set(kk, []).get(kk)).push([c, k]); } });
+      const nearestKey = (q) => { const b = q.map((v) => Math.floor(v / G)); let best = null, bd = Infinity; for (let r = 0; r <= 3 && !best; r++) for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) for (let k = -r; k <= r; k++) for (const [c, key] of grid.get([b[0] + i, b[1] + j, b[2] + k].join(',')) ?? []) { const d = Math.hypot(c[0] - q[0], c[1] - q[1], c[2] - q[2]); if (d < bd) { bd = d; best = key; } } return best ?? 0; };
+      const tp = new Uint8Array(idx.length / 3); let nPlain = 0;
+      for (let t = 0; t < tp.length; t++) { const c = [0, 1, 2].map((ax) => (OP[idx[t * 3] * 3 + ax] + OP[idx[t * 3 + 1] * 3 + ax] + OP[idx[t * 3 + 2] * 3 + ax]) / 3); tp[t] = nearestKey(c); if (tp[t]) nPlain++; }
+      plainTri = tp;
+      plain = { triPart: Buffer.from(tp.buffer).toString('base64'), partKeys: keys };
+      log.push(`plain parts: ${nPlain} triangles (${keys.join(', ')})`);
+    }
+    // ---- The inside: a ray from each written point along its normal meets the hat again (far enough not to be a rib).
+    let innerB64 = null;
+    if (C.innerRay) {
+      const NP = OP.length / 3, cell = 0.01, grid = new Map(), gk = (a, b, c) => `${a},${b},${c}`;
+      const TT = idx.length / 3;
+      for (let t = 0; t < TT; t++) {
+        const lo3 = [0, 1, 2].map((a) => Math.floor(Math.min(OP[idx[t * 3] * 3 + a], OP[idx[t * 3 + 1] * 3 + a], OP[idx[t * 3 + 2] * 3 + a]) / cell));
+        const hi3 = [0, 1, 2].map((a) => Math.floor(Math.max(OP[idx[t * 3] * 3 + a], OP[idx[t * 3 + 1] * 3 + a], OP[idx[t * 3 + 2] * 3 + a]) / cell));
+        for (let i = lo3[0]; i <= hi3[0]; i++) for (let j = lo3[1]; j <= hi3[1]; j++) for (let k = lo3[2]; k <= hi3[2]; k++) { const kk = gk(i, j, k); (grid.get(kk) ?? grid.set(kk, []).get(kk)).push(t); }
+      }
+      const hit = (o, d, t) => {
+        const a = idx[t * 3] * 3, b = idx[t * 3 + 1] * 3, c = idx[t * 3 + 2] * 3;
+        const e1 = [OP[b] - OP[a], OP[b + 1] - OP[a + 1], OP[b + 2] - OP[a + 2]], e2 = [OP[c] - OP[a], OP[c + 1] - OP[a + 1], OP[c + 2] - OP[a + 2]];
+        const p = [d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2], d[0] * e2[1] - d[1] * e2[0]], det = e1[0] * p[0] + e1[1] * p[1] + e1[2] * p[2];
+        if (Math.abs(det) < 1e-12) return -1;
+        const inv = 1 / det, s0 = [o[0] - OP[a], o[1] - OP[a + 1], o[2] - OP[a + 2]], u = (s0[0] * p[0] + s0[1] * p[1] + s0[2] * p[2]) * inv;
+        if (u < 0 || u > 1) return -1;
+        const qv = [s0[1] * e1[2] - s0[2] * e1[1], s0[2] * e1[0] - s0[0] * e1[2], s0[0] * e1[1] - s0[1] * e1[0]], v = (d[0] * qv[0] + d[1] * qv[1] + d[2] * qv[2]) * inv;
+        if (v < 0 || u + v > 1) return -1;
+        return (e2[0] * qv[0] + e2[1] * qv[1] + e2[2] * qv[2]) * inv;
+      };
+      const minD = C.innerMin ?? 0.02, maxD = 0.4, inner = new Uint8Array(NP);
+      for (let i = 0; i < NP; i++) {
+        const o = [OP[i * 3], OP[i * 3 + 1], OP[i * 3 + 2]], d = [ON[i * 3], ON[i * 3 + 1], ON[i * 3 + 2]], l = Math.hypot(...d) || 1;
+        for (let a = 0; a < 3; a++) d[a] /= l;
+        const seen = new Set();
+        let found = false;
+        for (let s2 = minD; s2 <= maxD && !found; s2 += cell * 0.7) {
+          const p = [o[0] + d[0] * s2, o[1] + d[1] * s2, o[2] + d[2] * s2];
+          for (const t of grid.get(gk(Math.floor(p[0] / cell), Math.floor(p[1] / cell), Math.floor(p[2] / cell))) ?? []) {
+            if (seen.has(t)) continue; seen.add(t);
+            if (plainTri?.[t]) continue;   // (the cord does not count)
+            const h = hit(o, d, t);
+            if (h <= minD) continue;
+            // (only the hat's other wall seen from behind: the ray leaves the hat there, so it started inside; a rib's ridge
+            // met from the outside faces the ray)
+            const nx = ON[idx[t * 3] * 3] + ON[idx[t * 3 + 1] * 3] + ON[idx[t * 3 + 2] * 3], ny = ON[idx[t * 3] * 3 + 1] + ON[idx[t * 3 + 1] * 3 + 1] + ON[idx[t * 3 + 2] * 3 + 1], nz = ON[idx[t * 3] * 3 + 2] + ON[idx[t * 3 + 1] * 3 + 2] + ON[idx[t * 3 + 2] * 3 + 2];
+            if (nx * d[0] + ny * d[1] + nz * d[2] > 0) { found = true; break; }
+          }
+        }
+        inner[i] = found ? 1 : 0;
+      }
+      // (a plain part (the cord) keeps its own colour: never the inside's)
+      if (plainTri) for (let t = 0; t < plainTri.length; t++) if (plainTri[t]) for (let k = 0; k < 3; k++) inner[idx[t * 3 + k]] = 0;
+      innerB64 = Buffer.from(inner.buffer).toString('base64');
+      log.push(`inside (ray along the normal meets the hat again past ${minD * 1000} mm): ${inner.reduce((a, v) => a + v, 0)} of ${NP} points`);
+    }
     // (The opening's rim for the viewer (made hat's own neck list): kept as the made hat's.)
     const neck = (made.neck ?? []).map((v) => [v.x, v.y, v.z].map((q) => +q.toFixed(5)));
     return {
       data: {
         pos: Float32Array.from(OP), nor: Float32Array.from(ON), flat: Float64Array.from(OF), back: Uint8Array.from(OB), shade: Float64Array.from(OS), idx,
-        extra: { scale: +scale.toFixed(6), move: move.map((v) => +v.toFixed(6)), neck, swatch: [], swatchKeys: [], swatchSpread: 0.02, ownNeck: settings.ownNeck ?? 'none', halves: true },
+        extra: { scale: +scale.toFixed(6), move: move.map((v) => +v.toFixed(6)), neck, swatch: [], swatchKeys: [], swatchSpread: 0.02, ownNeck: settings.ownNeck ?? 'none', halves: true, ...(plain ?? {}), ...(innerB64 ? { inner: innerB64 } : {}) },
       },
       report: log.join('\n'),
     };

@@ -184,13 +184,13 @@ $look = function (string $name, array $extra = []): array {
         'nflpracticeJersey' => ['secondary' => '#0096f0', 'accent' => '#0096f0', 'patternColor' => '#0096f0', 'zones' => [], 'zoneColors' => ['afJersey' => '#ffffff', 'stripe' => '#0090f0', 'vInsert' => '#00c0f8'], 'parts' => ['collar' => ['colour' => '#27282a'], 'sides' => ['colour' => '#27282a']], 'number' => '86', 'marks' => ['top_number' => ['color' => '#00c8ff'], 'top_frontNumber' => ['y' => 0.43], 'top_crest' => ['x' => 0, 'y' => 0.6, 'scale' => 2.2], 'top_wordmark' => ['y' => 0.548]]],
         // The socks (garment 3): cyan hoops under the top band (their trim colour); the pictures' cyan heel and toe, and the rugby socks' cyan top band, are parts.
         // (FN10 2026-11-02, DT10: the hoops brighter, so they render as the picture's (32,196,223) on the stage.)
-        'socksHeel' => ['parts' => ['sockFoot' => ['colour' => $cyan], 'sockHoops' => ['colour' => '#10ccff']]],
+        'socksHeel' => ['parts' => ['sockFoot' => ['colour' => $cyan], 'sockHoops' => ['colour' => '#10ccff'], 'sockBand' => ['colour' => '#27282a']], 'zoneColors' => ['rlSocks' => '#ffffff']],
         // (The rugby socks' top band a deeper blue, as measured on their picture: CF1 2026-10-29.)
         // (FN4 2026-10-30: each socks picture's own layout, viewer sockprint.js: the Rugby picture's band with one black line
         // through it (the hoop under it in the band's blue), the thin line across the forefoot and a flat blue "3"; the
         // Game Socks picture's two wide hoops under a deep black top and a bigger "3".)
-        'rugbySocks' => ['parts' => ['sockBand' => ['colour' => '#0b95dd'], 'sockHoops' => ['colour' => '#0b95dd'], 'sockFoot' => ['colour' => $cyan]], 'zoneColors' => ['sockToeLine' => '#2b91c1', 'sockMark' => '#0a93ee']],
-        'gameSocks' => ['zoneColors' => ['sockHoopsWide' => $cyan]],
+        'rugbySocks' => ['parts' => ['sockBand' => ['colour' => '#0b95dd'], 'sockHoops' => ['colour' => '#0b95dd'], 'sockFoot' => ['colour' => $cyan]], 'zoneColors' => ['sockToeLine' => '#2b91c1', 'sockMark' => '#0a93ee', 'rlSocks' => '#ffffff']],
+        'gameSocks' => ['parts' => ['sockBand' => ['colour' => '#27282a']], 'zoneColors' => ['sockHoopsWide' => $cyan, 'rlSocks' => '#ffffff']],
         // (RGSOCKS 2026-11-13, the user: the Rugby League > Socks tile's own 3D model (Tripo; viewer zoneColors.rlSocks shows
         // it, every other socks tile keeps the made pair) starts as the client's booklet picture "Full rugby kit": knee-high
         // navy socks with a small yellow logo high on the front of each shin: our "3" mark there in yellow (zoneColors.sockMark,
@@ -236,6 +236,10 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'muaythaiShorts' => ['main' => '#f4c51c', 'secondary' => '#f4c51c', 'accent' => '#1f2023', 'patternColor' => '#e0b010', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#1f2023'], 'cuffs' => ['colour' => '#1f2023']], 'zoneColors' => ['muaythaiShorts' => '#f4c51c', 'brandInk' => '#1f2023'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true], 'shorts_wordmark' => ['side' => 'front', 'x' => 0, 'y' => 0.2, 'scale' => 1.3]], 'layers' => []],
+        'pufferJacket' => ['main' => '#e8642e', 'zoneColors' => ['pufferJacket' => '#ffffff', 'body' => '#e8642e', 'shoulder' => '#e8642e', 'side' => '#e8642e', 'stripe' => '#e8642e', 'zip' => '#2b2b2e', 'rib' => '#2b2b2e']],
+        'fightShorts' => ['main' => '#232427', 'secondary' => '#232427', 'accent' => '#ffffff', 'patternColor' => '#3a3b3f', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#232427']], 'zoneColors' => ['fightShorts' => '#232427', 'brandInk' => '#ffffff'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.07, 'scale' => 0.7]], 'layers' => []],
+        'tennisSkirt' => ['main' => '#8fcbe9', 'secondary' => '#1f2a6b', 'accent' => '#1f2a6b', 'patternColor' => '#1f2a6b', 'pattern' => 'None', 'number' => '', 'zoneColors' => ['tennisSkirt' => '#8fcbe9'], 'layers' => []],
         'bucketModel' => ['main' => '#3f5a3a', 'secondary' => '#2f6b3c', 'accent' => '#2f6b3c', 'zoneColors' => [], 'layers' => []],
         'beanieModel' => ['main' => '#e8b220', 'secondary' => '#e8b220', 'accent' => '#e8b220', 'zoneColors' => [], 'layers' => []],
         'capModel' => ['main' => '#f2c418', 'secondary' => '#f2c418', 'accent' => '#f2c418', 'zoneColors' => [], 'layers' => []],
@@ -328,6 +332,23 @@ $look = function (string $name, array $extra = []): array {
     // (MODELQ5 2026-11-19: the 11 plain singlet tiles on the training singlet's 3D model (Tripo training-singlet-textured,
     // viewer zoneColors.trainingSinglet): each keeps its own picture's look, with only the model's flag added.)
     $looks['singletModel'] = ['zoneColors' => $looks['singletTile']['zoneColors'] + ['trainingSinglet' => '#ffffff']] + $looks['singletTile'];
+    // (CLIENTOPS 2026-11-23, the user: tiles onto the 3D models already live, each in its own look with only the model's flag
+    // added (the made shorts' plain-cut flags dropped: the model has its own cut).)
+    $looks['shortsTrainingModel'] = ['zoneColors' => ['cordTips' => '#27282a', 'trainingShorts' => '#27282a']] + $looks['shortsPlainTile'];
+    $looks['shortsSwimModel'] = ['zoneColors' => ['cordTips' => '#27282a', 'swimShorts' => '#27282a']] + $looks['shortsPlainTile'];
+    $looks['rugbyShortsModel'] = ['zoneColors' => ['cordTips' => '#27282a', 'rlShorts' => '#27282a']] + $looks['rugbyShortsTile'];
+    $looks['rugbyKitModel'] = ['zoneColors' => $looks['rugbyTile']['zoneColors'] + ['rlShorts' => '#27282a', 'rugbyVJersey' => '#27282a']] + $looks['rugbyTile'];
+    $looks['rlKitShortsModel'] = ['zoneColors' => $looks['rlKitModel']['zoneColors'] + ['rlShorts' => '#27282a']] + $looks['rlKitModel'];
+    $looks['tribalKitModel'] = ['zoneColors' => $looks['tribalKit']['zoneColors'] + ['trainingShorts' => '#27282a', 'scJersey' => '#27282a']] + $looks['tribalKit'];
+    $looks['nflgameModel'] = ['zoneColors' => ['trainingShorts' => '#27282a', 'afJersey' => '#27282a']] + $looks['nflgame'];
+    $looks['tribalScJersey'] = ['zoneColors' => ['scJersey' => '#27282a']] + $looks['tribal'];
+    $looks['tribalPolo'] = ['zoneColors' => []] + $looks['tribal'];
+    $looks['bibsModel'] = ['zoneColors' => ['netballBib' => '#27282a']] + $looks['bibs'];
+    $looks['singletTileBib'] = ['zoneColors' => $looks['singletTile']['zoneColors'] + ['netballBib' => '#27282a']] + $looks['singletTile'];
+    $looks['bladesSidesWomenSinglet'] = ['zoneColors' => ['womenSinglet' => '#27282a']] + $looks['bladesSides'];
+    $looks['tennisDress'] = ['marks' => ['top_name' => ['hidden' => true]], 'layers' => []] + $looks['bladesSides'];
+    $looks['rugbyTracksuitModel'] = ['zoneColors' => $looks['rugbyTracksuit']['zoneColors'] + ['zipHoodie' => '#27282a', 'tsPants' => '#27282a']] + $looks['rugbyTracksuit'];
+    $looks['nflTracksuitModel'] = ['zoneColors' => $looks['nflTracksuit']['zoneColors'] + ['zipHoodie' => '#27282a', 'tsPants' => '#27282a']] + $looks['nflTracksuit'];
     $looks['bladesSidesModel'] = ['zoneColors' => ['trainingSinglet' => '#ffffff']] + $looks['bladesSides'];
     return $extra + ($looks[$name] ?? []) + $base + ['number' => '23', 'marks' => []];
 };
@@ -336,7 +357,7 @@ $sports = [
     // The client's own lists and words: Rugby League and Rugby (images/160.jpg, 11 tiles, no "More teamwear"); pictures:
     // the client's own tiles (images/161.jpg) remade in high resolution, garment-rugby-*.webp.
     ['id' => 'rugby-league', 'name' => 'Rugby League', 'description' => 'Made for every tackle. Built for your team.', 'group' => 'sports', 'more' => false, 'tiles' => [
-        $tile('Rugby League Kit', 'Jersey, playing shorts and socks.', 'fullkit', 'rugby-kit') + ['design' => $look('rlKitModel')],
+        $tile('Rugby League Kit', 'Jersey, playing shorts and socks.', 'fullkit', 'rugby-kit') + ['design' => $look('rlKitShortsModel')],
         // (On its own 3D model, rugby-jersey-textured.glb (RUGBYJ 2026-11-18, look 'rugbyJersey', viewer/models/rugby-jersey.json);
         // the kit keeps the made jersey.)
         $tile('Jersey', 'Performance rugby league jersey.', 'jersey', 'rugby-jersey') + ['design' => $look('rugbyJersey')],
@@ -346,7 +367,7 @@ $sports = [
         $tile('Training Tee', 'Breathable tee for training.', 'tee', 'rugby-tee'),
         $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
         $tile('Training Shorts', 'Lightweight shorts with zip pockets.', 'shorts', 'rugby-training-shorts'),
-        $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'rugby-hooded-tracksuit') + ['design' => ['trackStyle' => 'hood']],
+        $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'rugby-hooded-tracksuit') + ['design' => $look('rugbyTracksuitModel', ['trackStyle' => 'hood'])],
         $tile('Cap', 'Curved brim sports cap.', 'cap', 'rugby-cap'),
         $tile('Bucket Hat', 'Wide brim bucket hat.', 'bucket-hat', 'rugby-bucket-hat'),
         $tile('Waterproof Jacket', 'Weatherproof jacket with hood.', 'trackjacket', 'rugby-waterproof-jacket') + ['design' => ['trackStyle' => 'hood']],
@@ -357,12 +378,12 @@ $sports = [
     ['id' => 'rugby-union', 'name' => 'Rugby Union', 'description' => 'A proud tradition. A kit of your own.', 'group' => 'sports',
         // The client's heading for it: RUGBY UNIFORMS & TEAMWEAR.
         'heading' => 'Rugby', 'more' => false, 'tiles' => [
-        $tile('Rugby Kit', 'Jersey, playing shorts and socks.', 'fullkit', 'rugby-kit'),
+        $tile('Rugby Kit', 'Jersey, playing shorts and socks.', 'fullkit', 'rugby-kit') + ['design' => $look('rugbyKitModel')],
         // (On its own 3D model, rugby-vneck-jersey-textured.glb (RUGBYV 2026-11-19, look 'rugbyVJersey',
         // viewer/models/rugby-vneck-jersey.json); the Rugby Kit keeps its own jersey.)
         $tile('Jersey', 'Performance rugby jersey.', 'jersey', 'rugby-jersey') + ['design' => $look('rugbyVJersey')],
         $tile("Women's rugby jersey", "Fitted women's rugby jersey with a V-neck.", 'jersey', 'rugby-jersey') + ['design' => $look('womenRugbyJersey')],
-        $tile('Playing Shorts', 'Durable rugby shorts.', 'shorts', 'rugby-shorts'),
+        $tile('Playing Shorts', 'Durable rugby shorts.', 'shorts', 'rugby-shorts') + ['design' => $look('rugbyShortsModel')],
         // (On its own 3D model, women-rugby-shorts.glb: MODELQ2 2026-11-16, the user.)
         $tile('Women\'s rugby shorts', 'Fitted women\'s rugby shorts.', 'shorts', 'rugby-shorts') + ['design' => $look('womenRugbyShorts')],
         $tile('Socks', 'Knee-high match socks.', 'socks', 'rugby-socks'),
@@ -370,7 +391,7 @@ $sports = [
         $tile('Training Tee', 'Breathable tee for training.', 'tee', 'rugby-tee'),
         $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
         $tile('Training Shorts', 'Lightweight shorts with zip pockets.', 'shorts', 'rugby-training-shorts'),
-        $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'rugby-hooded-tracksuit') + ['design' => ['trackStyle' => 'hood']],
+        $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'rugby-hooded-tracksuit') + ['design' => $look('rugbyTracksuitModel', ['trackStyle' => 'hood'])],
         $tile('Cap', 'Curved brim sports cap.', 'cap', 'rugby-cap'),
         $tile('Bucket Hat', 'Wide brim bucket hat.', 'bucket-hat', 'rugby-bucket-hat'),
         $tile('Waterproof Jacket', 'Weatherproof jacket with hood.', 'trackjacket', 'rugby-waterproof-jacket') + ['design' => ['trackStyle' => 'hood']],
@@ -386,7 +407,7 @@ $sports = [
         $tile('Full kit', 'Shirt and shorts, designed together.', 'fullkit') + ['design' => $look('fbKitModel')],
         $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
         $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
-        $near('Training bibs', 'Pull-over bibs for drills and small-sided games.', 'singlet', 'bibs', 'bibs'),
+        $near('Training bibs', 'Pull-over bibs for drills and small-sided games.', 'singlet', 'bibs', 'bibs') + ['design' => $look('bibsModel')],
         $tile('Club polo', 'Smart polo for coaches and travel.', 'polo'),
         $tile('Track jacket', 'Full-zip jacket for the bench and travel.', 'trackjacket'),
         $tile('Football socks', 'Match socks with team bands.', 'socks'),
@@ -416,9 +437,9 @@ $sports = [
         // Its own 3D garment since 2026-10-26 (tasks.md 9.126): a women's fitted dress on the female figure.
         $tile('Netball dress', 'Fitted netball dress with skirt hem.', 'netball-dress', 'netball-dress') + ['design' => $look('netballDress')],
         // Its own 3D garment since 2026-10-29 (COMING SOON 10): the A-line skirt with a gathered waistband.
-        $tile('Netball skirt', 'Athletic skirt with team styling.', 'skirt', 'netball-skirt'),
+        $tile('Netball skirt', 'Athletic skirt with team styling.', 'skirt', 'netball-skirt') + ['design' => $look('tennisSkirt')],
         $tile("Women's shorts", 'Fitted sport shorts for the court.', 'shorts', 'shorts') + ['design' => $look('womenShorts')],
-        $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib'),
+        $tile('Singlet with bib', 'Netball singlet with removable bib.', 'singlet', 'netball-singlet-bib') + ['design' => $look('bladesSidesWomenSinglet')],
         $tile('Training singlet', 'Lightweight top for training.', 'singlet', 'netball-training-singlet') + ['design' => $look('bladesSidesModel')],
         $tile("Women's singlet", 'Fitted racerback singlet for training.', 'singlet', 'netball-training-singlet') + ['design' => $look('womenSinglet')],
         $tile('Training T-shirt', 'Breathable tee for training and warm-ups.', 'tee', 'netball-tee'),
@@ -429,7 +450,7 @@ $sports = [
     ]],
     ['id' => 'afl', 'name' => 'AFL', 'description' => 'A new look for your next big mark.', 'group' => 'sports', 'tiles' => [
         $tile('AFL guernsey', 'Sleeveless match guernsey with your number.', 'singlet', 'afl-guernsey') + ['design' => $look('aflGuernsey')],
-        $tile('AFL shorts', 'Footy shorts for the contest.', 'shorts'),
+        $tile('AFL shorts', 'Footy shorts for the contest.', 'shorts') + ['design' => $look('shortsTrainingModel')],
         $tile('Training singlet', 'Lightweight singlet for the track.', 'singlet') + ['design' => $look('singletModel')],
         $tile("Women's singlet", 'Fitted racerback singlet for the track.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
         $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
@@ -449,9 +470,9 @@ $sports = [
             $tile('5 Panel Cap', 'One wide front panel and a flat brim.', 'five-panel-cap'),
         ]],
     ['id' => 'hockey', 'name' => 'Hockey', 'description' => 'Fast play. Unmistakable team identity.', 'group' => 'sports', 'tiles' => [
-        $tile('Hockey jersey', 'Match shirt in your team colours.', 'jersey'),
-        $tile('Hockey shorts', 'Light shorts for fast play.', 'shorts'),
-        $tile('Hockey skort', 'A-line skirt with side panels.', 'skirt', 'netball-skirt'),
+        $tile('Hockey jersey', 'Match shirt in your team colours.', 'jersey') + ['design' => $look('tribalScJersey')],
+        $tile('Hockey shorts', 'Light shorts for fast play.', 'shorts') + ['design' => $look('shortsTrainingModel')],
+        $tile('Hockey skort', 'A-line skirt with side panels.', 'skirt', 'netball-skirt') + ['design' => $look('tennisSkirt')],
         $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
         $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
         $tile('Club polo', 'Smart polo for coaches and travel.', 'polo'),
@@ -466,19 +487,19 @@ $sports = [
         'prompt' => 'American football: a short-sleeve jersey cut wide over the shoulder pads, big block numbers on the front, back and sleeves, sleeve stripes',
         'subtitle' => 'Choose your game uniform, practice wear or sideline apparel.', 'select_hint' => 'Select a garment to customise.',
         'descriptions' => false, 'backdrop' => 'stage-american-football', 'more' => false, 'tiles' => [
-            $near('Game Kit', 'Game jersey, pants and socks.', 'fullkit', 'nfl-kit', 'nfl-kit'),
+            $near('Game Kit', 'Game jersey, pants and socks.', 'fullkit', 'nfl-kit', 'nfl-kit') + ['design' => $look('nflgameModel')],
             $tile('Game Jersey', 'Shoulder-pad cut with big numbers.', 'nfljersey', 'nfl-jersey') + ['design' => $look('nflgameJersey', ['fabric' => 'Standard'])],
             $tile('Game Pants', 'Game pants with belt and knee pads.', 'shorts', 'nfl-pants') + ['design' => $look('afPants')],
             $tile('Practice Jersey', 'Mesh jersey for practice days.', 'nfljersey', 'nfl-practice-jersey') + ['design' => $look('nflpracticeJersey', ['fabric' => 'Mesh'])],
             $tile('Training Tee', 'Breathable tee for training.', 'tee', 'nfl-tee'),
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
             $tile('Training Shorts', 'Lightweight shorts for practice.', 'shorts', 'nfl-training-shorts'),
-            $tile('Compression Top', 'Long-sleeve base layer under the pads.', 'compression', 'nfl-compression-top') + ['design' => $look('sides')],
+            $tile('Compression Top', 'Long-sleeve base layer under the pads.', 'tee', 'nfl-compression-top') + ['design' => $look('sides')],
             $soon('Compression Shorts', 'Supportive base layer shorts.', 'compression-shorts', 'nfl-compression-shorts'),
             $tile('Game Socks', 'Knee-high socks with team hoops.', 'socks', 'nfl-socks'),
             $tile('Hoodie', 'Warm hoodie for the sideline.', 'hoodie', 'nfl-hoodie'),
             $tile('Varsity Jacket', 'Letterman jacket for the team.', 'varsity', 'nfl-varsity'),
-            $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'nfl-hooded-tracksuit') + ['design' => ['trackStyle' => 'hood']],
+            $tile('Hooded Tracksuit', 'Full-zip jacket with hood and pants.', 'trackjacket', 'nfl-hooded-tracksuit') + ['design' => $look('nflTracksuitModel', ['trackStyle' => 'hood'])],
             $tile('Waterproof Jacket', 'Weatherproof jacket with hood.', 'trackjacket', 'nfl-waterproof-jacket') + ['design' => ['trackStyle' => 'hood']],
             $tile('Windbreaker', 'Light stand-collar jacket that keeps the wind out.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('windbreakerJacket')],
             $tile("Women's windbreaker", "Fitted women's windbreaker for game days.", 'trackjacket', 'waterproof-jacket') + ['design' => $look('womenWindbreaker')],
@@ -503,9 +524,9 @@ $sports = [
             $tile('Tennis tee', 'Light crew tee for every rally.', 'tee'),
             $tile('Tennis singlet', 'Sleeveless top for hot days.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for the court.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
-            $tile('Tennis shorts', 'Light shorts with room to move.', 'shorts'),
-            $near('Tennis dress', 'Fitted dress with a flared hem.', 'singlet', 'dress', 'netball-dress'),
-            $tile('Tennis skirt', 'A-line skirt with side panels.', 'skirt', 'netball-skirt'),
+            $tile('Tennis shorts', 'Light shorts with room to move.', 'shorts') + ['design' => $look('shortsTrainingModel')],
+            $tile('Tennis dress', 'Fitted dress with a flared hem.', 'netball-dress', 'netball-dress') + ['design' => $look('tennisDress')],
+            $tile('Tennis skirt', 'A-line skirt with side panels.', 'skirt', 'netball-skirt') + ['design' => $look('tennisSkirt')],
             $tile('Track jacket', 'Full-zip jacket for warm-ups.', 'trackjacket'),
             $tile('Cap', 'Sun cap with your club logo.', 'cap'),
         ]],
@@ -534,7 +555,7 @@ $sports = [
             $tile('Rash guard', 'Sun-smart stretch top for the water.', 'tee', 'rash-guard') + ['design' => $look('rashGuard')],
             $tile('Club singlet', 'Light singlet for squad training.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for squad training.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
-            $tile('Deck shorts', 'Quick-dry shorts for the pool deck.', 'shorts'),
+            $tile('Deck shorts', 'Quick-dry shorts for the pool deck.', 'shorts') + ['design' => $look('shortsSwimModel')],
             $tile('Swim shorts', 'Drawstring swim shorts in quick-dry fabric.', 'shorts', 'shorts') + ['design' => $look('swimShorts')],
             $tile('Club hoodie', 'Warm hoodie between races.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for early starts.', 'ziphoodie'),
@@ -561,8 +582,8 @@ $sports = [
             $tile('Touch tee', 'Light raglan tee for fast games.', 'tee', 'tee') + ['design' => $look('raglanTee')],
             $tile('Touch singlet', 'Sleeveless top for hot days.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for touch.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
-            $tile('Touch shorts', 'Light shorts that move with you.', 'shorts'),
-            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit'),
+            $tile('Touch shorts', 'Light shorts that move with you.', 'shorts') + ['design' => $look('shortsTrainingModel')],
+            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit') + ['design' => $look('tribalKitModel')],
             $tile('Club polo', 'Smart polo for the team.', 'polo'),
             $tile('Hoodie', 'Warm hoodie between games.', 'hoodie', 'team-hoodie'),
             $tile('Track jacket', 'Full-zip jacket for the sideline.', 'trackjacket'),
@@ -592,11 +613,11 @@ $sports = [
         ]],
     ['id' => 'volleyball', 'name' => 'Volleyball', 'description' => 'Indoor and beach, ready to rise.', 'group' => 'sports',
         'prompt' => 'volleyball: a fitted short-sleeve or sleeveless jersey with a big number, short shorts', 'tiles' => [
-            $tile('Volleyball jersey', 'Fitted jersey with a big number.', 'jersey'),
+            $tile('Volleyball jersey', 'Fitted jersey with a big number.', 'jersey') + ['design' => $look('tribalScJersey')],
             $tile('Volleyball singlet', 'Sleeveless top for beach and indoor.', 'singlet') + ['design' => $look('singletModel')],
             $tile("Women's singlet", 'Fitted racerback singlet for beach and indoor.', 'singlet', 'singlet') + ['design' => $look('womenSinglet')],
-            $tile('Volleyball shorts', 'Short shorts for the court.', 'shorts'),
-            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit'),
+            $tile('Volleyball shorts', 'Short shorts for the court.', 'shorts') + ['design' => $look('shortsTrainingModel')],
+            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit') + ['design' => $look('tribalKitModel')],
             $tile('Training tee', 'Breathable tee for training.', 'tee'),
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
             $tile('Hoodie', 'Warm hoodie between sets.', 'hoodie', 'team-hoodie'),
@@ -604,10 +625,10 @@ $sports = [
         ]],
     ['id' => 'lacrosse', 'name' => 'Lacrosse', 'description' => 'Pinnies and shorts for the fastest game on feet.', 'group' => 'sports',
         'prompt' => 'lacrosse: a loose sleeveless pinnie with a big number, long lacrosse shorts', 'tiles' => [
-            $near('Lacrosse pinnie', 'Loose sleeveless pinnie with a big number.', 'singlet', 'pinnie'),
-            $tile('Lacrosse shorts', 'Long shorts for the fastest game on feet.', 'shorts'),
-            $tile('Game jersey', 'Match jersey in your colours.', 'jersey'),
-            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit'),
+            $near('Lacrosse pinnie', 'Loose sleeveless pinnie with a big number.', 'singlet', 'pinnie') + ['design' => $look('singletTileBib')],
+            $tile('Lacrosse shorts', 'Long shorts for the fastest game on feet.', 'shorts') + ['design' => $look('shortsTrainingModel')],
+            $tile('Game jersey', 'Match jersey in your colours.', 'jersey') + ['design' => $look('tribalScJersey')],
+            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit') + ['design' => $look('tribalKitModel')],
             $tile('Training tee', 'Breathable tee for training.', 'tee'),
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
             $tile('Hoodie', 'Warm hoodie for the sideline.', 'hoodie', 'team-hoodie'),
@@ -629,7 +650,7 @@ $sports = [
         'prompt' => 'BMX and motocross: a loose long-sleeve V-neck race jersey with bold graphics, vented race pants', 'tiles' => [
             $tile('Race jersey', 'Loose long-sleeve jersey with bold graphics.', 'jersey', 'jersey') + ['design' => $look('bmxRaceJersey')],
             $soon('Race pants', 'Vented pants for the track.', 'race-pants', 'track-pants'),
-            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit'),
+            $tile('Full kit', 'Jersey and shorts, designed together.', 'fullkit') + ['design' => $look('tribalKitModel')],
             $tile('Team tee', 'Soft tee for the pits.', 'tee'),
             $tile('Hoodie', 'Warm hoodie between motos.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for travel.', 'ziphoodie'),
@@ -647,7 +668,7 @@ $sports = [
         ]],
     ['id' => 'esports', 'name' => 'Esports', 'description' => 'Pro gaming jerseys with your tag on the back.', 'group' => 'sports',
         'prompt' => 'esports: a pro gaming jersey with sharp sublimated graphics, sponsor patches and the gamer tag across the back', 'tiles' => [
-            $tile('Esports jersey', 'Pro jersey with your tag on the back.', 'jersey'),
+            $tile('Esports jersey', 'Pro jersey with your tag on the back.', 'jersey') + ['design' => $look('tribalScJersey')],
             $tile('Team tee', 'Soft tee for the team.', 'tee'),
             $tile('Team polo', 'Smart polo for events.', 'polo'),
             $tile('Team hoodie', 'Warm hoodie for long sessions.', 'hoodie', 'team-hoodie'),
@@ -676,7 +697,8 @@ $sports = [
     ['id' => 'fight-wear', 'name' => 'Fight Wear', 'description' => 'Rash guards and fight shorts for the cage and the mat.', 'group' => 'apparel',
         'prompt' => 'fight wear (MMA, boxing, BJJ, Muay Thai): a compression rash guard and fight shorts with side splits', 'tiles' => [
             $tile('Rash guard', 'Compression top for the mat.', 'tee', 'rash-guard') + ['design' => $look('rashGuard')],
-            $near('Fight shorts', 'Fight cut with side splits.', 'shorts', 'fight-shorts', 'fight-shorts'),
+            $tile('Fight shorts', 'Fight cut with side splits.', 'shorts', 'fight-shorts') + ['design' => $look('fightShorts')],
+            $tile('Muay Thai shorts', 'Thai cut with side splits and a wide waistband.', 'shorts', 'fight-shorts') + ['design' => $look('muaythaiShorts')],
             $tile('Training tee', 'Breathable tee for the gym.', 'tee'),
             $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
             $tile('Training singlet', 'Lightweight singlet for conditioning.', 'singlet') + ['design' => $look('singletModel')],
@@ -695,7 +717,7 @@ $sports = [
             $tile('Fishing polo', 'Smart polo for the club and the boat.', 'polo'),
             $tile('Fishing tee', 'Soft tee for the beach.', 'tee'),
             $tile('Fishing hoodie', 'Warm hoodie for early starts.', 'hoodie', 'team-hoodie') + ['design' => $look('fishingHoodie')],
-            $tile('Boat shorts', 'Quick-dry shorts for the boat.', 'shorts'),
+            $tile('Boat shorts', 'Quick-dry shorts for the boat.', 'shorts') + ['design' => $look('shortsSwimModel')],
             $tile('Bucket hat', 'Sun-smart hat with a wide brim.', 'bucket-hat'),
             $tile('Cap', 'Cap with your club logo.', 'cap'),
         ]],
@@ -704,10 +726,10 @@ $sports = [
             $tile('Hi-vis polo', 'Fluoro polo with your business logo.', 'polo'),
             $tile('Work polo with pocket', 'Hard-wearing polo with a chest pocket.', 'pocketpolo'),
             $tile('Work tee', 'Tough tee for every job.', 'tee'),
-            $near('Work shirt', 'Long-sleeve work shirt with your logo.', 'jersey', 'work-shirt'),
+            $tile('Work shirt', 'Long-sleeve work shirt with your logo.', 'polo', 'jersey') + ['design' => $look('tribalPolo')],
             $tile('Work hoodie', 'Warm hoodie for cold sites.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for the yard.', 'ziphoodie'),
-            $tile('Work shorts', 'Hard-wearing shorts for the job.', 'shorts'),
+            $tile('Work shorts', 'Hard-wearing shorts for the job.', 'shorts') + ['design' => $look('shortsTrainingModel')],
             $tile('Cap', 'Work cap with your business logo.', 'cap'),
         ]],
     ['id' => 'gymwear', 'name' => 'Gymwear', 'description' => 'Fitness gear for every session.', 'group' => 'apparel',
@@ -724,7 +746,7 @@ $sports = [
             $tile('Sports bra', 'Racerback sports bra with a wide underband.', 'singlet', 'netball-training-singlet') + ['design' => $look('sportsBra')],
             $tile("Women's fitness bottoms", 'High-waisted fitness bottoms in stretch fabric.', 'shorts', 'leggings') + ['design' => $look('fitnessBottoms')],
             $tile("Women's shorts", 'Fitted sport shorts for training.', 'shorts', 'shorts') + ['design' => $look('womenShorts')],
-            $tile('Gym shorts', 'Light shorts for training.', 'shorts'),
+            $tile('Gym shorts', 'Light shorts for training.', 'shorts') + ['design' => $look('shortsTrainingModel')],
             $tile('Leggings', 'Squat-proof leggings and tights.', 'shorts', 'leggings') + ['design' => $look('womenLeggings')],
             $tile('Compression pants', 'Full-length compression pants for lifting.', 'shorts', 'leggings') + ['design' => $look('compressionPants')],
             $tile("Men's tights", "Full-length men's tights for training.", 'shorts', 'leggings') + ['design' => $look('menTights')],
@@ -743,7 +765,7 @@ $sports = [
             $tile('Raglan long-sleeve', 'Raglan long-sleeve tee with contrast sleeves.', 'compression', 'raglan-longsleeve') + ['design' => $look('raglanLs')],
             $tile('Raglan tee', 'Raglan tee with contrast sleeves for the clubhouse.', 'tee', 'tee') + ['design' => $look('raglanTee')],
             $tile('Raglan hoodie', 'Full-zip raglan hoodie for travel.', 'ziphoodie', 'ziphoodie') + ['design' => $look('raglanHoodie')],
-            $tile('Club shorts', 'Casual shorts for travel.', 'shorts'),
+            $tile('Club shorts', 'Casual shorts for travel.', 'shorts') + ['design' => $look('shortsTrainingModel')],
             $tile('Club hoodie', 'Warm hoodie for the sideline.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip layer for travel.', 'ziphoodie'),
             $tile('Sweatshirt', 'Crew-neck sweatshirt for the sideline.', 'hoodie', 'team-hoodie') + ['design' => $look('sweatshirt')],
@@ -754,7 +776,7 @@ $sports = [
         ]],
     ['id' => 'school-leavers', 'name' => 'School Leavers', 'description' => 'Your year, your names, one jersey.', 'group' => 'apparel',
         'prompt' => 'school leavers: a long-sleeve rugby-collar jersey with the class year big on the front or back and every student\'s name', 'tiles' => [
-            $near('Leavers jersey', 'Rugby-collar jersey with every name on it.', 'jersey', 'leavers-jersey'),
+            $near('Leavers jersey', 'Rugby-collar jersey with every name on it.', 'jersey', 'leavers-jersey') + ['design' => $look('tribalScJersey')],
             $tile('Leavers hoodie', 'Your year, big on the back.', 'hoodie', 'team-hoodie'),
             $tile('Zip hoodie', 'Full-zip hoodie with your year.', 'ziphoodie'),
             $tile('Sweatshirt', 'Crew-neck sweatshirt with your year.', 'hoodie', 'team-hoodie') + ['design' => $look('sweatshirt')],
@@ -762,6 +784,14 @@ $sports = [
             $tile('Leavers polo', 'Smart polo with your year.', 'polo'),
             $tile('Leavers tee', 'Soft tee with every name.', 'tee'),
             $tile('Track jacket', 'Full-zip jacket with your year.', 'trackjacket'),
+        ]],
+    // JACKETS (client 2026-11-23, via the coordinator): a jacket option by itself, not with a sport, like Headwear: varsity,
+    // long-sleeve puffer and puffer vest (a hooded varsity once its model is made).
+    ['id' => 'jackets', 'name' => 'Jackets', 'description' => 'Varsity and puffer jackets in your colours.', 'group' => 'apparel', 'more' => false, 'names' => false, 'numbers' => false,
+        'prompt' => 'jackets: a varsity letterman jacket, a quilted hooded puffer jacket and a puffer vest with the club crest', 'tiles' => [
+            $tile('Varsity jacket', 'Letterman jacket for the club.', 'varsity'),
+            $tile('Puffer jacket', 'Quilted hooded down jacket for cold days.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('pufferJacket')],
+            $tile('Puffer vest', 'Quilted puffer vest for cold days.', 'trackjacket', 'waterproof-jacket') + ['design' => $look('pufferVest')],
         ]],
 ];
 
@@ -815,7 +845,7 @@ $gameThree = ['layers' => [
 // (FM print fixer round 2, 2026-10-30: colours sampled from the picture: the panels, sleeve stripes and back print a
 // deep azure (#008ad8), the raglan piping and the sleeve "3" the picture's brighter cyan (#00c4f0, zoneColors.piping);
 // the "3" turned upright along the arm, smaller and set in from its outer edge, as the picture's 34 x 70 px.)
-$sleeveThree = ['secondary' => '#008ad8', 'accent' => '#008ad8', 'patternColor' => '#008ad8', 'zoneColors' => ['piping' => '#00c4f0'], 'marks' => ['top_crest' => ['scale' => 1]], 'layers' => [
+$sleeveThree = ['secondary' => '#008ad8', 'accent' => '#008ad8', 'patternColor' => '#008ad8', 'zoneColors' => ['piping' => '#00c4f0', 'rashGuard' => '#ffffff'], 'marks' => ['top_crest' => ['scale' => 1]], 'layers' => [
     ['type' => 'text', 'id' => 'tile-sleeve', 'name' => 'Sleeve number', 'part' => 'top', 'side' => 'front', 'x' => 0.3565, 'y' => 0.5467, 'rot' => -45, 'text' => '3', 'size' => 0.112, 'narrow' => 0.39, 'color' => '#00c4f0', 'font' => 'JerseyBlock'],
 ]];
 // The netball dress on its own 3D dress (NDF, the client's 425 / 427): the 3DEEZI mark and wordmark on the chest under

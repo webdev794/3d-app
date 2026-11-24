@@ -42,6 +42,21 @@ const fabricNotes = {
   'Eco': 'Soft, matt cotton-feel knit of recycled yarn.',
 };
 
+/// The varsity jacket's Material (client 2026-11-23), kept in the design's
+/// fabric (as the website's KitViewer.tsx varsityMaterials): Standard = wool
+/// body + leather sleeves (old designs too), Eco = cotton, Pro = polyester;
+/// Mesh is never offered (shows as wool).
+const varsityMaterials = {
+  'Standard': 'Wool + leather',
+  'Eco': 'Cotton',
+  'Pro': 'Polyester',
+};
+const varsityMaterialNotes = {
+  'Standard': 'Soft wool felt body with leather sleeves.',
+  'Eco': 'Matt cotton all over.',
+  'Pro': 'Smooth polyester with a satin sheen.',
+};
+
 /// Every sport name, as lib/sports_catalog.dart (a const list for the JSON
 /// schema; test/sports_catalog_test.dart checks the two match).
 const designSports = [
@@ -75,6 +90,7 @@ const designSports = [
   'Gymwear',
   'Club Casual',
   'School Leavers',
+  'Jackets',
 ];
 const designGarments = [
   'Jersey',

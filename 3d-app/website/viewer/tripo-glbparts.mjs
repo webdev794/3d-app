@@ -339,6 +339,9 @@ const evenShare = (s, up = false) => {
   const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const v of cp) { const d = sub(P3(v), c0); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i][j] += d[i] * d[j]; }
   const tr = C[0][0] + C[1][1] + C[2][2]; let ax = [0.31, 0.53, 0.79]; for (let it = 0; it < 300; it++) { const m2 = [0, 1, 2].map((i) => tr * ax[i] - (C[i][0] * ax[0] + C[i][1] * ax[1] + C[i][2] * ax[2])); ax = nrm(m2); }
   if (up ? ax[1] < 0 : ax[0] * c0[0] < 0) ax = ax.map((x) => -x);
+  // (`evenAxis` (MODELQ8 2026-11-23, the tennis skirt's hem: a ring round the body, its opening facing down): the band's axis
+  // given ([x, y, z], pointing out of the opening), not the ring's own least spread.)
+  if (settings.evenAxis) ax = nrm(settings.evenAxis);
   const ref = Math.abs(ax[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0], e1 = nrm(cross(ax, ref)), e2 = cross(ax, e1), NB = 72;
   const ang = (v) => { const d = sub(P3(v), c0); return Math.atan2(dot(d, e2), dot(d, e1)); }, along = (v) => dot(sub(P3(v), c0), ax), rad = (v) => { const d = sub(P3(v), c0), t = dot(d, ax); return Math.hypot(...d.map((x, i) => x - ax[i] * t)); };
   const bin = (v) => Math.min(NB - 1, Math.floor(((ang(v) + Math.PI) / (2 * Math.PI)) * NB));
@@ -389,7 +392,8 @@ const below = Int16Array.from(key);
     below[v] = k;
   }
 }
-const evenOf = (s) => settings.evenCuffs && (!CUFFON.size || CUFFON.has(s));
+// (`evenKeys` (MODELQ8 2026-11-23): only these sleeve keys are even bands (the tennis skirt: its hem binding, not its side piping).)
+const evenOf = (s) => settings.evenCuffs && (!CUFFON.size || CUFFON.has(s)) && (!settings.evenKeys || settings.evenKeys.includes(keys[s - 1]));
 const dS = LINED.map((s) => { const w = SLEEVES.includes(s) && evenOf(s) ? evenShare(s) : shareOf((v) => below[v] === s || CUFFON.get(below[v]) === s), L = linesOf(w, sigma, SLEEVES.includes(s) && evenOf(s) ? (v) => outside[v] || evenRings.get(s).onSleeve(v) : null); report.push(`${keys[s - 1]} lines ${L.map((x) => `${x.len} mm${x.closed ? ' closed' : ''}`).join(', ')}`); return distOf(L, w); });
 
 // ---- Per outside point: collar where it is in the collar, else the sleeve it is in, else the print; the line nearest it

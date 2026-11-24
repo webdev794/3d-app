@@ -1908,7 +1908,9 @@ export class KitPainter {
     // border is one of the model's own lines (user, strict): none of the made garment's areas, panels, bands, sweeps or
     // stripes is printed on it; its pieces take those colours (main.js, piece). Only the cloth's colour, pattern, the
     // design's own layers and the marks.)
-    const bare = !!this.model?.pieces;
+    // (`madeAreas` (RUGBYJ 2026-11-23, the American football jerseys): a model printed through the made garment's own
+    // pattern keeps the made garment's areas, panels and stripes too.)
+    const bare = !!this.model?.pieces && !this.model?.madeAreas;
     for (const back of [false, true]) {
       // (The netball dress: the margin outside its outline in its parts' colours first: netballdress.js paintDressBleed.)
       if (isDress(this.kind)) paintDressBleed(this, design, back);
@@ -1959,6 +1961,9 @@ export class KitPainter {
       }
       // The skirt: its side panels, waistband and seams (skirtprint.js), then the areas' patterns and the stitching.
       if (this.kind === 'skirt') {
+        // (The skirt on its ready-made model, split into its pieces (MODELQ8 2026-11-23, the tennis skirt): none of the made
+        // skirt's side panels, ruched waistband, seams or stitching; its pieces take the parts' colours, PATTERNDND-1.)
+        if (bare) { paintPieceParts(this, design, back); this.side(back); g.restore(); continue; }
         paintSkirt(this, design, back, trim);
         this.paintZones(design, back);
         this.side(back);
@@ -2022,7 +2027,7 @@ export class KitPainter {
         for (const poly of zoneOutlines(this.kind, 'sleeves')) { poly.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); }
         g.clip('evenodd');
       }
-      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' || (this.model && !sideStyle) || (this.modelBand && !sideStyle) || bare ? [] : [-1, 1]) {
+      for (const dir of hoodie || track || varsity || bball || isDress(this.kind) || this.kind === 'compression' || this.kind === 'shooting-shirt' || (this.model && !sideStyle && !this.model.madeAreas) || (this.modelBand && !sideStyle) || bare ? [] : [-1, 1]) {
         g.beginPath();
         if (shorts) {
           // Outer-leg stripe.

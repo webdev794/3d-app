@@ -1,0 +1,51 @@
+{
+  "about": "Netball > Netball skirt, Hockey > Hockey skort, Tennis > Tennis skirt (MODELQ8 2026-11-23, coordinator; booklet card 49992, D:/3d-app/tripo/cards): Tripo model tennis-skirt-textured.glb (shape only) replaces the made skirt (skirt.js) on every skirt (wide: old saved skirt designs open on it too), coloured from tennis-skirt-parts.glb (viewer/parts/tennis-skirt.json). Converter viewer/tripo-skirt.mjs (print places on the made skirt's pattern). Look from the card: light blue body, navy waistband, hem binding and side piping (Secondary); our 3 mark low on the wearer's right front and our wordmark low on the left front in navy, where the card has its marks; the card's text and logos not copied. First version (models live first).",
+  "glb": "../../../tripo/tennis-skirt-textured.glb",
+  "converter": "skirt",
+  "convert": {
+    "creaseDeg": 25,
+    "weld": true
+  },
+  "part": "skirt",
+  "garment": "skirt",
+  "wide": true,
+  "flag": "tennisSkirt",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Netball skirt",
+      "image": "netball-skirt"
+    },
+    {
+      "name": "Hockey skort",
+      "image": "netball-skirt"
+    },
+    {
+      "name": "Tennis skirt",
+      "image": "netball-skirt"
+    }
+  ],
+  "look": {
+    "main": "#8fcbe9",
+    "secondary": "#1f2a6b",
+    "accent": "#1f2a6b",
+    "patternColor": "#1f2a6b",
+    "pattern": "None",
+    "number": "",
+    "zoneColors": {
+      "tennisSkirt": "#8fcbe9"
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145"
+    ]
+  }
+}

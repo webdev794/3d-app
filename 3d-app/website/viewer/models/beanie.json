@@ -13,7 +13,9 @@
     "made": "beanie",
     "weld": true,
     "align": "centre",
-    "smooth": 20
+    "smooth": 20,
+    "innerRay": true,
+    "innerMin": 0.5
   },
   "look": {
     "main": "#e8b220",

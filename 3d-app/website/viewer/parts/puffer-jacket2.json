@@ -1,0 +1,93 @@
+{
+  "about": "Puffer jacket (puffer-jacket2-textured.glb) coloured from puffer-jacket2-parts.glb (8 parts) by viewer/tripo-hoodie.mjs: body with its hood (15) and the inner neck bits (22, 29) the print; part 9 is the zip strip (counts as the body: the made track jacket pattern prints the zip line in the Zip colour) and, below 3.6 cm, the hem band (an even ring, the Hem zone else Body); cuffs (19, split left / right) even rings in the Rib colour; pocket zips (24) a smooth region in the Zip colour; cords (28, 30) plain Zip colour, kept out of the form. MODELQ8 2026-11-23.",
+  "hoodieParts": {
+    "glb": "../../../tripo/puffer-jacket2-parts.glb",
+    "roles": {
+      "tripo_part_15": "body",
+      "tripo_part_22": "body",
+      "tripo_part_29": "body",
+      "tripo_part_9": "hem",
+      "tripo_part_19": "cuffL",
+      "tripo_part_24": "pocket",
+      "tripo_part_28": "cord",
+      "tripo_part_30": "cord"
+    },
+    "split": [
+      {
+        "part": "tripo_part_19",
+        "where": "x < 0",
+        "role": "cuffR"
+      },
+      {
+        "part": "tripo_part_9",
+        "where": "y > 0.036 && z > 0.12 && Math.abs(x) < 0.05",
+        "role": "body"
+      }
+    ],
+    "order": [
+      "pocket"
+    ],
+    "regions": {
+      "pocket": {
+        "roles": [
+          "pocket"
+        ],
+        "key": "plain:zone:zip|main",
+        "steps": 20
+      }
+    },
+    "rings": {
+      "cuffL": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "out"
+      },
+      "cuffR": {
+        "key": "plain:zone:rib|zone:body|main",
+        "dir": "out"
+      },
+      "hem": {
+        "key": "plain:zone:hem|zone:body|main",
+        "dir": "down",
+        "not": [
+          "cuffL",
+          "cuffR"
+        ]
+      }
+    },
+    "plain": {
+      "cord": "plain:zone:zip|main"
+    },
+    "plainKeys": [
+      "plain:zone:zip|main"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [],
+      "rings": [
+        {
+          "role": "cuffL",
+          "at": 0.004
+        },
+        {
+          "role": "cuffR",
+          "at": 0.004
+        },
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "form": [
+      "cord"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

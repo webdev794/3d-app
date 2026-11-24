@@ -1,0 +1,62 @@
+{
+  "about": "Fight Wear > Muay Thai shorts (new tile right after Fight shorts; MODELQ8 2026-11-23, coordinator; cards 53720 front / 53857 back, D:/3d-app/tripo/cards): Tripo model muaythai-shorts-textured.glb (shape only), coloured from muaythai-shorts-parts.glb (viewer/parts/muaythai-shorts.json). Look from the card: yellow shorts, near-black waistband and hem tape; our 3DEEZI wordmark in near-black across the front where the card has its big text; the card text, label and tape lettering not copied. Picture: the Fight shorts one as a stand-in. First version (models live first; the side tape stripes are not coloured yet).",
+  "glb": "../../../tripo/muaythai-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.33,
+    "creaseDeg": 25,
+    "weld": true
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "muaythaiShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#f4c51c",
+    "secondary": "#f4c51c",
+    "accent": "#1f2023",
+    "patternColor": "#e0b010",
+    "pattern": "None",
+    "number": "",
+    "parts": {
+      "waistband": {
+        "colour": "#1f2023"
+      },
+      "cuffs": {
+        "colour": "#1f2023"
+      }
+    },
+    "zoneColors": {
+      "muaythaiShorts": "#f4c51c",
+      "brandInk": "#1f2023"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "hidden": true
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": 0,
+        "y": 0.2,
+        "scale": 1.3
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145"
+    ]
+  }
+}

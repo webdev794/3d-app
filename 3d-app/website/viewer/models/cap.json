@@ -14,7 +14,8 @@
     "weld": true,
     "align": "back",
     "tilt": 19,
-    "smooth": 10
+    "smooth": 10,
+    "innerRay": true
   },
   "look": {
     "main": "#f2c418",

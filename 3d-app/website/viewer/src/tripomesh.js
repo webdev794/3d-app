@@ -422,6 +422,9 @@ function ringOf(R) {
 function innerOf(M, pos, index) {
   const at = (P, i) => `${Math.round(P[i * 3] * 1e5)},${Math.round(P[i * 3 + 1] * 1e5)},${Math.round(P[i * 3 + 2] * 1e5)}`;
   const own = new Map(), ring = M.data.neckRing?.c ? ringOf(M.data.neckRing) : null;
+  // (MODELQ7 2026-11-24: a model's own inside marks (data `inner`, the headwear models: a ray along the normal meets the hat
+  // again): used instead of the facing rule, which marked the beanie's rib grooves on the outside.)
+  const ownInner = M.data.inner ? new Uint8Array(bytes(M.data.inner)) : null;
   const byRing = (i) => {
     if (!ring) return false;
     const P = M.pos, N = M.nor, dx = P[i * 3] - ring.cx, dz = P[i * 3 + 2] - ring.cz, y = P[i * 3 + 1], rr = Math.hypot(dx, dz);
@@ -431,7 +434,7 @@ function innerOf(M, pos, index) {
   };
   for (let i = 0; i < M.count; i++) {
     const k = at(M.pos, i), nz = M.nor[i * 3 + 2];
-    if (!own.has(k)) own.set(k, (M.side[i] & 1 ? nz > INNER_FACING : nz < -INNER_FACING) || byRing(i));
+    if (!own.has(k)) own.set(k, ownInner ? ownInner[i] === 1 : (M.side[i] & 1 ? nz > INNER_FACING : nz < -INNER_FACING) || byRing(i));
   }
   const n = pos.length / 3, flag = new Uint8Array(n), pid = new Int32Array(n), ids = new Map();
   for (let i = 0; i < n; i++) {

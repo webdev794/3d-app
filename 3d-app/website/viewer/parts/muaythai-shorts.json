@@ -1,0 +1,39 @@
+{
+  "about": "Muay Thai shorts (muaythai-shorts-textured.glb, MODELQ8 2026-11-23, cards 53720/53857): coloured from muaythai-shorts-parts.glb by viewer/tripo-glbparts.mjs (as the fight shorts): waistband (22) the Waistband part, the tape (21: hem bands, an even ring; its side stripes come out as the print for now) the Cuffs part; body (11), inner legs (16, 17), inside waist (18) and the side-split bits (13, 19, 33) the print.",
+  "glbParts": {
+    "glb": "../../../tripo/muaythai-shorts-parts.glb",
+    "keys": {
+      "tripo_part_11": null,
+      "tripo_part_13": null,
+      "tripo_part_16": null,
+      "tripo_part_17": null,
+      "tripo_part_18": null,
+      "tripo_part_19": null,
+      "tripo_part_33": null,
+      "tripo_part_21": "part:cuffs|main",
+      "tripo_part_22": "part:waistband|main"
+    },
+    "collar": "part:waistband|main",
+    "sleeves": [
+      "part:cuffs|main"
+    ],
+    "pastBody": 1,
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.02,
+    "data": {
+      "insideCloth": true
+    },
+    "localSide": true,
+    "evenCuffs": true,
+    "evenAxis": [
+      0,
+      -1,
+      0
+    ],
+    "cuffWidth": 0.02
+  }
+}

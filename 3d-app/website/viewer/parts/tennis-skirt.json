@@ -1,0 +1,84 @@
+{
+  "about": "Tennis skirt (tennis-skirt-textured.glb, MODELQ8 2026-11-23, card 49992): coloured from tennis-skirt-parts.glb by viewer/tripo-glbparts.mjs: its waistband and the band under it (tripo_part_1, 2, 18) the Waistband part (skirtBand); its hem binding and side piping (all the small parts) the Hem part; the front and back panels (15, 16) and their linings (0, 17) the print. Inside: the cloth's own colour in shade.",
+  "glbParts": {
+    "glb": "../../../tripo/tennis-skirt-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_1": "part:skirtBand",
+      "tripo_part_2": "part:skirtBand",
+      "tripo_part_3": "part:hem|trim",
+      "tripo_part_4": "part:hem",
+      "tripo_part_5": "part:hem|trim",
+      "tripo_part_6": "part:hem",
+      "tripo_part_7": "part:hem",
+      "tripo_part_8": "part:hem|trim",
+      "tripo_part_9": "part:hem|trim",
+      "tripo_part_10": "part:hem",
+      "tripo_part_11": "part:hem",
+      "tripo_part_12": "part:hem",
+      "tripo_part_13": "part:hem",
+      "tripo_part_14": "part:hem",
+      "tripo_part_15": null,
+      "tripo_part_16": null,
+      "tripo_part_17": null,
+      "tripo_part_18": "part:skirtBand",
+      "tripo_part_19": "part:hem",
+      "tripo_part_20": "part:hem|trim",
+      "tripo_part_21": "part:hem",
+      "tripo_part_22": "part:hem",
+      "tripo_part_23": "part:hem|trim",
+      "tripo_part_24": "part:hem",
+      "tripo_part_25": "part:hem|trim",
+      "tripo_part_26": "part:hem|trim",
+      "tripo_part_27": "part:hem",
+      "tripo_part_28": "part:hem",
+      "tripo_part_29": "part:hem|trim",
+      "tripo_part_30": "part:hem",
+      "tripo_part_31": "part:hem|trim"
+    },
+    "collar": "part:skirtBand",
+    "sleeves": [
+      "part:hem",
+      "part:hem|trim"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.02,
+    "data": {
+      "insideCloth": true
+    },
+    "localSide": true,
+    "twoSided": [
+      "tripo_part_15",
+      "tripo_part_16",
+      "tripo_part_0",
+      "tripo_part_17"
+    ],
+    "pastBody": 1,
+    "evenCuffs": true,
+    "evenKeys": [
+      "part:hem"
+    ],
+    "evenAxis": [
+      0,
+      -1,
+      0
+    ],
+    "cuffWidth": 0.011,
+    "keysWhere": [
+      {
+        "part": "tripo_part_2",
+        "where": "z < 0",
+        "key": null
+      },
+      {
+        "part": "tripo_part_18",
+        "where": "z < 0",
+        "key": null
+      }
+    ]
+  }
+}

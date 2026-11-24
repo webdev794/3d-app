@@ -1097,7 +1097,9 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
         'sockFoot': {'colour': cyan},
         // FN10 2026-11-02: brighter hoops, as the picture renders them.
         'sockHoops': {'colour': '#10ccff'},
+        'sockBand': {'colour': '#27282a'},
       },
+      'zoneColors': {'rlSocks': '#ffffff'},
     },
     'rugbySocks': {
       'parts': {
@@ -1108,7 +1110,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       },
       // Each socks picture's own layout (website catalog.php, FN4 2026-10-30):
       // the band's black line, the forefoot line and a flat blue "3".
-      'zoneColors': {'sockToeLine': '#2b91c1', 'sockMark': '#0a93ee'},
+      'zoneColors': {'sockToeLine': '#2b91c1', 'sockMark': '#0a93ee', 'rlSocks': '#ffffff'},
     },
     // RGSOCKS 2026-11-13 (the user): the Rugby League > Socks tile's own 3D
     // model (Tripo; viewer zoneColors.rlSocks shows it, every other socks tile
@@ -1123,7 +1125,10 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     },
     // Game Socks: two wide hoops under a deep black top, a bigger "3".
     'gameSocks': {
-      'zoneColors': {'sockHoopsWide': cyan},
+      'parts': {
+        'sockBand': {'colour': '#27282a'},
+      },
+      'zoneColors': {'sockHoopsWide': cyan, 'rlSocks': '#ffffff'},
     },
     // The cap: cyan piping (the trim colour); cyan and royal blue side sweeps, cyan under the brim.
     'capSweep': {
@@ -1230,6 +1235,10 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'muaythaiShorts': {'main': '#f4c51c', 'secondary': '#f4c51c', 'accent': '#1f2023', 'patternColor': '#e0b010', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#1f2023'}, 'cuffs': {'colour': '#1f2023'}}, 'zoneColors': {'muaythaiShorts': '#f4c51c', 'brandInk': '#1f2023'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'hidden': true}, 'shorts_wordmark': {'side': 'front', 'x': 0, 'y': 0.2, 'scale': 1.3}}, 'layers': []},
+    'pufferJacket': {'main': '#e8642e', 'zoneColors': {'pufferJacket': '#ffffff', 'body': '#e8642e', 'shoulder': '#e8642e', 'side': '#e8642e', 'stripe': '#e8642e', 'zip': '#2b2b2e', 'rib': '#2b2b2e'}},
+    'fightShorts': {'main': '#232427', 'secondary': '#232427', 'accent': '#ffffff', 'patternColor': '#3a3b3f', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#232427'}}, 'zoneColors': {'fightShorts': '#232427', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'hidden': true}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
+    'tennisSkirt': {'main': '#8fcbe9', 'secondary': '#1f2a6b', 'accent': '#1f2a6b', 'patternColor': '#1f2a6b', 'pattern': 'None', 'number': '', 'zoneColors': {'tennisSkirt': '#8fcbe9'}, 'layers': []},
     'bucketModel': {'main': '#3f5a3a', 'secondary': '#2f6b3c', 'accent': '#2f6b3c', 'zoneColors': {}, 'layers': []},
     'beanieModel': {'main': '#e8b220', 'secondary': '#e8b220', 'accent': '#e8b220', 'zoneColors': {}, 'layers': []},
     'capModel': {'main': '#f2c418', 'secondary': '#f2c418', 'accent': '#f2c418', 'zoneColors': {}, 'layers': []},
@@ -1448,6 +1457,111 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     ...looks['bladesSides']!,
     'zoneColors': <String, String>{'trainingSinglet': '#ffffff'},
   };
+  // (CLIENTOPS 2026-11-23, as config/catalog.php: tiles onto the 3D models already
+  // live, each in its own look with only the model's flag added.)
+  looks['shortsTrainingModel'] = {
+    ...looks['shortsPlainTile']!,
+    'zoneColors': <String, String>{
+      'cordTips': '#27282a',
+      'trainingShorts': '#27282a',
+    },
+  };
+  looks['shortsSwimModel'] = {
+    ...looks['shortsPlainTile']!,
+    'zoneColors': <String, String>{
+      'cordTips': '#27282a',
+      'swimShorts': '#27282a',
+    },
+  };
+  looks['rugbyShortsModel'] = {
+    ...looks['rugbyShortsTile']!,
+    'zoneColors': <String, String>{
+      'cordTips': '#27282a',
+      'rlShorts': '#27282a',
+    },
+  };
+  looks['rugbyKitModel'] = {
+    ...looks['rugbyTile']!,
+    'zoneColors': <String, String>{
+      ...(looks['rugbyTile']!['zoneColors'] as Map<String, String>),
+      'rlShorts': '#27282a',
+      'rugbyVJersey': '#27282a',
+    },
+  };
+  looks['rlKitShortsModel'] = {
+    ...looks['rlKitModel']!,
+    'zoneColors': <String, String>{
+      ...(looks['rlKitModel']!['zoneColors'] as Map<String, String>),
+      'rlShorts': '#27282a',
+    },
+  };
+  looks['tribalKitModel'] = {
+    ...looks['tribalKit']!,
+    'zoneColors': <String, String>{
+      ...(looks['tribalKit']!['zoneColors'] as Map<String, String>),
+      'trainingShorts': '#27282a',
+      'scJersey': '#27282a',
+    },
+  };
+  looks['nflgameModel'] = {
+    ...looks['nflgame']!,
+    'zoneColors': <String, String>{
+      'trainingShorts': '#27282a',
+      'afJersey': '#27282a',
+    },
+  };
+  looks['tribalScJersey'] = {
+    ...looks['tribal']!,
+    'zoneColors': <String, String>{
+      'scJersey': '#27282a',
+    },
+  };
+  looks['tribalPolo'] = {
+    ...looks['tribal']!,
+    'zoneColors': <String, String>{},
+  };
+  looks['bibsModel'] = {
+    ...looks['bibs']!,
+    'zoneColors': <String, String>{
+      'netballBib': '#27282a',
+    },
+  };
+  looks['singletTileBib'] = {
+    ...looks['singletTile']!,
+    'zoneColors': <String, String>{
+      ...(looks['singletTile']!['zoneColors'] as Map<String, String>),
+      'netballBib': '#27282a',
+    },
+  };
+  looks['bladesSidesWomenSinglet'] = {
+    ...looks['bladesSides']!,
+    'zoneColors': <String, String>{
+      'womenSinglet': '#27282a',
+    },
+  };
+  looks['tennisDress'] = {
+    ...looks['bladesSides']!,
+    'marks': <String, dynamic>{
+      'top_name': {'hidden': true},
+    },
+    'layers': <Map<String, dynamic>>[],
+  };
+  looks['rugbyTracksuitModel'] = {
+    ...looks['rugbyTracksuit']!,
+    'zoneColors': <String, String>{
+      ...(looks['rugbyTracksuit']!['zoneColors'] as Map<String, String>),
+      'zipHoodie': '#27282a',
+      'tsPants': '#27282a',
+    },
+  };
+  looks['nflTracksuitModel'] = {
+    ...looks['nflTracksuit']!,
+    'zoneColors': <String, String>{
+      ...(looks['nflTracksuit']!['zoneColors'] as Map<String, String>),
+      'zipHoodie': '#27282a',
+      'tsPants': '#27282a',
+    },
+  };
   return {
     'main': '#27282a',
     'secondary': cyan,
@@ -1486,7 +1600,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'secondary': '#008ad8',
       'accent': '#008ad8',
       'patternColor': '#008ad8',
-      'zoneColors': <String, String>{'piping': '#00c4f0'},
+      'zoneColors': <String, String>{'piping': '#00c4f0', 'rashGuard': '#ffffff'},
     },
   };
 }
@@ -1498,7 +1612,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Jersey, playing shorts and socks.',
       'Full Kit',
       image: 'rugby-kit',
-      look: 'rlKitModel',
+      look: 'rlKitShortsModel',
     ),
     // (On its own 3D model in its reference's colours, FBJERSEY 2026-11-13;
     // the kit keeps the made jersey.)
@@ -1555,6 +1669,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Track jacket',
       image: 'rugby-hooded-tracksuit',
       trackStyle: 'hood',
+      look: 'rugbyTracksuitModel',
     ),
     GarmentTile('Cap', 'Curved brim sports cap.', 'Cap', image: 'rugby-cap'),
     GarmentTile(
@@ -1598,6 +1713,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Jersey, playing shorts and socks.',
       'Full Kit',
       image: 'rugby-kit',
+      look: 'rugbyKitModel',
     ),
     GarmentTile(
       'Jersey',
@@ -1619,6 +1735,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Durable rugby shorts.',
       'Shorts',
       image: 'rugby-shorts',
+      look: 'rugbyShortsModel',
     ),
     GarmentTile(
       "Women's rugby shorts",
@@ -1664,6 +1781,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Track jacket',
       image: 'rugby-hooded-tracksuit',
       trackStyle: 'hood',
+      look: 'rugbyTracksuitModel',
     ),
     GarmentTile('Cap', 'Curved brim sports cap.', 'Cap', image: 'rugby-cap'),
     GarmentTile(
@@ -1751,6 +1869,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Singlet',
       future: 'bibs',
       image: 'bibs',
+      look: 'bibsModel',
     ),
     GarmentTile('Club polo', 'Smart polo for coaches and travel.', 'Polo'),
     GarmentTile(
@@ -1847,6 +1966,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Athletic skirt with team styling.',
       'Skirt',
       image: 'netball-skirt',
+      look: 'tennisSkirt',
     ),
     GarmentTile(
       "Women's shorts",
@@ -1860,6 +1980,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Netball singlet with removable bib.',
       'Singlet',
       image: 'netball-singlet-bib',
+      look: 'bladesSidesWomenSinglet',
     ),
     GarmentTile(
       'Training singlet',
@@ -1902,6 +2023,28 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'netball-hoodie',
     ),
   ],
+  // JACKETS (client 2026-11-23): a jacket option by itself, like Headwear.
+  'jackets': [
+    GarmentTile(
+      'Varsity jacket',
+      'Letterman jacket for the club.',
+      'Varsity jacket',
+    ),
+    GarmentTile(
+      'Puffer jacket',
+      'Quilted hooded down jacket for cold days.',
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'pufferJacket',
+    ),
+    GarmentTile(
+      'Puffer vest',
+      'Quilted puffer vest for cold days.',
+      'Track jacket',
+      image: 'waterproof-jacket',
+      look: 'pufferVest',
+    ),
+  ],
   // HEADWEAR (CP1, client mockup images/296.jpg): caps, bucket hats, beanies
   // and 5-panel caps; the beanie and the 5-panel cap COMING SOON until their
   // 3D models are ready.
@@ -1937,7 +2080,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'afl-guernsey',
       look: 'aflGuernsey',
     ),
-    GarmentTile('AFL shorts', 'Footy shorts for the contest.', 'Shorts'),
+    GarmentTile('AFL shorts', 'Footy shorts for the contest.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile(
       'Training singlet',
       'Lightweight singlet for the track.',
@@ -1978,13 +2121,14 @@ const _sportTiles = <String, List<GarmentTile>>{
     GarmentTile('Footy socks', 'Match socks with team bands.', 'Socks'),
   ],
   'hockey': [
-    GarmentTile('Hockey jersey', 'Match shirt in your team colours.', 'Jersey'),
-    GarmentTile('Hockey shorts', 'Light shorts for fast play.', 'Shorts'),
+    GarmentTile('Hockey jersey', 'Match shirt in your team colours.', 'Jersey', look: 'tribalScJersey'),
+    GarmentTile('Hockey shorts', 'Light shorts for fast play.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile(
       'Hockey skort',
       'A-line skirt with side panels.',
       'Skirt',
       image: 'netball-skirt',
+      look: 'tennisSkirt',
     ),
     GarmentTile(
       'Training tee',
@@ -2021,6 +2165,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full Kit',
       future: 'nfl-kit',
       image: 'nfl-kit',
+      look: 'nflgameModel',
     ),
     GarmentTile(
       'Game Jersey',
@@ -2067,7 +2212,7 @@ const _sportTiles = <String, List<GarmentTile>>{
     GarmentTile(
       'Compression Top',
       'Long-sleeve base layer under the pads.',
-      'Compression top',
+      'Training Tee',
       image: 'nfl-compression-top',
       look: 'sides',
     ),
@@ -2101,6 +2246,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Track jacket',
       image: 'nfl-hooded-tracksuit',
       trackStyle: 'hood',
+      look: 'nflTracksuitModel',
     ),
     GarmentTile(
       'Waterproof Jacket',
@@ -2192,19 +2338,20 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'singlet',
       look: 'womenSinglet',
     ),
-    GarmentTile('Tennis shorts', 'Light shorts with room to move.', 'Shorts'),
-    GarmentTile.nearest(
+    GarmentTile('Tennis shorts', 'Light shorts with room to move.', 'Shorts', look: 'shortsTrainingModel'),
+    GarmentTile(
       'Tennis dress',
       'Fitted dress with a flared hem.',
-      'Singlet',
-      future: 'dress',
+      'Netball dress',
       image: 'netball-dress',
+      look: 'tennisDress',
     ),
     GarmentTile(
       'Tennis skirt',
       'A-line skirt with side panels.',
       'Skirt',
       image: 'netball-skirt',
+      look: 'tennisSkirt',
     ),
     GarmentTile(
       'Track jacket',
@@ -2343,7 +2490,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'singlet',
       look: 'womenSinglet',
     ),
-    GarmentTile('Deck shorts', 'Quick-dry shorts for the pool deck.', 'Shorts'),
+    GarmentTile('Deck shorts', 'Quick-dry shorts for the pool deck.', 'Shorts', look: 'shortsSwimModel'),
     GarmentTile(
       'Swim shorts',
       'Drawstring swim shorts in quick-dry fabric.',
@@ -2417,11 +2564,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'singlet',
       look: 'womenSinglet',
     ),
-    GarmentTile('Touch shorts', 'Light shorts that move with you.', 'Shorts'),
+    GarmentTile('Touch shorts', 'Light shorts that move with you.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile(
       'Full kit',
       'Jersey and shorts, designed together.',
       'Full Kit',
+      look: 'tribalKitModel',
     ),
     GarmentTile('Club polo', 'Smart polo for the team.', 'Polo'),
     GarmentTile(
@@ -2516,6 +2664,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Volleyball jersey',
       'Fitted jersey with a big number.',
       'Jersey',
+      look: 'tribalScJersey',
     ),
     GarmentTile(
       'Volleyball singlet',
@@ -2530,11 +2679,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'singlet',
       look: 'womenSinglet',
     ),
-    GarmentTile('Volleyball shorts', 'Short shorts for the court.', 'Shorts'),
+    GarmentTile('Volleyball shorts', 'Short shorts for the court.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile(
       'Full kit',
       'Jersey and shorts, designed together.',
       'Full Kit',
+      look: 'tribalKitModel',
     ),
     GarmentTile('Training tee', 'Breathable tee for training.', 'Training Tee'),
     GarmentTile(
@@ -2558,17 +2708,20 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Loose sleeveless pinnie with a big number.',
       'Singlet',
       future: 'pinnie',
+      look: 'singletTileBib',
     ),
     GarmentTile(
       'Lacrosse shorts',
       'Long shorts for the fastest game on feet.',
       'Shorts',
+      look: 'shortsTrainingModel',
     ),
-    GarmentTile('Game jersey', 'Match jersey in your colours.', 'Jersey'),
+    GarmentTile('Game jersey', 'Match jersey in your colours.', 'Jersey', look: 'tribalScJersey'),
     GarmentTile(
       'Full kit',
       'Jersey and shorts, designed together.',
       'Full Kit',
+      look: 'tribalKitModel',
     ),
     GarmentTile('Training tee', 'Breathable tee for training.', 'Training Tee'),
     GarmentTile(
@@ -2647,6 +2800,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Full kit',
       'Jersey and shorts, designed together.',
       'Full Kit',
+      look: 'tribalKitModel',
     ),
     GarmentTile('Team tee', 'Soft tee for the pits.', 'Training Tee'),
     GarmentTile(
@@ -2691,6 +2845,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Esports jersey',
       'Pro jersey with your tag on the back.',
       'Jersey',
+      look: 'tribalScJersey',
     ),
     GarmentTile('Team tee', 'Soft tee for the team.', 'Training Tee'),
     GarmentTile('Team polo', 'Smart polo for events.', 'Polo'),
@@ -2810,12 +2965,19 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'rash-guard',
       look: 'rashGuard',
     ),
-    GarmentTile.nearest(
+    GarmentTile(
       'Fight shorts',
       'Fight cut with side splits.',
       'Shorts',
-      future: 'fight-shorts',
       image: 'fight-shorts',
+      look: 'fightShorts',
+    ),
+    GarmentTile(
+      'Muay Thai shorts',
+      'Thai cut with side splits and a wide waistband.',
+      'Shorts',
+      image: 'fight-shorts',
+      look: 'muaythaiShorts',
     ),
     GarmentTile('Training tee', 'Breathable tee for the gym.', 'Training Tee'),
     GarmentTile(
@@ -2900,7 +3062,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
       look: 'fishingHoodie',
     ),
-    GarmentTile('Boat shorts', 'Quick-dry shorts for the boat.', 'Shorts'),
+    GarmentTile('Boat shorts', 'Quick-dry shorts for the boat.', 'Shorts', look: 'shortsSwimModel'),
     GarmentTile('Bucket hat', 'Sun-smart hat with a wide brim.', 'Bucket hat'),
     GarmentTile('Cap', 'Cap with your club logo.', 'Cap'),
   ],
@@ -2912,11 +3074,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Polo with pocket',
     ),
     GarmentTile('Work tee', 'Tough tee for every job.', 'Training Tee'),
-    GarmentTile.nearest(
+    GarmentTile(
       'Work shirt',
       'Long-sleeve work shirt with your logo.',
-      'Jersey',
-      future: 'work-shirt',
+      'Polo',
+      image: 'jersey',
+      look: 'tribalPolo',
     ),
     GarmentTile(
       'Work hoodie',
@@ -2925,7 +3088,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'team-hoodie',
     ),
     GarmentTile('Zip hoodie', 'Full-zip layer for the yard.', 'Zip hoodie'),
-    GarmentTile('Work shorts', 'Hard-wearing shorts for the job.', 'Shorts'),
+    GarmentTile('Work shorts', 'Hard-wearing shorts for the job.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile('Cap', 'Work cap with your business logo.', 'Cap'),
   ],
   'gymwear': [
@@ -3000,7 +3163,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'shorts',
       look: 'womenShorts',
     ),
-    GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts'),
+    GarmentTile('Gym shorts', 'Light shorts for training.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile(
       'Leggings',
       'Squat-proof leggings and tights.',
@@ -3087,7 +3250,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       image: 'ziphoodie',
       look: 'raglanHoodie',
     ),
-    GarmentTile('Club shorts', 'Casual shorts for travel.', 'Shorts'),
+    GarmentTile('Club shorts', 'Casual shorts for travel.', 'Shorts', look: 'shortsTrainingModel'),
     GarmentTile(
       'Club hoodie',
       'Warm hoodie for the sideline.',
@@ -3123,6 +3286,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Rugby-collar jersey with every name on it.',
       'Jersey',
       future: 'leavers-jersey',
+      look: 'tribalScJersey',
     ),
     GarmentTile(
       'Leavers hoodie',
@@ -3403,6 +3567,18 @@ const sportCategories = <SportCategory>[
     hint:
         'school leavers: a long-sleeve rugby-collar jersey with the class year '
         "big on the front or back and every student's name",
+  ),
+  SportCategory(
+    'jackets',
+    'Jackets',
+    'apparel',
+    'Varsity + Puffer jacket',
+    more: false,
+    names: false,
+    numbers: false,
+    hint:
+        'jackets: a varsity letterman jacket, a quilted hooded puffer jacket '
+        'and a puffer vest with the club crest',
   ),
 ];
 

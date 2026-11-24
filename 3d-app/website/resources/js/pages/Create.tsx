@@ -249,7 +249,7 @@ export function GarmentSelection({ catalog, draft, onSelect, onNext, onBack }: {
   return <section className={`showroom garment-step${described ? '' : ' names-only'}`} data-sport={sport?.id}>
     <div className={`showroom-bg dim${backdrop !== 'stadium-stage' ? ' own-backdrop' : ''}`} style={{ backgroundImage: `url(${media(`showroom/${backdrop}.webp`)})` }} />
     <div className="glow-panel garment-panel">
-      <div className="step-heading"><span className="step-number">2</span><div><h1>{typedSport ? `${title} uniforms & teamwear` : sport ? (sport.id === 'headwear' ? title : `${title} ${sport.group === 'apparel' ? 'teamwear' : 'uniforms & teamwear'}`) : 'Select garment'}</h1><p>{subtitle}</p></div></div>
+      <div className="step-heading"><span className="step-number">2</span><div><h1>{typedSport ? `${title} uniforms & teamwear` : sport ? (sport.id === 'headwear' || sport.id === 'jackets' ? title : `${title} ${sport.group === 'apparel' ? 'teamwear' : 'uniforms & teamwear'}`) : 'Select garment'}</h1><p>{subtitle}</p></div></div>
       {!catalog ? <div className="empty-state"><LoaderCircle className="spin" /> Loading garments…</div> : <>
         <div className="garment-tiles" role="group" aria-label={`${title} garments`}>{tiles.map(t => tile(t))}
           <button type="button" className={`garment-tile garment-tile-custom${customOpen ? ' selected' : ''}`} aria-pressed={customOpen} aria-controls="garment-custom" data-tile="Custom" onClick={() => { setCustomOpen(true); if (customName(customText)) typeGarment(customText); }} title={described ? undefined : 'Type your own garment'}>

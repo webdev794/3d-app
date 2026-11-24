@@ -1932,18 +1932,28 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                     (garmentId == 'fullkit' && g == 'jersey');
               }
 
+              // A design picture preset with no sport (the polo collection,
+              // PRESETS2 2026-11-24): only on its own garment, any sport.
+              bool ownGarment(Map p) {
+                final d = p['design'];
+                final layout = d is Map ? d['layout'] : null;
+                return p['sport'] == null &&
+                    p['garment'] != null &&
+                    layout is Map &&
+                    layout['kind'] == 'drawing';
+              }
+
+              bool ownPreset(Map p) => p['sport'] != null
+                  ? p['sport'] == sportId && fitsKit(p)
+                  : ownGarment(p) && p['garment'] == garmentId;
               final all = snapshot.data!.cast<Map>();
               final sportShown = [
                 for (final p in all)
-                  if (p['sport'] != null &&
-                      p['sport'] == sportId &&
-                      fitsKit(p) &&
-                      shows(p))
-                    p,
+                  if (ownPreset(p) && shows(p)) p,
               ];
               final shown = [
                 for (final p in all)
-                  if (p['sport'] == null && shows(p)) p,
+                  if (p['sport'] == null && !ownGarment(p) && shows(p)) p,
               ];
               final note = _offline
                   ? const Padding(

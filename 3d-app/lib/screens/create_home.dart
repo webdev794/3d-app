@@ -2906,7 +2906,7 @@ class GarmentScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final sport = sportNamed(c.sport);
     final title = sport?.heading ?? c.sport;
-    final heading = sport?.id == 'headwear'
+    final heading = const {'headwear', 'jackets'}.contains(sport?.id)
         ? title
         : sport?.group == 'apparel'
         ? '$title teamwear'

@@ -14,7 +14,14 @@
     "weld": true,
     "align": "centre",
     "alignY": "top",
-    "smooth": 10
+    "smooth": 10,
+    "plainParts": {
+      "glb": "../../../tripo/bucket-hat-parts.glb",
+      "keys": {
+        "tripo_part_50": "plain:zone:cord|secondary"
+      }
+    },
+    "innerRay": true
   },
   "look": {
     "main": "#3f5a3a",

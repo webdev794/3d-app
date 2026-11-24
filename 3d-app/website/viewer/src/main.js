@@ -269,7 +269,8 @@ function addRelief(target, painter) {
   }
   // The skirt's own light (skirtprint.js SKIRT_LIGHT: its black neutral and even, its panels clean), on the tiers.
   // (FN1 2026-10-30: the bucket hat too: its black neutral, as its pictures', not navy from the stage's cool light.)
-  const skirtLight = (painter.kind === 'skirt' || painter.kind === 'bucket-hat' || painter.kind === 'beanie') && !!Q;
+  // (Not on the skirt's ready-made model (MODELQ8 2026-11-23): its light as every model's.)
+  const skirtLight = ((painter.kind === 'skirt' && !painter.model?.pieces) || painter.kind === 'bucket-hat' || painter.kind === 'beanie') && !!Q;
   // (The netball dress: its own glow (emissive) shaded by the baked folds and body shading too, and half the edge light:
   // the user 2026-11-05, 443.)
   const dress = painter.kind === 'netball-dress';
@@ -483,12 +484,14 @@ const recipeFor = (part) => {
   // (A design picture (a garment drawing, the AI designer's) of a singlet goes on the singlet's model as on a real
   // garment, never on the made shape (MODELQ4 2026-11-17, user 575): the picture is laid onto the model's own pattern.)
   if (layout && !drawnOn(part)) return null;
-  const all = Object.entries(RECIPE_MODELS).filter(([, m]) => m.part === part && (!m.garment || m.garment === design.garment));
+  // (A Full kit's shorts / jersey on a Shorts / Jersey / Football jersey model when its look sets the flag: CLIENTOPS 2026-11-23.)
+  const all = Object.entries(RECIPE_MODELS).filter(([, m]) => m.part === part && (!m.garment || m.garment === design.garment || (design.garment === 'fullkit' && m.part === m.garment && ['shorts', 'jersey', 'nfljersey'].includes(m.part))));
   // (the retired football-jersey model's flag (fbJersey) counts as the rugby jersey's: old saved designs show the new model)
   const flagged = (f) => HEX6.test(design.zoneColors?.[f] ?? '') || (f === 'rugbyJersey' && HEX6.test(design.zoneColors?.fbJersey ?? ''));
   // (`except`: a wide model's tiles that keep another model of their own (HOODIE 2026-11-19: the pullover hoodie's model on every
   // Hoodie but the Basketball Warm-up hoodie and the Fishing hoodie, flags bballHoodie / fishingHoodie).)
-  return (all.find(([, m]) => !m.wide && flagged(m.flag)) ?? all.find(([, m]) => m.wide && design.garment === part && !(m.except ?? []).some((f) => HEX6.test(design.zoneColors?.[f] ?? ''))))?.[0] ?? null;
+  // (A wide model's flag on another garment shows it there too: the Hooded Tracksuits' zip hoodie, CLIENTOPS 2026-11-23.)
+  return (all.find(([, m]) => !m.wide && flagged(m.flag)) ?? all.find(([, m]) => m.wide && design.garment !== part && flagged(m.flag)) ?? all.find(([, m]) => m.wide && design.garment === part && !(m.except ?? []).some((f) => HEX6.test(design.zoneColors?.[f] ?? ''))))?.[0] ?? null;
 };
 // The singlet's model (the basketball singlet's or a recipe one's, both mapped as the basketball singlet's: data neckFront,
 // insert, bands), or null.
@@ -504,7 +507,8 @@ const fbJerseyOn = () => false && (!layout || drawnOn('jersey')) && design.garme
 // as the made shorts (texture.js), its waistband printed on it (modelBand) instead of the made rib, its hem binding the
 // shorts' Hem part (RL_HEM: the binding's height on the print, as viewer/tripo-rugby-shorts.mjs maps it; zones.js).
 const RL_SHORTS = 'rugby-shorts', RL_HEM = 0.024;
-const rlShortsOn = () => !layout && design.garment === 'shorts' && HEX6.test(design.zoneColors?.rlShorts ?? '');
+// (In a Full kit too, its shorts with the flag: the RL / RU kits, CLIENTOPS 2026-11-23.)
+const rlShortsOn = () => !layout && (design.garment === 'shorts' || design.garment === 'fullkit') && HEX6.test(design.zoneColors?.rlShorts ?? '');
 // The Rugby League > Socks tile (RGSOCKS 2026-11-13: its look's flag design.zoneColors.rlSocks): the pair on its own
 // model, rugby-socks; every other socks tile keeps the made pair.
 // (Under a design picture too (MODELQ6 2026-11-19, the user: the new model wherever the RL socks show): a picture prints the
@@ -705,6 +709,8 @@ function kitList(kind) {
   if (kind === 'shorts' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? '')) list = PARTS.bballshorts;
   // (The Basketball kit: the basketball singlet over the basketball shorts, both on their models: BBTILES.)
   if (kind === 'fullkit' && bballKitOn()) list = BBALL_KIT;
+  // (The American Football Game Kit (zoneColors.afJersey): its jersey on the AF game jersey's model, CLIENTOPS 2026-11-23.)
+  if (kind === 'fullkit' && !layout && HEX6.test(design.zoneColors?.afJersey ?? '')) list = list.map((p) => (p === 'jersey' ? 'nfljersey' : p));
   // (Ready-made full-length pants and leggings added by the shared recipe (MODELQ2 2026-11-16: models with part
   // 'trackpants' and garment 'shorts'): a Shorts tile whose look sets such a model's flag shows those pants alone, as the
   // track pants' part and print (trackpants.js), on their own model.)
@@ -712,6 +718,8 @@ function kitList(kind) {
   // The Tracksuit tiles (FN10 2026-11-02, the user: their pictures show the jacket and matching pants): the track jacket
   // over its track pants (trackpants.js), shown by the look's pants stripe colour (design.zoneColors.pantsStripe).
   if (kind === 'trackjacket' && !layout && /^#[0-9a-f]{6}$/i.test(design.zoneColors?.pantsStripe ?? '')) list = ['trackpants', 'trackjacket'];
+  // (The Hooded Tracksuits (zoneColors.zipHoodie): the zip hoodie's model over the tracksuit pants' model, CLIENTOPS 2026-11-23.)
+  if (kind === 'trackjacket' && !layout && design.trackStyle === 'hood' && HEX6.test(design.zoneColors?.zipHoodie ?? '')) list = ['trackpants', 'ziphoodie'];
   if (layout && kind !== 'socks' && kind !== 'skirt' && kind !== 'cap' && kind !== 'five-panel-cap' && kind !== 'bucket-hat' && kind !== 'beanie') {
     // A garment drawing is of one top (the one it was checked as).
     const own = layout.drawing ? [layout.garment] : layoutParts(layout.panels);
@@ -793,7 +801,7 @@ function buildKit(kind) {
   // (The mannequin's finishes are kept: made once, so their shaders are not compiled again on every change.)
   kit.traverse((o) => { if (o.isMesh) { geometries.add(o.geometry); [o.material].flat().forEach((m) => { if (m.userData.keep) return; m.map?.dispose(); if (m.normalMap?.userData.own) m.normalMap.dispose(); m.dispose(); }); } });
   geometries.forEach((geometry) => geometry.dispose());
-  parts.forEach((part) => { part.texture.dispose(); part.varsity?.finish.dispose(); });
+  parts.forEach((part) => { part.texture.dispose(); part.varsity?.finish.dispose(); part.leather?.dispose(); });
   kit.clear();
   parts = [];
   let base = 0;
@@ -874,7 +882,7 @@ function buildKit(kind) {
     // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
     // (A collar style laid on the model: its own collar (and a V's cloth) not drawn: addRelief.)
     const mcData = partKind === 'jersey' && mCollar && tripo?.data?.neckRing ? tripo.data : null;
-    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
     // (A model split into its pieces: its shape, for each part's own look inside its own pieces, PATTERNDND-5 piecepaint.js.)
     if (tripo?.pieces) painter.pieceGeometry = tripo.geometry;
     if (tripo?.geometry?.getAttribute('inner')) painter.innerPlain = true;
@@ -1205,6 +1213,24 @@ function buildKit(kind) {
  * (design.fabric: Mesh, Pro or Eco), else the garment's own (mesh, piqué, fleece...). On a new kit (`built`), and again
  * whenever the fabric type changes (only the material: the print, names and numbers stay exactly where they are).
  */
+/**
+ * The varsity model's leather (MODELQ8 2026-11-24): varsity.js finishMap (the made jacket's sleeves and welt trims smooth
+ * and glossy), less its upper body: the model's body points round the shoulders lie inside the made sleeves on the
+ * print, so there the felt body's matt finish is put back (the model's sleeve tops stay matt with it).
+ */
+function modelLeather(painter) {
+  const t = finishMap(painter), g = t.image.getContext('2d'), { minX, minY, span } = painter.frame, H = t.image.height, s = H / span;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.fillStyle = 'rgb(0,235,0)';
+  // (Both halves of the print: front (x from minX) and back (mirrored); the band |x| < 0.31 above 0.45 m.)
+  for (const back of [false, true]) {
+    const x0 = back ? H + painter.frame.maxX * s - 0.31 * s : -minX * s - 0.31 * s;
+    g.fillRect(back ? H + painter.frame.maxX * s - 0.31 * s - 0 : x0, 0, 0.62 * s, H + minY * s - 0.45 * s);
+  }
+  t.needsUpdate = true;
+  return t;
+}
+
 function dressParts(built) {
   if (!Q) return;
   for (const part of parts) {
@@ -1213,7 +1239,19 @@ function dressParts(built) {
     // (And the shorts pictures' and Rugby League picture's: their looks set zoneColors.cordTips.)
     // (FN6: and the Full kit picture's, with its shorts' blades, design.zoneColors.kitBlade; and the polo pictures', zoneColors.quarterZip.)
     const smooth = (!design.fabric || design.fabric === 'Standard') && (/^#[0-9a-f]{6}$/i.test(design.zoneColors?.sweep ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.cordTips ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.kitBlade ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.flow ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.quarterZip ?? '') || /^#[0-9a-f]{6}$/i.test(design.zoneColors?.bballBand ?? '') || (part.tripo && part.painter.kind === 'jersey'));
-    const dressed = dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy(), smooth ? 'Smooth' : design.fabric);
+    // (The varsity's Material, client 2026-11-23 (varsityMaterial): its fabric Standard = its own wool + leather, Eco = cotton,
+    // Pro = polyester; Mesh is never offered for it and is drawn as its own.)
+    const varsityMaterial = part.painter.kind === 'varsity' && design.fabric === 'Mesh' ? 'Standard' : null;
+    // (Its ready-made model in Wool + leather: the leather sleeves (and welt trims) smooth and slightly glossy, the felt
+    // body matt (varsity.js finishMap on its print places, as the made jacket); off for cotton and polyester.)
+    const leather = part.tripo && part.painter.kind === 'varsity' ? part.material : null;
+    if (leather) { leather.roughnessMap = null; leather.clearcoatMap = null; leather.needsUpdate = true; }
+    const dressed = dressFabric(part.rim.parent, part, knit, renderer.capabilities.getMaxAnisotropy(), varsityMaterial ?? (smooth ? 'Smooth' : design.fabric));
+    if (leather && (varsityMaterial ?? design.fabric ?? 'Standard') === 'Standard') {
+      part.leather ??= modelLeather(part.painter);
+      Object.assign(leather, { roughness: 1, roughnessMap: part.leather, clearcoat: 0.4, clearcoatRoughness: 0.38, clearcoatMap: part.leather });
+      leather.needsUpdate = true;
+    }
     // Look 2: the knit's relief a quarter deeper, so the mesh and its sheen read up close.
     if (LOOK2 && (built || dressed)) part.material.normalScale.multiplyScalar(1.25);
   }

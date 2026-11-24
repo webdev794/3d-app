@@ -307,8 +307,12 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset, 
     // (A sport's own presets (the Rugby League design pictures) only on that sport, first; the others everywhere.)
     // (With a garment (the jersey), only on it and on the sport's full kit, whose top it is.)
     const fitsKit = (p: Preset) => !p.garment || p.garment === design.garment || (design.garment === 'fullkit' && p.garment === 'jersey');
-    const sportPresets = presets.filter(p => !!p.sport && p.sport === sport && fitsKit(p) && shows(p));
-    const shownPresets = presets.filter(p => !p.sport && shows(p));
+    // (A design picture preset with no sport (the polo collection, PRESETS2 2026-11-24) only on its own garment, in any
+    // sport, in the sport's group; the netball dresses have their sport too.)
+    const ownGarment = (p: Preset) => !p.sport && p.design.layout?.kind === 'drawing' && !!p.garment;
+    const ownPreset = (p: Preset) => p.sport ? p.sport === sport && fitsKit(p) : ownGarment(p) && p.garment === design.garment;
+    const sportPresets = presets.filter(p => ownPreset(p) && shows(p));
+    const shownPresets = presets.filter(p => !p.sport && !ownGarment(p) && shows(p));
     const shownMyPresets = (myPresets ?? []).filter(shows);
     const thumbOf = (preset: Preset) => preset.thumbnail || (preset.team === false ? '' : media(`presets/${preset.id}.webp`));
     const presetCard = (preset: Preset) => <div key={preset.id} className={`preset-card ${matches(preset) ? 'selected' : ''}`}>
@@ -324,7 +328,7 @@ export function PresetPanel({ design, edit, onNotice, own, onOwn, beforePreset, 
         {ownOn && <Check className="preset-check" size={15} />}
     </div> : null;
     return <div className="studio-presets">
-        <div className="preset-heading"><div><span className="eyebrow">READY TO USE</span><h2>Preset designs</h2></div><span>{presets.filter(p => !p.sport || (p.sport === sport && fitsKit(p))).length}</span></div>
+        <div className="preset-heading"><div><span className="eyebrow">READY TO USE</span><h2>Preset designs</h2></div><span>{presets.filter(p => (!p.sport && !ownGarment(p)) || ownPreset(p)).length}</span></div>
         <div className="preset-tabs" role="tablist">{([['all', 'All designs'], ['mine', 'My designs'], ['favourites', 'Favourites']] as const).map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}</div>
         <div className="preset-save">
             {signedIn ? <button className="button button-secondary" disabled={saving} onClick={() => void savePreset(false)}>{saving ? <LoaderCircle size={14} className="spin" /> : <Plus size={14} />} Save as my preset</button> : <p className="muted">Sign in to save your own presets.</p>}

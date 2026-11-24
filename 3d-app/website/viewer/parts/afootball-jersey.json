@@ -84,7 +84,8 @@
     "twoWayOut": true,
     "looseBits": 200,
     "data": {
-      "insideCloth": true
+      "insideCloth": true,
+      "madeAreas": true
     }
   }
 }

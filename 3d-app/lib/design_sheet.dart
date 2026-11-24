@@ -7,7 +7,9 @@ import 'package:flutter/material.dart' show Color;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+import 'ai_service.dart' show varsityMaterials;
 import 'app_controller.dart';
+import 'design_document.dart' show isVarsity;
 import 'gradient_presets.dart';
 import 'part_editing.dart';
 
@@ -181,7 +183,15 @@ Future<Uint8List> designSheetPdf(AppController c) async {
       row(_title(key), isPatternPicture(value) ? 'My pattern' : _title(value));
     }
   }
-  row('Fabric', c.fabric);
+  // (The varsity's Material, client 2026-11-23: kept in its fabric.)
+  if (isVarsity(c.garment)) {
+    row(
+      'Material',
+      varsityMaterials[c.fabric] ?? varsityMaterials['Standard']!,
+    );
+  } else {
+    row('Fabric', c.fabric);
+  }
   heading('TEXT AND NUMBER');
   row('Front text', c.logoText);
   row('Back name', c.backName);

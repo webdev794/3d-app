@@ -96,7 +96,7 @@ export function dressColour(design: { main?: string; secondary?: string; zoneCol
     return (key === 'body' ? design.main : design.secondary) ?? '#ffffff';
 }
 /** Bump when public/media/viewer/index.html is rebuilt, so browsers load the new 3D viewer. */
-export const VIEWER_VERSION = '2026-10-20-409';
+export const VIEWER_VERSION = '2026-10-20-422';
 
 /**
  * The browser's own private mode, in its own words and with its own shortcut (LIVEFIX L1 2026-11-12): what works at once
@@ -227,6 +227,14 @@ export const fabricNotes: Record<FabricType, string> = {
     Pro: 'Smooth, tight performance knit with a satin sheen.',
     Eco: 'Soft, matt cotton-feel knit of recycled yarn.',
 };
+/** The varsity jacket's Material (client 2026-11-23), kept in design.fabric: Standard = wool body + leather sleeves (old designs too), Eco = cotton, Pro = polyester; Mesh is never offered (shows as wool). */
+export const varsityMaterials: { fabric: FabricType; label: string; note: string }[] = [
+    { fabric: 'Standard', label: 'Wool + leather', note: 'Soft wool felt body with leather sleeves.' },
+    { fabric: 'Eco', label: 'Cotton', note: 'Matt cotton all over.' },
+    { fabric: 'Pro', label: 'Polyester', note: 'Smooth polyester with a satin sheen.' },
+];
+/** The varsity's material for its design (anything else is wool + leather). */
+export const varsityMaterialOf = (design: Pick<Design, 'fabric' | 'app'>) => varsityMaterials.find(m => m.fabric === fabricOf(design)) ?? varsityMaterials[0];
 /** The design's fabric type (an app project saved before design.fabric keeps it in design.app.fabric). */
 export function fabricOf(design: Pick<Design, 'fabric' | 'app'>): FabricType {
     const chosen = design.fabric ?? design.app?.fabric;
@@ -234,7 +242,7 @@ export function fabricOf(design: Pick<Design, 'fabric' | 'app'>): FabricType {
 }
 /** The fabric in words: "Mesh (open hexagonal mesh)", "Standard (eyelet mesh)"; the varsity jacket's is its own. */
 export function fabricLabel(design: Pick<Design, 'fabric' | 'app'> & { garment?: string }): string {
-    if (isVarsity(design.garment ?? '')) return 'Wool body, leather sleeves';
+    if (isVarsity(design.garment ?? '')) { const m = varsityMaterialOf(design); return m.fabric === 'Standard' ? 'Wool body, leather sleeves' : m.label; }
     const type = fabricOf(design);
     const what = type === 'Standard' ? ownFabrics[design.garment as Garment] ?? 'fine knit' : { Mesh: 'open hexagonal mesh', Pro: 'satin performance knit', Eco: 'matt cotton-feel recycled knit' }[type];
     return `${type} (${what})`;

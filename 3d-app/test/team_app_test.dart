@@ -521,7 +521,7 @@ void main() {
       // (QA10: not Headwear, a kind of garment; the apparel activities stay.)
       final activities = [
         for (final s in dyoSports)
-          if (s.$2 != 'headwear') s.$1,
+          if (!teamNotActivities.contains(s.$2)) s.$1,
       ];
       expect(names.take(activities.length), activities);
       expect(names, isNot(contains('Headwear')));
@@ -864,7 +864,7 @@ void main() {
       expect(sports.map((s) => s.id), isNot(contains('headwear')));
       expect(
         sports.length,
-        sportCategories.where((s) => s.id != 'headwear').length,
+        sportCategories.where((s) => !teamNotActivities.contains(s.id)).length,
       );
       expect(
         teamSportsFrom(const [

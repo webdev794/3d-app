@@ -1,0 +1,37 @@
+{
+  "about": "Puffer jacket (new \"Puffer jacket\" tile right after each Puffer vest tile: Rugby League, Rugby Union, American Football, Club Casual; coordinator 23 Nov, card 112456 Men's Down Jacket): Tripo model puffer-jacket2-textured.glb (hooded jacket, full zip, side pocket zips; shape only), coloured from puffer-jacket2-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/puffer-jacket2.json). Look from the card: orange shell (body, hood, hem band), charcoal zip line, pocket zips, cords and cuffs; the track jacket marks (our 3DEEZI marks only, the card's text and badges not copied). The picture is the stand-in waterproof-jacket one, as the vest's. First version (models live first). MODELQ8 2026-11-23.",
+  "glb": "../../../tripo/puffer-jacket2-textured.glb",
+  "converter": "top",
+  "part": "trackjacket",
+  "garment": "trackjacket",
+  "flag": "pufferJacket",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "trackjacket",
+    "creaseDeg": 25,
+    "top": 0.84
+  },
+  "look": {
+    "main": "#e8642e",
+    "zoneColors": {
+      "pufferJacket": "#ffffff",
+      "body": "#e8642e",
+      "shoulder": "#e8642e",
+      "side": "#e8642e",
+      "stripe": "#e8642e",
+      "zip": "#2b2b2e",
+      "rib": "#2b2b2e"
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135"
+    ]
+  }
+}

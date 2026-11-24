@@ -1368,7 +1368,7 @@ typedef TeamSport = ({
 /// "Garments needed", which lists every garment. The apparel activities
 /// (Training / Gym, Workwear, School Leavers…) stay: they send the request's
 /// Apparel category, as on the website.
-const teamNotActivities = {'headwear'};
+const teamNotActivities = {'headwear', 'jackets'};
 
 /// The TEAM form's sports: Design Your Own's list (lib/sports_catalog.dart:
 /// the same names, e.g. "Soccer", and order), then any sport the website's

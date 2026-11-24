@@ -178,10 +178,10 @@ void main() {
       expect(find.text('Select a garment to customise.'), findsOneWidget);
       expect(GarmentScreen.tilesFor('American Football').map((t) => t.name), [
         'Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', //
-        'Training Tee', 'Training Shorts', 'Compression Top',
+        'Training Tee', "Women's tee", 'Training Shorts', 'Compression Top',
         'Compression Shorts', 'Game Socks', 'Hoodie', 'Varsity Jacket',
-        'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker', 'Cap', 'Bucket Hat',
-        'Beanie',
+        'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker',
+        "Women's windbreaker", 'Puffer vest', 'Cap', 'Bucket Hat', 'Beanie',
       ]);
       expect(GarmentScreen.moreFor('American Football'), isEmpty);
       expect((c.garment, c.productName), ('Full Kit', 'Game Kit'));
@@ -197,8 +197,8 @@ void main() {
         contains('assets/images/showroom/stage-american-football.webp'),
       );
       expect(bg, isNot(contains('assets/images/showroom/stadium-stage.webp')));
-      // The coming-soon pants cannot be chosen; the game jersey can.
-      await revealTap(tester, 'GAME PANTS');
+      // The coming-soon compression shorts cannot be chosen (the pants are on their model since 23 Nov); the game jersey can.
+      await revealTap(tester, 'COMPRESSION SHORTS');
       expect(c.productName, 'Game Kit');
       await revealTap(tester, 'GAME JERSEY');
       expect((c.garment, c.productName), ('Football jersey', 'Game Jersey'));
@@ -246,7 +246,7 @@ void main() {
         await tester.pumpAndSettle();
         final title = sport.heading ?? sport.name;
         // (Headwear is its own heading: "HEADWEAR", CP1.)
-        final heading = sport.id == 'headwear'
+        final heading = const {'headwear', 'jackets'}.contains(sport.id)
             ? title
             : sport.group == 'apparel'
             ? '$title teamwear'

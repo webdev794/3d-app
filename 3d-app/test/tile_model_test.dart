@@ -29,7 +29,7 @@ void main() {
   });
 
   test('a neck the model does not offer falls back to its own', () {
-    final c = football({'scJersey': '#fff21a'}, neck: 'round');
+    final c = football({'scJersey': '#fff21a'}, neck: 'v');
     expect(c.applyTileModel(), isTrue);
     expect(c.neck, isNull);
   });

@@ -2239,16 +2239,34 @@ class _ColoursToolState extends State<_ColoursTool> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SectionLabel('Fabric type'),
-              // The 3D kit shows it (viewer -40); the varsity keeps its wool
-              // and leather.
-              if (isVarsity(c.garment))
-                const Text(
-                  'The varsity jacket is wool with leather sleeves: it keeps '
-                  'its own fabric.',
-                  style: TextStyle(color: Palette.muted, fontSize: 12),
-                )
-              else ...[
+              SectionLabel(isVarsity(c.garment) ? 'Material' : 'Fabric type'),
+              // The 3D kit shows it (viewer -40); the varsity's Material
+              // (client 2026-11-23): wool + leather, cotton or polyester,
+              // kept in its fabric (ai_service.dart varsityMaterials).
+              if (isVarsity(c.garment)) ...[
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final MapEntry(key: fabric, value: label)
+                        in varsityMaterials.entries)
+                      ActionChipPill(
+                        label,
+                        selected: (varsityMaterials.containsKey(c.fabric)
+                                ? c.fabric
+                                : 'Standard') ==
+                            fabric,
+                        onTap: () => c.edit(() => c.fabric = fabric),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${varsityMaterialNotes[c.fabric] ?? varsityMaterialNotes['Standard']} '
+                  'Zoom in on the 3D jacket to see it up close.',
+                  style: const TextStyle(color: Palette.muted, fontSize: 12),
+                ),
+              ] else ...[
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,

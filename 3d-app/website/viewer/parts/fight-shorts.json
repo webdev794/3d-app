@@ -1,0 +1,53 @@
+{
+  "about": "Fight shorts (fight-shorts-textured.glb, MODELQ8 2026-11-23, card 141063): coloured from fight-shorts-parts.glb by viewer/tripo-glbparts.mjs (as the game pants): its elastic waistband (tripo_part_42) the Waistband part, its leg hems (tripo_part_5) the Cuffs part (both the Main colour unless given their own); the body (tripo_part_0), the waist cover inside (20) and the small drawcord bits the print. Inside: the cloth's own colour in shade.",
+  "glbParts": {
+    "glb": "../../../tripo/fight-shorts-parts.glb",
+    "keys": {
+      "tripo_part_0": null,
+      "tripo_part_12": null,
+      "tripo_part_13": null,
+      "tripo_part_18": null,
+      "tripo_part_19": null,
+      "tripo_part_20": null,
+      "tripo_part_24": null,
+      "tripo_part_30": null,
+      "tripo_part_32": null,
+      "tripo_part_33": null,
+      "tripo_part_34": null,
+      "tripo_part_38": null,
+      "tripo_part_41": null,
+      "tripo_part_42": "part:waistband|main",
+      "tripo_part_44": null,
+      "tripo_part_45": null,
+      "tripo_part_49": null,
+      "tripo_part_5": "part:cuffs|main",
+      "tripo_part_51": null,
+      "tripo_part_6": null,
+      "tripo_part_61": null,
+      "tripo_part_7": null,
+      "tripo_part_9": null
+    },
+    "collar": "part:waistband|main",
+    "sleeves": [
+      "part:cuffs|main"
+    ],
+    "pastBody": 1,
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.02,
+    "data": {
+      "insideCloth": true
+    },
+    "localSide": true,
+    "evenCuffs": true,
+    "evenAxis": [
+      0,
+      -1,
+      0
+    ],
+    "cuffWidth": 0.02
+  }
+}

@@ -109,7 +109,7 @@ class StudioSaveShapesTest extends TestCase
         }
         // Every colour area the viewer reads (design.zoneColors.x, zc.x).
         $all = implode("\n", array_map('file_get_contents', glob(base_path('viewer/src/*.js'))));
-        preg_match_all('/(?:zoneColors\??\.|\bzc\.)([A-Za-z][A-Za-z0-9]*)/', $all, $areas);
+        preg_match_all('/(?:zoneColors\??\.|(?<![.\w])zc\.)([A-Za-z][A-Za-z0-9]*)/', $all, $areas);   // (not a property named zc, e.g. main.js v.zc.toFixed)
         $this->assertNotEmpty($areas[1]);
         foreach (array_unique($areas[1]) as $area) {
             $this->assertContains($area, ProjectRequest::ZONE_COLORS, "viewer colour area $area");

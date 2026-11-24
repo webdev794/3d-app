@@ -1,0 +1,64 @@
+{
+  "about": "Fight Wear > Fight shorts (until now a stand-in tile; MODELQ8 2026-11-23, coordinator; booklet card 141063, D:/3d-app/tripo/cards): Tripo model fight-shorts-textured.glb (shape only), coloured from fight-shorts-parts.glb (viewer/parts/fight-shorts.json). Look from the card: near-black shorts all over (body, waistband, hems); our 3DEEZI wordmark in white low on the wearer's left leg where the card has its white logo; no number, no 3 mark (the card shows no other mark); the card's own text not copied. First version (models live first).",
+  "glb": "../../../tripo/fight-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.33,
+    "creaseDeg": 25,
+    "weld": true
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "fightShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Fight shorts",
+      "image": "fight-shorts"
+    }
+  ],
+  "look": {
+    "main": "#232427",
+    "secondary": "#232427",
+    "accent": "#ffffff",
+    "patternColor": "#3a3b3f",
+    "pattern": "None",
+    "number": "",
+    "parts": {
+      "waistband": {
+        "colour": "#232427"
+      }
+    },
+    "zoneColors": {
+      "fightShorts": "#232427",
+      "brandInk": "#ffffff"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "hidden": true
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": 0.15,
+        "y": 0.07,
+        "scale": 0.7
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145"
+    ]
+  }
+}

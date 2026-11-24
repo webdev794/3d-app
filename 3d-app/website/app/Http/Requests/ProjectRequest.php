@@ -15,6 +15,8 @@ class ProjectRequest extends FormRequest
     public const PARTS = [
         'front', 'back', 'leftSleeve', 'rightSleeve', 'collar', 'sides', 'hem',
         'shortsFront', 'shortsBack', 'shortsSides', 'shortsHem', 'waistband', 'shortsBand', 'shortsPiping',
+        // (The fight shorts' and Muay Thai shorts' ready-made models: their hem tape, viewer/parts/*.json key part:cuffs; MODELQ8 2026-11-24.)
+        'cuffs',
         'sockBand', 'sockHoops', 'sockFoot',
         'skirtBand',
         'capBrim', 'capUnder', 'capPiping', 'capSweep', 'capSweepLow',
@@ -37,12 +39,14 @@ class ProjectRequest extends FormRequest
         'raglan', 'sweep', 'sweepDeep', 'wingCollar', 'wingCollarInside', 'crewNeck', 'quarterZip', 'collarPiping', 'piping',
         'vInsert', 'badge', 'brandInk', 'crestWord', 'crestMark', 'labelDark', 'teeFlare', 'teeLong', 'teeNetball',
         'flow', 'flowLight', 'flowDeep',
-        // The ready-made models' flags (viewer tripomesh.js): the Rugby League Jersey on the football jersey's model and its
-        // V cut in it (FBJERSEY 2026-11-13), the Basketball singlet's model (BBSINGLET).
+        // The ready-made model flags (viewer tripomesh.js): the Rugby League Jersey on the football jersey model and its
+        // V cut in it (FBJERSEY 2026-11-13), the Basketball singlet model (BBSINGLET). (No apostrophes in these comments: test/save_shapes_test.dart reads the quoted names.)
         'fbJersey', 'fbV', 'bballSinglet',
         // Shorts, socks and hats.
         'kitBlade', 'cordTips', 'shortsPlain', 'shortsNarrow', 'sockToeLine', 'sockMark', 'sockHoopsWide', 'beanieOne',
-        'shards', 'shardsDeep',
+        'shards', 'shardsDeep', 'cuffStripe', 'zipHoodie',
+        // (Colour areas and model flags the viewer reads that only the catalog tile looks allowed so far; MODELQ8 2026-11-24.)
+        'rlShorts', 'rlSocks', 'netballBib', 'scJersey', 'afJersey', 'reverseSide', 'crestInk', 'bibEdge', 'bandWord',
     ];
 
     /**

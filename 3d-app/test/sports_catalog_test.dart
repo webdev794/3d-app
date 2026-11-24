@@ -37,7 +37,8 @@ void main() {
         str +
         ', ' +
         str +
-        r"((?:, '[^']*')*)\)( \+ \['design' => \['trackStyle' => '(\w+)'\]\])?",
+        // (A tile's track style given straight, or (since 23 Nov) with its model's look: $look('x', ['trackStyle' => 'hood']).)
+        r"((?:, '[^']*')*)\)( \+ \['design' => (?:\['trackStyle' => '(\w+)'\]|\$look\('\w+', \['trackStyle' => '(\w+)'\]\))\])?",
   );
   final website = [
     for (var i = 0; i + 1 < starts.length; i++)
@@ -71,7 +72,7 @@ void main() {
                 args: [
                   for (final a in RegExp(r"'([^']*)'").allMatches(m[4]!)) a[1]!,
                 ],
-                trackStyle: m[6],
+                trackStyle: m[6] ?? m[7],
               ),
           ],
         );
@@ -133,7 +134,13 @@ void main() {
       // (Headwear has its four kinds, client mockup 296.jpg.)
       expect(
         w.tiles.length,
-        greaterThanOrEqualTo(w.id == 'headwear' ? 4 : 6),
+        greaterThanOrEqualTo(
+          w.id == 'headwear'
+              ? 4
+              : w.id == 'jackets'
+              ? 3
+              : 6,
+        ),
         reason: w.id,
       );
       for (var i = 0; i < w.tiles.length; i++) {
@@ -283,12 +290,13 @@ void main() {
       'Zip hoodie',
       'Varsity jacket',
     ]);
-    // The client's Rugby League list (images/160.jpg): 11 tiles, all shown.
+    // The client's Rugby League list (images/160.jpg): 11 tiles, all shown (plus the model tiles added since: Women's tee,
+    // Women's windbreaker, Puffer vest; 23-24 Nov).
     final league = GarmentScreen.tilesFor('Rugby League');
-    expect(league.length, 11);
+    expect(league.length, 15);
     expect(league.first.name, 'Rugby League Kit');
     expect(league.first.garment, 'Full Kit');
-    expect(league[7].trackStyle, 'hood');
+    expect(league[8].trackStyle, 'hood');
     expect(GarmentScreen.moreFor('Rugby League'), isEmpty);
     expect(sportWithId('rugby-union')!.heading, 'Rugby');
     // A sport's garments are worked out from its tiles.

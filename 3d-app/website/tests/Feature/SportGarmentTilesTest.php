@@ -23,7 +23,7 @@ class SportGarmentTilesTest extends TestCase
             $id = $sport['id'];
             $tiles = $sport['tiles'] ?? [];
             // (Headwear has its four kinds: cap, bucket hat, beanie, 5-panel cap; client mockup images/296.jpg.)
-            $this->assertGreaterThanOrEqual($id === 'headwear' ? 4 : 6, count($tiles), $id);
+            $this->assertGreaterThanOrEqual($id === 'headwear' ? 4 : ($id === 'jackets' ? 3 : 6), count($tiles), $id);
             // (Test limit only, not a customer rule: American football has 18 tiles with the new model tiles; coordinator 2026-11-23.)
             $this->assertLessThanOrEqual(20, count($tiles), $id);
             $names = array_column($tiles, 'name');
@@ -67,11 +67,12 @@ class SportGarmentTilesTest extends TestCase
         $this->assertNotSame(false, $sports['netball']['more'] ?? true);
 
         $league = $sports['rugby-league'];
-        $this->assertSame(['Rugby League Kit', 'Jersey', 'Playing Shorts', 'Socks', 'Polo', 'Training Tee', 'Training Shorts', 'Hooded Tracksuit', 'Cap', 'Bucket Hat', 'Waterproof Jacket', 'Windbreaker'], array_column($league['tiles'], 'name'));
+        // (Plus the model tiles added since: Women's tee, Women's windbreaker, Puffer vest; 23-24 Nov.)
+        $this->assertSame(['Rugby League Kit', 'Jersey', 'Playing Shorts', 'Socks', 'Polo', 'Training Tee', "Women's tee", 'Training Shorts', 'Hooded Tracksuit', 'Cap', 'Bucket Hat', 'Waterproof Jacket', 'Windbreaker', "Women's windbreaker", 'Puffer vest'], array_column($league['tiles'], 'name'));
         $this->assertSame('fullkit', $league['tiles'][0]['garment']);
-        $this->assertSame('hood', $league['tiles'][7]['design']['trackStyle']);
+        $this->assertSame('hood', $league['tiles'][8]['design']['trackStyle']);
         // The socks (garment 3), the cap (garment 4) and the bucket hat (garment 5) have their own 3D models.
-        $this->assertSame(['socks', 'cap', 'bucket-hat'], [$league['tiles'][3]['garment'], $league['tiles'][8]['garment'], $league['tiles'][9]['garment']]);
+        $this->assertSame(['socks', 'cap', 'bucket-hat'], [$league['tiles'][3]['garment'], $league['tiles'][9]['garment'], $league['tiles'][10]['garment']]);
         $this->assertFalse($league['more']);
         // Rugby (union): the same list, under its own heading.
         $union = $sports['rugby-union'];
@@ -89,8 +90,16 @@ class SportGarmentTilesTest extends TestCase
         $sports = collect(config('catalog.sports'))->keyBy('id');
         foreach (['rugby-league' => 'rugby-', 'rugby-union' => 'rugby-', 'netball' => 'netball-', 'american-football' => 'nfl-'] as $id => $prefix) {
             $images = array_column($sports[$id]['tiles'], 'image');
-            // (The women's rugby jersey and shorts tiles show the men's pictures (user 2026-11-16): not counted twice.)
-            $own = array_column(array_filter($sports[$id]['tiles'], fn ($t) => ! str_starts_with($t['name'], "Women's rugby")), 'image');
+            // (The women's tiles (rugby jersey and shorts, user 2026-11-16; the netball women's singlet) show the men's / training
+            // pictures: not counted twice.)
+            // (The model tiles added since 20 Nov (Women's tee, Windbreaker, Women's windbreaker, Puffer vest, Women's shorts) show shared
+            // pictures of other garments, not the client's own sport pictures: only checked to exist in both copies.)
+            $shared = array_values(array_filter($images, fn ($i) => ! str_starts_with($i, $prefix)));
+            foreach ($shared as $image) {
+                $this->assertFileEquals(public_path("media/showroom/garment-$image.webp"), base_path("../assets/images/showroom/garment-$image.webp"), "$id: $image (app copy)");
+            }
+            $images = array_values(array_filter($images, fn ($i) => str_starts_with($i, $prefix)));
+            $own = array_column(array_filter($sports[$id]['tiles'], fn ($t) => ! str_starts_with($t['name'], "Women's") && str_starts_with($t['image'], $prefix)), 'image');
             $this->assertSame(count($own), count(array_unique($own)), "$id: one picture per tile");
             $this->assertSame([], array_values(array_diff($images, $own)), "$id: the women's tiles show pictures of the men's tiles");
             foreach ($images as $image) {
@@ -109,15 +118,16 @@ class SportGarmentTilesTest extends TestCase
     {
         $sports = collect(config('catalog.sports'))->keyBy('id');
         $nfl = $sports['american-football'];
-        $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', 'Training Shorts', 'Compression Top', 'Compression Shorts',
-            'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
-        $this->assertSame(['fullkit', 'nfljersey', null, 'nfljersey', 'tee', 'shorts', 'compression', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', 'beanie'],
+        // (Plus the model tiles added since: Women's tee, Women's windbreaker, Puffer vest; the Game Pants on their model since 23 Nov.)
+        $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', "Women's tee", 'Training Shorts', 'Compression Top', 'Compression Shorts',
+            'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker', "Women's windbreaker", 'Puffer vest', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
+        $this->assertSame(['fullkit', 'nfljersey', 'shorts', 'nfljersey', 'tee', 'tee', 'shorts', 'tee', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'trackjacket', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', 'beanie'],
             array_column($nfl['tiles'], 'garment'));
-        // Coming soon: pants and compression shorts, each naming the garment still to build (the beanie is built, CP1).
-        foreach ([2 => 'nfl-pants', 7 => 'compression-shorts'] as $i => $future) {
+        // Coming soon: the compression shorts, naming the garment still to build (the beanie is built, CP1; the pants, 23 Nov).
+        foreach ([8 => 'compression-shorts'] as $i => $future) {
             $this->assertSame(['soon', $future], [$nfl['tiles'][$i]['fit'], $nfl['tiles'][$i]['future']], $nfl['tiles'][$i]['name']);
         }
-        $this->assertSame('hood', $nfl['tiles'][11]['design']['trackStyle']);
+        $this->assertSame('hood', $nfl['tiles'][12]['design']['trackStyle']);
         // The football jersey (task 9.113): Game Jersey on standard fabric, Practice Jersey on mesh.
         $this->assertSame(['exact', 'Standard', 'exact', 'Mesh'], [$nfl['tiles'][1]['fit'], $nfl['tiles'][1]['design']['fabric'], $nfl['tiles'][3]['fit'], $nfl['tiles'][3]['design']['fabric']]);
         // Each jersey starts as its tile picture (task 9.154): black, the big 86; the game jersey's white with a cyan
@@ -167,7 +177,9 @@ class SportGarmentTilesTest extends TestCase
             $tile = collect($sports[$sport]['tiles'])->firstWhere('name', $name);
             $this->assertSame(['skirt', 'exact', 'netball-skirt'], [$tile['garment'], $tile['fit'], $tile['image']], $name);
             // (The side panels' cyan as measured on the skirt picture, FM 2026-10-30.)
-            $this->assertSame(['#27282a', '#25c6f2', 'None'], [$tile['design']['main'], $tile['design']['secondary'], $tile['design']['pattern']], $name);
+            // (Since 2026-11-24 the Tripo tennis skirt model on every skirt tile, look tennisSkirt from its card 49992: light blue, navy
+            // side panels; MODELQ8.)
+            $this->assertSame(['#8fcbe9', '#1f2a6b', 'None'], [$tile['design']['main'], $tile['design']['secondary'], $tile['design']['pattern']], $name);
             $this->assertContains('skirt', $sports[$sport]['garments'], $sport);
         }
         $this->assertContains('skirt', array_column(config('catalog.garments'), 'id'));
