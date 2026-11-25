@@ -25,7 +25,7 @@ class SportGarmentTilesTest extends TestCase
             // (Headwear has its four kinds: cap, bucket hat, beanie, 5-panel cap; client mockup images/296.jpg.)
             $this->assertGreaterThanOrEqual($id === 'headwear' ? 4 : ($id === 'jackets' ? 3 : 6), count($tiles), $id);
             // (Test limit only, not a customer rule: American football has 18 tiles with the new model tiles; coordinator 2026-11-23.)
-            $this->assertLessThanOrEqual(20, count($tiles), $id);
+            $this->assertLessThanOrEqual(21, count($tiles), $id);
             $names = array_column($tiles, 'name');
             $this->assertSame(count($names), count(array_unique($names)), "$id: tile names are unique");
             foreach ($tiles as $tile) {
@@ -99,7 +99,8 @@ class SportGarmentTilesTest extends TestCase
                 $this->assertFileEquals(public_path("media/showroom/garment-$image.webp"), base_path("../assets/images/showroom/garment-$image.webp"), "$id: $image (app copy)");
             }
             $images = array_values(array_filter($images, fn ($i) => str_starts_with($i, $prefix)));
-            $own = array_column(array_filter($sports[$id]['tiles'], fn ($t) => ! str_starts_with($t['name'], "Women's") && str_starts_with($t['image'], $prefix)), 'image');
+            // (The American football Helmet tile shows the Cap's picture until it has its own: MODELQ8 2026-11-25.)
+            $own = array_column(array_filter($sports[$id]['tiles'], fn ($t) => ! str_starts_with($t['name'], "Women's") && $t['name'] !== 'Helmet' && str_starts_with($t['image'], $prefix)), 'image');
             $this->assertSame(count($own), count(array_unique($own)), "$id: one picture per tile");
             $this->assertSame([], array_values(array_diff($images, $own)), "$id: the women's tiles show pictures of the men's tiles");
             foreach ($images as $image) {
@@ -120,8 +121,8 @@ class SportGarmentTilesTest extends TestCase
         $nfl = $sports['american-football'];
         // (Plus the model tiles added since: Women's tee, Women's windbreaker, Puffer vest; the Game Pants on their model since 23 Nov.)
         $this->assertSame(['Game Kit', 'Game Jersey', 'Game Pants', 'Practice Jersey', 'Training Tee', "Women's tee", 'Training Shorts', 'Compression Top', 'Compression Shorts',
-            'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker', "Women's windbreaker", 'Puffer vest', 'Cap', 'Bucket Hat', 'Beanie'], array_column($nfl['tiles'], 'name'));
-        $this->assertSame(['fullkit', 'nfljersey', 'shorts', 'nfljersey', 'tee', 'tee', 'shorts', 'tee', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'trackjacket', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', 'beanie'],
+            'Game Socks', 'Hoodie', 'Varsity Jacket', 'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker', "Women's windbreaker", 'Puffer vest', 'Cap', 'Bucket Hat', 'Beanie', 'Helmet'], array_column($nfl['tiles'], 'name'));
+        $this->assertSame(['fullkit', 'nfljersey', 'shorts', 'nfljersey', 'tee', 'tee', 'shorts', 'tee', null, 'socks', 'hoodie', 'varsity', 'trackjacket', 'trackjacket', 'trackjacket', 'trackjacket', 'trackjacket', 'cap', 'bucket-hat', 'beanie', 'cap'],
             array_column($nfl['tiles'], 'garment'));
         // Coming soon: the compression shorts, naming the garment still to build (the beanie is built, CP1; the pants, 23 Nov).
         foreach ([8 => 'compression-shorts'] as $i => $future) {

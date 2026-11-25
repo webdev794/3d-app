@@ -236,6 +236,8 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'footballShorts' => ['main' => '#2a56b4', 'secondary' => '#2a56b4', 'accent' => '#1f8a3c', 'patternColor' => '#2a56b4', 'pattern' => 'None', 'number' => '', 'zoneColors' => ['footballShorts' => '#2a56b4', 'brandInk' => '#ffffff'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.12, 'y' => 0.1, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.07, 'scale' => 0.7]], 'layers' => []],
+        'helmetModel' => ['main' => '#1c2433', 'secondary' => '#e3a81c', 'accent' => '#e3a81c', 'zoneColors' => ['helmetModel' => '#ffffff', 'helmetStripe' => '#e3a81c', 'faceMask' => '#2b2d31'], 'layers' => []],
         'muaythaiShorts' => ['main' => '#f4c51c', 'secondary' => '#f4c51c', 'accent' => '#1f2023', 'patternColor' => '#e0b010', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#1f2023'], 'cuffs' => ['colour' => '#1f2023']], 'zoneColors' => ['muaythaiShorts' => '#f4c51c', 'brandInk' => '#1f2023'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true], 'shorts_wordmark' => ['side' => 'front', 'x' => 0, 'y' => 0.2, 'scale' => 1.3]], 'layers' => []],
         'pufferJacket' => ['main' => '#e8642e', 'zoneColors' => ['pufferJacket' => '#ffffff', 'body' => '#e8642e', 'shoulder' => '#e8642e', 'side' => '#e8642e', 'stripe' => '#e8642e', 'zip' => '#2b2b2e', 'rib' => '#2b2b2e']],
         'fightShorts' => ['main' => '#232427', 'secondary' => '#232427', 'accent' => '#ffffff', 'patternColor' => '#3a3b3f', 'pattern' => 'None', 'number' => '', 'parts' => ['waistband' => ['colour' => '#232427']], 'zoneColors' => ['fightShorts' => '#232427', 'brandInk' => '#ffffff'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['hidden' => true], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.07, 'scale' => 0.7]], 'layers' => []],
@@ -403,7 +405,7 @@ $sports = [
         $tile('Football jersey', 'Lightweight match shirt for the pitch.', 'jersey') + ['design' => $look('scJersey')],
         $tile("Women's football jersey", "Fitted women's football jersey with a V-neck.", 'jersey', 'jersey') + ['design' => $look('womenFootballJersey')],
         $tile("Women's football shorts", "Fitted women's football shorts with split hems.", 'shorts', 'shorts') + ['design' => $look('womenFootballShorts')],
-        $tile('Football shorts', 'Light shorts that move with you.', 'shorts'),
+        $tile('Football shorts', 'Light shorts that move with you.', 'shorts') + ['design' => $look('footballShorts')],
         $tile('Full kit', 'Shirt and shorts, designed together.', 'fullkit') + ['design' => $look('fbKitModel')],
         $tile('Training tee', 'Breathable tee for training and warm-ups.', 'tee'),
         $tile("Women's tee", 'Fitted tee for training and warm-ups.', 'tee', 'women-tee') + ['design' => $look('womenTee')],
@@ -507,6 +509,7 @@ $sports = [
             $tile('Cap', 'Curved brim sports cap.', 'cap', 'nfl-cap'),
             $tile('Bucket Hat', 'Wide brim bucket hat.', 'bucket-hat', 'nfl-bucket-hat'),
             $tile('Beanie', 'Knitted beanie with a cuff.', 'beanie', 'nfl-beanie'),
+            $tile('Helmet', 'Football helmet with a face mask in your colours.', 'cap', 'nfl-cap') + ['design' => $look('helmetModel')],
         ]],
     ['id' => 'golf', 'name' => 'Golf', 'description' => 'Clean lines for every round.', 'group' => 'sports',
         'prompt' => 'golf: a premium fitted performance polo, clean and understated; a quarter-zip pullover suits too', 'tiles' => [
@@ -801,7 +804,7 @@ $sports = [
  */
 $pictureLooks = [
     'jersey' => 'tribal', 'fullkit' => 'tribalKit', 'rugby-jersey' => 'rugbyTile', 'rugby-kit' => 'rugbyTile', 'nfl-kit' => 'nflgame', 'rash-guard' => 'blades',
-    'polo' => 'poloZip', 'pocketpolo' => 'poloZipPocket', 'rugby-polo' => 'poloSleeves', 'tee' => 'teeTile', 'nfl-tee' => 'teeCyan', 'rugby-tee' => 'teeSides', 'netball-tee' => 'teeSidesNetball', 'shooting-shirt' => 'shooting',
+    'polo' => 'poloZip', 'pocketpolo' => 'poloZipPocket', 'rugby-polo' => 'poloSleeves', 'tee' => 'trainingTee', 'nfl-tee' => 'trainingTee', 'rugby-tee' => 'trainingTee', 'netball-tee' => 'trainingTee', 'shooting-shirt' => 'shooting',
     'singlet' => 'singletTile', 'netball-training-singlet' => 'bladesSides', 'afl-guernsey' => 'bladesSides', 'netball-singlet-bib' => 'bladesSides', 'bibs' => 'bibs', 'netball-bibs' => 'netballBibs', 'netball-dress' => 'bladesSides',
     'team-hoodie' => 'hoodie', 'nfl-hoodie' => 'nflHoodie', 'netball-hoodie' => 'netballHoodie', 'nfl-compression-top' => 'sides',
     'trackjacket' => 'tjModel', 'netball-tracksuit' => 'trackSuit', 'tracksuit' => 'bballTracksuit', 'rugby-hooded-tracksuit' => 'rugbyTracksuit', 'nfl-hooded-tracksuit' => 'nflTracksuit',
@@ -879,7 +882,7 @@ $pictureExtras = [
 ];
 $pictureLooks += ['varsity' => 'varsity', 'nfl-varsity' => 'nflVarsity'];
 // (BBTILES 2026-11-18: the Basketball tiles' own pictures on the light backdrop keep their pictures' looks.)
-$pictureLooks += ['bb-shorts' => 'bballShorts', 'bb-shooting-shirt' => 'shooting', 'bb-tee' => 'teeTile', 'bb-hoodie' => 'hoodie', 'bb-tracksuit' => 'bballTracksuit', 'bb-varsity' => 'varsity'];
+$pictureLooks += ['bb-shorts' => 'bballShorts', 'bb-shooting-shirt' => 'shooting', 'bb-tee' => 'trainingTee', 'bb-hoodie' => 'hoodie', 'bb-tracksuit' => 'bballTracksuit', 'bb-varsity' => 'varsity'];
 foreach ($sports as &$sport) {
     foreach ($sport['tiles'] as &$t) {
         if ($t['fit'] === 'soon') continue;

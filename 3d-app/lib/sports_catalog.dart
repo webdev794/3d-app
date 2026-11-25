@@ -216,10 +216,12 @@ const pictureLooks = {
   'polo': 'poloZip',
   'pocketpolo': 'poloZipPocket',
   'rugby-polo': 'poloSleeves',
-  'tee': 'teeTile',
-  'nfl-tee': 'teeCyan',
-  'rugby-tee': 'teeSides',
-  'netball-tee': 'teeSidesNetball',
+  // (The training tee's model and its card look on every tee picture: MODELQ8
+  // 2026-11-25.)
+  'tee': 'trainingTee',
+  'nfl-tee': 'trainingTee',
+  'rugby-tee': 'trainingTee',
+  'netball-tee': 'trainingTee',
   'shooting-shirt': 'shooting',
   'singlet': 'singletTile',
   'netball-training-singlet': 'bladesSides',
@@ -256,7 +258,7 @@ const pictureLooks = {
   // backdrop keep their pictures' looks.)
   'bb-shorts': 'bballShorts',
   'bb-shooting-shirt': 'shooting',
-  'bb-tee': 'teeTile',
+  'bb-tee': 'trainingTee',
   'bb-hoodie': 'hoodie',
   'bb-tracksuit': 'bballTracksuit',
   'bb-varsity': 'varsity',
@@ -1235,6 +1237,8 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'footballShorts': {'main': '#2a56b4', 'secondary': '#2a56b4', 'accent': '#1f8a3c', 'patternColor': '#2a56b4', 'pattern': 'None', 'number': '', 'zoneColors': {'footballShorts': '#2a56b4', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.12, 'y': 0.1, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
+    'helmetModel': {'main': '#1c2433', 'secondary': '#e3a81c', 'accent': '#e3a81c', 'zoneColors': {'helmetModel': '#ffffff', 'helmetStripe': '#e3a81c', 'faceMask': '#2b2d31'}, 'layers': []},
     'muaythaiShorts': {'main': '#f4c51c', 'secondary': '#f4c51c', 'accent': '#1f2023', 'patternColor': '#e0b010', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#1f2023'}, 'cuffs': {'colour': '#1f2023'}}, 'zoneColors': {'muaythaiShorts': '#f4c51c', 'brandInk': '#1f2023'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'hidden': true}, 'shorts_wordmark': {'side': 'front', 'x': 0, 'y': 0.2, 'scale': 1.3}}, 'layers': []},
     'pufferJacket': {'main': '#e8642e', 'zoneColors': {'pufferJacket': '#ffffff', 'body': '#e8642e', 'shoulder': '#e8642e', 'side': '#e8642e', 'stripe': '#e8642e', 'zip': '#2b2b2e', 'rib': '#2b2b2e'}},
     'fightShorts': {'main': '#232427', 'secondary': '#232427', 'accent': '#ffffff', 'patternColor': '#3a3b3f', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#232427'}}, 'zoneColors': {'fightShorts': '#232427', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'hidden': true}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
@@ -1844,6 +1848,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Football shorts',
       'Light shorts that move with you.',
       'Shorts',
+      look: 'footballShorts',
     ),
     GarmentTile(
       'Full kit',
@@ -2288,6 +2293,13 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Knitted beanie with a cuff.',
       'Beanie',
       image: 'nfl-beanie',
+    ),
+    GarmentTile(
+      'Helmet',
+      'Football helmet with a face mask in your colours.',
+      'Cap',
+      image: 'nfl-cap',
+      look: 'helmetModel',
     ),
   ],
   'golf': [

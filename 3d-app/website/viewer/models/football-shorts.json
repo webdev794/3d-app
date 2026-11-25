@@ -1,0 +1,57 @@
+{
+  "about": "Football > Football shorts and the Football Full kit's shorts (MODELQ8 2026-11-25, coordinator; cut from the Full Soccer Kit cards 13878 front / 10440 back, D:/3d-app/tripo/cards): Tripo model football-shorts-textured.glb (shape only), the print all over (its parts file was too patchy for clean colour edges: no parts). WIDE: every shorts design without another model's flag (old saved Football shorts and kit designs open on it); it replaces the made shorts and their old look (the black slit in the side stripe, bug 143) on those two tiles. Look from the card: royal blue all over, our crest low on the wearer's right leg and our 3DEEZI wordmark on the left where the card has its marks; the card's own logos not copied. First version (models live first).",
+  "glb": "../../../tripo/football-shorts-textured.glb",
+  "converter": "legs",
+  "convert": {
+    "made": "shorts",
+    "legs": 0.33,
+    "creaseDeg": 25,
+    "weld": true
+  },
+  "part": "shorts",
+  "garment": "shorts",
+  "flag": "footballShorts",
+  "ownNeck": "none",
+  "necks": {},
+  "tiles": [],
+  "look": {
+    "main": "#2a56b4",
+    "secondary": "#2a56b4",
+    "accent": "#1f8a3c",
+    "patternColor": "#2a56b4",
+    "pattern": "None",
+    "number": "",
+    "zoneColors": {
+      "footballShorts": "#2a56b4",
+      "brandInk": "#ffffff"
+    },
+    "marks": {
+      "shorts_number": {
+        "hidden": true
+      },
+      "shorts_crest": {
+        "x": -0.12,
+        "y": 0.1,
+        "scale": 0.8
+      },
+      "shorts_wordmark": {
+        "side": "front",
+        "x": 0.15,
+        "y": 0.07,
+        "scale": 0.7
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q90",
+      "Q-90",
+      "Q35",
+      "Q-145"
+    ]
+  },
+  "wide": true
+}

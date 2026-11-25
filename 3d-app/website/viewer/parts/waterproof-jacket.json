@@ -1,5 +1,5 @@
 {
-  "about": "Waterproof jacket (puffer-jacket-textured.glb, a smooth hooded shell) coloured from puffer-jacket-parts.glb (11 parts) by viewer/tripo-hoodie.mjs: body + sleeves the print (the made track jacket's pattern), hood plain with its lining, zip strip (5; its inner neck ring above the zip, y > 0.66 behind z 0.13, goes with the hood) and pocket zips (11) the Zip colour, cuffs (8, 16, 17) and hem band (6) the rib. MODELQ5 2026-11-20.",
+  "about": "Waterproof jacket (puffer-jacket-textured.glb, a smooth hooded shell) coloured from puffer-jacket-parts.glb (11 parts) by viewer/tripo-hoodie.mjs: body + sleeves the print (the made track jacket's pattern), hood plain with its lining, zip strip (5; its inner neck ring above the zip, y > 0.66 behind z 0.13, goes with the hood) and pocket zips (11) the Zip colour, cuffs (8, 16, 17) and hem band (6) the rib. MODELQ5 2026-11-20. MODELQ7 2026-11-24 (item 138): the front zip and the pocket zips are our own straight zips of one even width (zipLine, zipParts; tape in the Zip colour), not the ragged Tripo zip parts, which now count as the body.",
   "hoodieParts": {
     "glb": "../../../tripo/puffer-jacket-parts.glb",
     "roles": {
@@ -8,8 +8,8 @@
       "tripo_part_4": "hood",
       "tripo_part_13": "hood",
       "tripo_part_14": "hood",
-      "tripo_part_5": "zip",
-      "tripo_part_11": "pocket",
+      "tripo_part_5": "body",
+      "tripo_part_11": "body",
       "tripo_part_6": "hem",
       "tripo_part_8": "cuffL",
       "tripo_part_17": "cuffL",
@@ -61,10 +61,6 @@
         ]
       }
     },
-    "plain": {
-      "zip": "plain:zone:zip|main",
-      "pocket": "plain:zone:zip|main"
-    },
     "plainKeys": [
       "plain:zone:hood|zone:body|main",
       "plain:zone:lining|zone:body|main"
@@ -103,6 +99,20 @@
     "data": {
       "insideCloth": true
     },
-    "neckReach": 0.16
+    "neckReach": 0.16,
+    "zipParts": [
+      {
+        "part": "tripo_part_5",
+        "where": "z >= 0.13"
+      },
+      {
+        "part": "tripo_part_11",
+        "where": "x < 0"
+      },
+      {
+        "part": "tripo_part_11",
+        "where": "x > 0"
+      }
+    ]
   }
 }

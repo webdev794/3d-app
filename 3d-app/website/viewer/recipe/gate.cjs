@@ -115,7 +115,17 @@ async function check() {
     // same build (self-test FAIL, 25 tiles). Held, the same build gives the same pixels, load after load.)
     await page.evaluate(() => Object.defineProperty(window.__v.kit.position, 'y', { get: () => 0, set: () => {}, configurable: true }));
     // The empty stage (kit hidden), to measure how much of a picture the garment covers.
-    const bg = await page.evaluate(async () => { window.__v.kit.visible = false; const d = window.viewer.captureDataUrl('Front'); window.__v.kit.visible = true; return d; });
+    // (MODELQ7 2026-11-25, coordinator: the empty stage taken once, right after 'ready', sometimes caught the stage before its
+    // backdrop had finished loading, so every tile's 'before' cover read 91.7 % and a gate failed on all tiles. Now taken
+    // again every 0.5 s until two rounds in a row are the same, at most 6 s, as the tiles' pictures are. No check changed.)
+    let bg = null;
+    for (let k = 0; k < 12; k++) {
+      await page.waitForTimeout(500);
+      const d = await page.evaluate(async () => { window.__v.kit.visible = false; const d = window.viewer.captureDataUrl('Front'); window.__v.kit.visible = true; return d; });
+      const same = bg === d;
+      bg = d;
+      if (same) break;
+    }
     const res = {};
     for (const t of list) {
       errors.length = 0;

@@ -553,6 +553,23 @@ const SC_JERSEY = 'soccer-jersey';
 // football-shirt, through the shared recipe (recipeFor), on the Jersey and in the Football Full kit.)
 const scJerseyOn = () => false && (!layout || drawnOn('jersey')) && design.garment === 'jersey' && HEX6.test(design.zoneColors?.scJersey ?? '');
 const tripoOf = (part) => TRIPO_PARTS[part] ?? (part === 'singlet' && singletModel() ? singletModel() : part === 'jersey' && fbJerseyOn() ? FB_JERSEY : null) ?? (part === 'shorts' && rlShortsOn() ? RL_SHORTS : null) ?? (part === 'socks' && rlSocks() ? 'rugby-socks' : null) ?? (part === 'singlet' && netballBib() ? 'netball-bib' : null) ?? (part === 'jersey' && scJerseyOn() ? SC_JERSEY : null) ?? (part !== 'singlet' ? recipeFor(part) : null);
+/**
+ * A 'plain:' part key's colour by its chain (as texture.js paintModelSwatches chainHex: the first set of 'zone:<name>',
+ * 'main', 'secondary', 'accent' or '#rrggbb'), for a painter that has no partColours (the hat painters: the helmet's face
+ * mask, the bucket hat's cord; MODELQ8 2026-11-25); null for 'print' or any other key.
+ */
+function plainHex(key, design) {
+  if (!key.startsWith('plain:')) return null;
+  for (const c of key.slice(6).split('@')[0].split('|')) {
+    if (c === 'print') return null;
+    if (c === 'main') return design.main;
+    if (c === 'secondary' || c === 'trim') return design.secondary;
+    if (c === 'accent') return design.accent;
+    if (HEX6.test(c)) return c;
+    if (c.startsWith('zone:') && HEX6.test(design.zoneColors?.[c.slice(5)] ?? '')) return design.zoneColors[c.slice(5)];
+  }
+  return null;
+}
 /** The most parts per triangle a model may have (its partKeys): the print shader's part colours (addRelief). */
 const PART_TINTS = 8;
 /** The parts' colours (texture.js paintModelSwatches: model.partColours) into the print's own material (addRelief):
@@ -576,7 +593,7 @@ function paintPlains(part, design) {
     if (layout && key === 'inside') { const c = new THREE.Color(part.layoutInside ?? design.main).multiplyScalar(0.9); tint[k].set(c.r, c.g, c.b, 1); return; }
     // (HOODIE 2026-11-19: the hoodie's rib bands ('plain:zone:rib...') take the picture's band colour; its hood, lining and cords the
     // picture's own colour.)
-    const c = new THREE.Color(layout && key.startsWith('plain:') && !key.startsWith('plain:zone:rib') && part.layoutInside ? part.layoutInside : layout && (key.startsWith('plain:zone:rib') || key === 'collar' || key === 'waistband' || key === 'part:cuffs' || key === 'part:leftCuff' || key === 'part:rightCuff') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? design.secondary);
+    const c = new THREE.Color(layout && key.startsWith('plain:') && !key.startsWith('plain:zone:rib') && part.layoutInside ? part.layoutInside : layout && (key.startsWith('plain:zone:rib') || key === 'collar' || key === 'waistband' || key === 'part:cuffs' || key === 'part:leftCuff' || key === 'part:rightCuff') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? (part.garment.cap || part.garment.hat ? plainHex(key, design) : null) ?? design.secondary);
     if (key === 'inside') c.multiplyScalar(0.9);
     // (On a model split into pieces (main.js `pieced`): a band (collar, waistband) one plain colour all over (w 2); any
     // other piece takes its colour where the print shows the Main (w 1).)

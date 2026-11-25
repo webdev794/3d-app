@@ -30,6 +30,7 @@
 //   mirror   [{ from, to, with, side }]: on the `side` half (x sign, default +) a point that is `to` or `with` (default
 //            ['body']) takes `to` where its mirror image (-x) is `from`, else the `with` role there (a ragged border one side)
 //   form     [roles]: points kept out of the form inside (data side bit 2: the hood, cords)
+//   zipParts [{ part, where }]: straight zips of our own along those parts (pocket zips), the parts themselves the body
 //   zipLine  { top, sigma, end }: a full zip down the centre front (data `zip`, as viewer/tripo-glbparts.mjs: main.js lays our
 //            own tape and teeth along it, the print under it): from `top` (the parts file's own height) down to the hem
 //   data     fields copied into the data (insideCloth)
@@ -573,6 +574,35 @@ if (settings.zipLine) {
     report.push(`zip line ${Lz.len} mm, from ${Lz.C[0][1].toFixed(3)} down to ${Lz.C[Lz.C.length - 1][1].toFixed(3)}`);
   } else report.push('zip line: none found');
 } else delete D.zip;
+// (`zipParts` (MODELQ7 2026-11-24, item 138: the waterproof jacket's pocket zips came out ragged as plain parts): [{ part, where }]:
+// each a STRAIGHT zip of our own (main.js lays tape and teeth of one even width along data `zip`, as the front zip), from end
+// to end of that part's points (the parts file's own; `where` x y z in its units picks one of several), laid on the front's
+// outside cloth there. The part itself counts as the body (its role), so no ragged colour edge is left.)
+if (settings.zipParts?.length) {
+  D.zip ??= [];
+  for (const Z of settings.zipParts) {
+    const test = Z.where ? new Function('x', 'y', 'z', `return (${Z.where});`) : () => true;
+    const pts = (parts.find((p) => p.name === Z.part)?.tris ?? []).filter((q) => test(...q)).map(place);
+    if (pts.length < 6) { report.push(`zip part ${Z.part}: too few points`); continue; }
+    // the part's main direction across the front (x, y): its two ends
+    const cx = pts.reduce((t, q) => t + q[0], 0) / pts.length, cy = pts.reduce((t, q) => t + q[1], 0) / pts.length;
+    let sxx = 0, sxy = 0, syy = 0; for (const q of pts) { const dx = q[0] - cx, dy = q[1] - cy; sxx += dx * dx; sxy += dx * dy; syy += dy * dy; }
+    const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy), ux = Math.cos(ang), uy = Math.sin(ang);
+    const ts = pts.map((q) => (q[0] - cx) * ux + (q[1] - cy) * uy), t0 = Math.min(...ts) + 0.004, t1 = Math.max(...ts) - 0.004;
+    const C = [], Nn = [];
+    for (let t = t1; t >= t0 - 1e-9; t -= 0.004) {
+      const x = cx + ux * t, y = cy + uy * t;
+      // the outside cloth there: the front-most point within 6 mm across
+      let best = -1; for (let v = 0; v < V; v++) { if (!outside[v] || A.P[v * 3 + 2] <= 0 || Math.hypot(A.P[v * 3] - x, A.P[v * 3 + 1] - y) > 0.006) continue; if (best < 0 || A.P[v * 3 + 2] > A.P[best * 3 + 2]) best = v; }
+      if (best < 0) continue;
+      C.push([x, y, A.P[best * 3 + 2]]); Nn.push(N3(best));
+    }
+    if (C.length < 3) { report.push(`zip part ${Z.part}: no cloth found`); continue; }
+    if (C[0][1] < C.at(-1)[1]) { C.reverse(); Nn.reverse(); }
+    D.zip.push({ c: C.flatMap((q) => q.map((x) => +x.toFixed(5))), n: Nn.map((q) => (q[2] < 0 ? q.map((x) => -x) : q)).flatMap((q) => q.map((x) => +x.toFixed(3))) });
+    report.push(`zip part ${Z.part}${Z.where ? ` (${Z.where})` : ''}: straight zip ${C.length * 4} mm`);
+  }
+}
 if (settings.data) Object.assign(D, settings.data);
 D.partKeys = keys; D.piece = Buffer.from(out).toString('base64'); D.pieceTri = Buffer.from(Uint8Array.from(tris)).toString('base64');
 fs.writeFileSync(path.join(here, `tripo-${name}.js`), `window.TRIPO_MESHES=window.TRIPO_MESHES||{};window.TRIPO_MESHES[${JSON.stringify(name)}]=${JSON.stringify(D)};\n`);

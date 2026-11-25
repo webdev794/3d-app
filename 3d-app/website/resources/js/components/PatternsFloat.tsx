@@ -20,8 +20,17 @@ const PER_PAGE = 12;
 /** A press held this long (finger or pen) picks the thumbnail up; a mouse picks it up once it moves this far. */
 const HOLD_MS = 350, MOUSE_SLOP = 6, TOUCH_SLOP = 10;
 
+/** The pattern's colour, or (too close to the kit's own, as a dark tee with a dark Secondary: client 653, blank
+ *  thumbnails) cyan on a dark kit and near-black on a light one, so each pattern shows (as the app's visibleInk). */
+export function visibleInk(ink: string, base: string) {
+  const lum = (hex: string) => { const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim()); if (!m) return null; const n = parseInt(m[1], 16); return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255; };
+  const a = lum(ink), b = lum(base);
+  if (a === null || b === null || Math.abs(a - b) >= 0.18) return ink;
+  return b < 0.5 ? '#16b4f0' : '#0b1016';
+}
 /** A small drawing of a built-in pattern (as the app's swatches, drag_tray.dart): `ink` on `base`. */
-export function PatternSwatch({ name, base, ink }: { name: string; base: string; ink: string }) {
+export function PatternSwatch({ name, base, ink: own }: { name: string; base: string; ink: string }) {
+  const ink = visibleInk(own, base);
   const line = { stroke: ink, strokeWidth: 4, fill: 'none' } as const;
   const range = (from: number, to: number, step: number) => { const out: number[] = []; for (let v = from; v < to; v += step) out.push(v); return out; };
   let body: ReactNode = null;

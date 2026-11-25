@@ -1,6 +1,6 @@
 {
-  "about": "Training tees (every tile showing the tee picture): Tripo model training-tee-textured.glb (made facing away: turned round; its shape only: its painted colours and its own UV atlas are not used; coloured from training-tee-parts.glb by viewer/tripo-glbparts.mjs, MODELQ5 2026-11-18), booklet card 112791 (light blue body, yellow neck band and cuffs; our 3DEEZI wordmark small high on the back where the card has its neck text; nothing of the card's text). WIDE (2026-11-16 coordinator): on every tile of its garment, the tile's own existing look kept (no card colours); `look` is only the check design.",
-  "glb": "../../../tripo/training-tee-textured.glb",
+  "about": "Training tees (every tee tile without another model flag; WIDE: old saved tee designs open on it too): Tripo model training-tee2-textured.glb (card 112791; MODELQ8 2026-11-25: replaces the first tee model, which the client said did not look like a T-shirt; its files and look are gone), its shape only, coloured from training-tee2-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/training-tee.json). Look from the card (the tee tiles' look, trainingTee): light blue body, yellow neck band and cuffs; our 3DEEZI marks only. Round neck (the V-neck choice: next round).",
+  "glb": "../../../tripo/training-tee2-textured.glb",
   "converter": "top",
   "part": "tee",
   "flag": "trainingTee",
@@ -10,8 +10,7 @@
   "pictures": [],
   "convert": {
     "made": "tee",
-    "creaseDeg": 25,
-    "turn": 180
+    "creaseDeg": 25
   },
   "look": {
     "main": "#a9cbe8",

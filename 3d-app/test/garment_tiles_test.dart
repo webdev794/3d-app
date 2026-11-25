@@ -181,7 +181,7 @@ void main() {
         'Training Tee', "Women's tee", 'Training Shorts', 'Compression Top',
         'Compression Shorts', 'Game Socks', 'Hoodie', 'Varsity Jacket',
         'Hooded Tracksuit', 'Waterproof Jacket', 'Windbreaker',
-        "Women's windbreaker", 'Puffer vest', 'Cap', 'Bucket Hat', 'Beanie',
+        "Women's windbreaker", 'Puffer vest', 'Cap', 'Bucket Hat', 'Beanie', 'Helmet',
       ]);
       expect(GarmentScreen.moreFor('American Football'), isEmpty);
       expect((c.garment, c.productName), ('Full Kit', 'Game Kit'));
