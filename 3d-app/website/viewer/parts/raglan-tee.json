@@ -35,6 +35,8 @@
     "twoWayOut": true,
     "keysWhere": [
       { "part": "tripo_part_20", "where": "x > 0", "key": "part:leftSleeve" }
-    ]
+    ],
+    "collarMainLine": true,
+    "wall": 0.008
   }
 }

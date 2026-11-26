@@ -30,6 +30,7 @@
 //   mirror   [{ from, to, with, side }]: on the `side` half (x sign, default +) a point that is `to` or `with` (default
 //            ['body']) takes `to` where its mirror image (-x) is `from`, else the `with` role there (a ragged border one side)
 //   form     [roles]: points kept out of the form inside (data side bit 2: the hood, cords)
+//   snapsFrom { part }: our own snap buttons, one per separate bit of that part (data snaps, main.js snapButtons)
 //   zipParts [{ part, where }]: straight zips of our own along those parts (pocket zips), the parts themselves the body
 //   zipLine  { top, sigma, end }: a full zip down the centre front (data `zip`, as viewer/tripo-glbparts.mjs: main.js lays our
 //            own tape and teeth along it, the print under it): from `top` (the parts file's own height) down to the hem
@@ -300,6 +301,7 @@ for (const [rn, R] of Object.entries(settings.rings ?? {})) {
   let ax;
   if (R.dir === 'down') ax = [0, -1, 0];
   else if (R.dir === 'up') ax = [0, 1, 0];   // (MODELQ5 2026-11-20, the rash guard's neck band: HOODIE)
+  else if (Array.isArray(R.dir)) ax = nrm(R.dir);   // (CLIENTOPS 2026-11-25: an opening's own axis, the hood's face opening: its fold-over band)
   else {
     const C = [[0, 0, 0], [0, 0, 0], [0, 0, 0]]; for (const v of cp) { const d = sub(P3(v), c0); for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) C[i][j] += d[i] * d[j]; }
     const tr = C[0][0] + C[1][1] + C[2][2]; ax = [0.31, 0.53, 0.79]; for (let it = 0; it < 300; it++) { const m2 = [0, 1, 2].map((i) => tr * ax[i] - (C[i][0] * ax[0] + C[i][1] * ax[1] + C[i][2] * ax[2])); ax = nrm(m2); }
@@ -602,6 +604,70 @@ if (settings.zipParts?.length) {
     D.zip.push({ c: C.flatMap((q) => q.map((x) => +x.toFixed(5))), n: Nn.map((q) => (q[2] < 0 ? q.map((x) => -x) : q)).flatMap((q) => q.map((x) => +x.toFixed(3))) });
     report.push(`zip part ${Z.part}${Z.where ? ` (${Z.where})` : ''}: straight zip ${C.length * 4} mm`);
   }
+}
+// (`cordStrips` (FIXER6 2026-11-26, item 191: the puffer jacket's drawcords showed a gap of body colour, their top stretch
+// being the cloth itself on the textured model): { parts: [names], key, width }: each cord (that part's points on one side,
+// x < 0 / x > 0) one STRAIGHT strip of our own from its top to its bottom end (data `cords`: main.js lays it on the cloth in
+// the `key` part's colour), laid on the front's outside cloth there, as the straight zips. Off unless set.)
+if (settings.cordStrips) {
+  const CS = settings.cordStrips, lines = [];
+  const pts0 = (CS.parts ?? []).flatMap((nm) => parts.find((p) => p.name === nm)?.tris ?? []).map(place);
+  for (const sg of [-1, 1]) {
+    const pts = pts0.filter((q) => sg * q[0] > 0);
+    if (pts.length < 6) continue;
+    const top = pts.reduce((a, q) => (q[1] > a[1] ? q : a)), bot = pts.reduce((a, q) => (q[1] < a[1] ? q : a));
+    const L = Math.hypot(top[0] - bot[0], top[1] - bot[1]), C = [], Nn = [];
+    for (let t = 0; t <= L + 1e-9; t += 0.003) {
+      const x = top[0] + ((bot[0] - top[0]) * t) / L, y = top[1] + ((bot[1] - top[1]) * t) / L;
+      let best = -1; for (let v = 0; v < V; v++) { if (!outside[v] || A.P[v * 3 + 2] <= 0 || Math.hypot(A.P[v * 3] - x, A.P[v * 3 + 1] - y) > 0.004) continue; if (best < 0 || A.P[v * 3 + 2] > A.P[best * 3 + 2]) best = v; }
+      if (best < 0) continue;
+      C.push([x, y, A.P[best * 3 + 2]]); Nn.push(N3(best));
+    }
+    if (C.length < 3) continue;
+    // (one smooth strip: its depth the highest cloth within 12 mm along it, smoothed; one normal for all of it (the cloth's mean,
+    // turned out), so it never twists)
+    const zr = C.map((_, i) => Math.max(...C.slice(Math.max(0, i - 4), i + 5).map((q) => q[2])));
+    const zs = zr.map((_, i) => { let s2 = 0, w2 = 0; for (let o = -4; o <= 4; o++) { const j = i + o; if (j < 0 || j >= zr.length) continue; const w = Math.exp(-0.5 * (o / 2) ** 2); s2 += zr[j] * w; w2 += w; } return s2 / w2; });
+    C.forEach((q, i) => { q[2] = Math.max(zs[i], q[2]); });
+    const nm = Nn.reduce((a2, q) => a2.map((x, i) => x + (q[2] < 0 ? -q[i] : q[i])), [0, 0, 0]), nl = Math.hypot(...nm) || 1, n0 = nm.map((x) => +(x / nl).toFixed(3));
+    lines.push({ c: C.flatMap((q) => q.map((x) => +x.toFixed(5))), n: C.flatMap(() => n0) });
+    report.push(`cord strip ${sg < 0 ? 'right' : 'left'}: ${Math.round(L * 1000)} mm from ${top[1].toFixed(3)} down to ${bot[1].toFixed(3)}`);
+  }
+  D.cords = { key: CS.key, width: CS.width ?? 0.005, lines };
+} else delete D.cords;
+// (`snapsFrom` (MODELQ7 2026-11-25, item 159: the varsity jacket showed no front buttons; its snaps in the parts file are flat
+// on the textured model): { part }: each separate bit of that part (its triangles' middles closer than 1.2 cm together) one
+// snap button of our own (data `snaps`: middle on the front's outside cloth, its normal; main.js snapButtons).)
+if (settings.snapsFrom) {
+  const tr = parts.find((p) => p.name === settings.snapsFrom.part)?.tris ?? [], mids = [];
+  for (let k = 0; k + 2 < tr.length; k += 3) { const a2 = place(tr[k]), b2 = place(tr[k + 1]), c2 = place(tr[k + 2]); mids.push([0, 1, 2].map((x) => (a2[x] + b2[x] + c2[x]) / 3)); }
+  const grp = [];
+  for (const q of mids) { const g = grp.find((G) => Math.hypot(...sub(G.c, q)) < 0.012); if (g) { g.s = g.s.map((x, i) => x + q[i]); g.n++; g.c = g.s.map((x) => x / g.n); } else grp.push({ s: [...q], n: 1, c: [...q] }); }
+  const snaps = [];
+  // (`snapsFrom.oneRow` (FIXER6 2026-11-26, item 159: a varsity has its press studs down one front edge only): only the snaps
+  // of the side whose front edge lies on top (further forward, mean z), the other row left out. Off unless set.)
+  if (settings.snapsFrom.oneRow) {
+    const big = grp.filter((G) => G.n >= 4), zOf = (sg) => { const g2 = big.filter((G) => Math.sign(G.c[0]) === sg); return g2.length ? g2.reduce((a2, G) => a2 + G.c[2], 0) / g2.length : -9; };
+    const keep = zOf(1) >= zOf(-1) ? 1 : -1; for (const G of grp) if (Math.sign(G.c[0]) !== keep) G.n = 0;
+    report.push(`snap buttons on one row only: the ${keep > 0 ? '+x' : '-x'} edge (mean z ${zOf(1).toFixed(3)} / ${zOf(-1).toFixed(3)})`);
+  }
+  for (const G of grp) {
+    if (G.n < 4) continue;
+    let best = -1, bd = 0.03; for (let v = 0; v < V; v++) { if (!outside[v]) continue; const d = Math.hypot(...sub(P3(v), G.c)); if (d < bd) { bd = d; best = v; } }
+    if (best < 0) continue;
+    const nn = N3(best), p0 = P3(best);
+    snaps.push(...p0.map((x, i) => +(x + nn[i] * 0.0006).toFixed(5)), ...nn.map((x) => +x.toFixed(3)));
+  }
+  D.snaps = snaps; report.push(`snap buttons: ${snaps.length / 6}`);
+} else delete D.snaps;
+// (`innerOutside` (FIXER6 2026-11-26, item 173: black patches on the raglan hoodie's yellow sleeves): the inside marked per point
+// (data `inner`, tripomesh.js innerOf) only where the viewer's own facing test says so AND this tool's rays find no way out
+// (not `outside`): cloth of the sleeves whose normals turn against their half (folds, the model's own winding) but that is
+// plainly the outside stays in its colour, never the inside's plain dark. Off unless set.)
+if (settings.innerOutside) {
+  const nor = new Int8Array(new Uint8Array(Buffer.from(D.nor, 'base64')).buffer), sd = new Uint8Array(Buffer.from(D.side, 'base64')), inn = new Uint8Array(m.n); let k2 = 0;
+  for (let i = 0; i < m.n; i++) { const l = Math.hypot(nor[i * 3], nor[i * 3 + 1], nor[i * 3 + 2]) || 1, nz = nor[i * 3 + 2] / l; if (!outside[A.weld[i]] && (sd[i] & 1 ? nz > 0.5 : nz < -0.5)) { inn[i] = 1; k2++; } }
+  D.inner = Buffer.from(inn).toString('base64'); report.push(`inside points (facing in and no way out): ${k2}`);
 }
 if (settings.data) Object.assign(D, settings.data);
 D.partKeys = keys; D.piece = Buffer.from(out).toString('base64'); D.pieceTri = Buffer.from(Uint8Array.from(tris)).toString('base64');

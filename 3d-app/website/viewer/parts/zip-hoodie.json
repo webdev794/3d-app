@@ -1,5 +1,5 @@
 {
-  "about": "Zip hoodie (zip-hoodie-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (zip-hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made zip hoodie's sleeves; the hood one plain colour (Hood colour, else Main), its lining and the hood's front edge the Lining colour, else Secondary; the front zip our own tape (the Zip colour, else Secondary) and metal teeth down the centre front from the hood's front to the hem (zipLine, main.js), the print under it; the side pockets' zips the Zip colour; the cuffs and the curved hem the Rib colour (else Main), each one even band from its opening's fold; the cords the Cord colour, else Secondary. Stitch lines beside the raglan seams, the hood seam and above each rib band.",
+  "about": "Zip hoodie (zip-hoodie-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (zip-hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made zip hoodie's sleeves; the hood one plain colour (Hood colour, else Main), its lining and the hood's front edge the Lining colour, else Secondary; the front zip our own tape (the Zip colour, else Secondary) and metal teeth down the centre front from the hood's front to the hem (zipLine, main.js), the print under it; the side pockets' zips the Zip colour; the cuffs and the curved hem the Rib colour (else Main), each one even band from its opening's fold; the cords the Cord colour, else Secondary. Stitch lines beside the raglan seams, the hood seam and above each rib band. (CLIENTOPS 2026-11-25, item 165: the hood one clean colour (its lining part border was ragged) ; the part Tripo made of the right drawcord top (was taken as a pocket zip) is the cord: both cords one colour.) (CLIENTOPS 2026-11-26, item 165: no stitch lines along the raglan sleeve seams: they showed as faint dark dashes on the shoulders, upper back and chest.)",
   "hoodieParts": {
     "glb": "../../../tripo/zip-hoodie-parts.glb",
     "roles": {
@@ -9,7 +9,7 @@
       "tripo_part_15": "cuffR",
       "tripo_part_16": "body",
       "tripo_part_17": "cord",
-      "tripo_part_18": "pocketZip",
+      "tripo_part_18": "cord",
       "tripo_part_19": "body",
       "tripo_part_2": "sleeveR",
       "tripo_part_21": "body",
@@ -41,22 +41,15 @@
       }
     ],
     "order": [
-      "lining",
       "hood",
       "sleeveL",
       "sleeveR"
     ],
     "regions": {
-      "lining": {
-        "roles": [
-          "lining"
-        ],
-        "key": "plain:zone:lining|secondary",
-        "own": true
-      },
       "hood": {
         "roles": [
-          "hood"
+          "hood",
+          "lining"
         ],
         "key": "plain:zone:hood|main",
         "own": true,
@@ -121,12 +114,10 @@
       }
     },
     "plain": {
-      "cord": "plain:zone:cord|secondary",
-      "pocketZip": "plain:zone:zip|secondary"
+      "cord": "plain:zone:cord|secondary"
     },
     "plainKeys": [
-      "plain:zone:hood|main",
-      "plain:zone:lining|secondary"
+      "plain:zone:hood|main"
     ],
     "sleeveMap": {
       "sleeveL": {
@@ -177,14 +168,6 @@
     "stitches": {
       "sigma": 0.02,
       "seams": [
-        {
-          "region": "sleeveL",
-          "at": -0.005
-        },
-        {
-          "region": "sleeveR",
-          "at": -0.005
-        },
         {
           "region": "hood",
           "at": -0.006

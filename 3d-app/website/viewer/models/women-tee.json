@@ -5,7 +5,9 @@
   "part": "tee",
   "flag": "womenTee",
   "ownNeck": "round",
-  "necks": {},
+  "necks": {
+    "v": { "depth": 0.11, "width": 0.012 }
+  },
   "tiles": [],
   "pictures": [],
   "convert": {

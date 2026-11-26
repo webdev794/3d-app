@@ -8,7 +8,7 @@ import { keepModelFlags } from '../modelFlags';
 
 export type LibraryAsset = { id: number; name: string; type: string; src?: string };
 export type ArtworkDrop = { asset?: LibraryAsset; pattern?: string; label?: string };
-export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
+export const patternNames = ['None', 'Solid', 'Chevron', 'Stripes', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo', 'Sash', 'Fade', 'Halftone', 'Prism', 'Brush', 'Waves'];
 export const placements = [
     { id: 'left-chest', label: 'Left chest', side: 'front', part: 'top', x: 0.105, y: 0.6, w: 0.075 },
     { id: 'right-chest', label: 'Right chest', side: 'front', part: 'top', x: -0.105, y: 0.6, w: 0.075 },

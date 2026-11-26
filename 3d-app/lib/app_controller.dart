@@ -508,6 +508,19 @@ class AppController extends ChangeNotifier {
   /// See [KitState.patternColorOwn].
   bool? patternColorOwn;
 
+  /// The colour the built-in patterns are drawn in on the kit (the website's
+  /// patternInkOf): the pattern's own colour when it has one, else Secondary.
+  /// Used by the pattern thumbnails (client 653).
+  Color get patternInk {
+    final own = patternColor;
+    if (patternColorOwn == true &&
+        own != null &&
+        RegExp(r'^#[0-9a-fA-F]{6}$').hasMatch(own)) {
+      return ProjectSync.color(own);
+    }
+    return secondaryColor;
+  }
+
   /// See [KitState.parts].
   Map<String, dynamic> parts = {};
 
@@ -1000,10 +1013,22 @@ class AppController extends ChangeNotifier {
   /// undo step. It also takes off an AI print and a design picture or print
   /// layout, which would hide it ([shelvedLayouts] keeps them to put back);
   /// the artwork layers, logos and player details stay, as on the website.
-  void applyPreset(Map<String, dynamic> design) {
+  void applyPreset(Map<String, dynamic> design, {String? id}) {
     _keepOwn();
     _applyPreset(design);
+    _presetId = id;
+    _presetSig = id == null ? null : _signature(kit);
   }
+
+  /// The preset on the kit now (its id), for the PRESETS strip's tick
+  /// (client 25 Nov, 652.png); null once the kit is changed after it.
+  String? get presetOnId =>
+      _presetId != null && _presetSig == _signature(kit) ? _presetId : null;
+  String? _presetId, _presetSig;
+
+  /// The PRESETS strip over the 3D's foot was closed with its ✕ (this app
+  /// session; its PRESETS tab or More › Presets brings it back).
+  bool presetStripHidden = false;
 
   // ---------- YOUR DESIGN (Preset designs)
   /// The user's own kit before the first preset (and as changed after it is

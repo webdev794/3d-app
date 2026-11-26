@@ -1,5 +1,5 @@
 {
-  "about": "Sleeveless hoodie (sleeveless-hoodie-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (sleeveless-hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the hood one plain colour (Hood colour, else Main), its lining the Lining colour, else Secondary; the kangaroo pocket its own colour where it has one (else the print); the armhole bindings and the waistband rib (Rib colour, else Main; the waistband one even band from its fold); the cords the Cord colour, else the rib's. Stitch lines beside the hood seam, round the pocket and above the waistband.",
+  "about": "Sleeveless hoodie (sleeveless-hoodie-textured.glb, HOODIE/MODELQ6 2026-11-20, first version): coloured from the same garment split into parts by Tripo (sleeveless-hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the hood one plain colour (Hood colour, else Main), its lining the Lining colour, else Secondary; the kangaroo pocket its own colour where it has one (else the print); the armhole bindings and the waistband rib (Rib colour, else Main; the waistband one even band from its fold); the cords the Cord colour, else the rib's. Stitch lines beside the hood seam, round the pocket and above the waistband. (CLIENTOPS 2026-11-25, item 184: the lining parts go with the hood, one clean colour; the lining part border was ragged and left cyan dots at the neck.)",
   "hoodieParts": {
     "glb": "../../../tripo/sleeveless-hoodie-parts.glb",
     "roles": {
@@ -31,25 +31,16 @@
       "tripo_part_48": "hem"
     },
     "order": [
-      "lining",
       "hood",
       "armL",
       "armR",
       "pocket"
     ],
     "regions": {
-      "lining": {
-        "roles": [
-          "lining"
-        ],
-        "key": "plain:zone:lining|secondary",
-        "own": true,
-        "steps": 30,
-        "oneSide": true
-      },
       "hood": {
         "roles": [
-          "hood"
+          "hood",
+          "lining"
         ],
         "key": "plain:zone:hood|main",
         "own": true,
@@ -101,7 +92,6 @@
     },
     "plainKeys": [
       "plain:zone:hood|main",
-      "plain:zone:lining|secondary",
       "plain:zone:rib|main@arm"
     ],
     "stitches": {

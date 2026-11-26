@@ -40,7 +40,9 @@
         "hidden": true
       },
       "shorts_crest": {
-        "hidden": true
+        "x": -0.15,
+        "y": 0.07,
+        "scale": 0.7
       },
       "shorts_wordmark": {
         "side": "front",

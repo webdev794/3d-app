@@ -1,0 +1,89 @@
+{
+  "about": "Hooded varsity jacket (varsity-hoodie-textured.glb, MODELQ8 2026-11-25): coloured from varsity-hoodie-parts.glb (14 parts) by viewer/tripo-hoodie.mjs: body 21 with its placket 22 and a snap 20 the print; sleeves 1 and 2 the Sleeves colour (one smooth line round each armhole); hood 8 with its inside 3 and the inner neck 16 the hood (its lining plain); hem band 9 an even rib ring; cuffs 10 (and their insides 13, 14) the rib; pocket welts 18 the body (no ragged trim).",
+  "hoodieParts": {
+    "glb": "../../../tripo/varsity-hoodie-parts.glb",
+    "roles": {
+      "tripo_part_21": "body",
+      "tripo_part_22": "body",
+      "tripo_part_20": "body",
+      "tripo_part_1": "sleeve",
+      "tripo_part_2": "sleeve",
+      "tripo_part_8": "hood",
+      "tripo_part_3": "hood",
+      "tripo_part_16": "hood",
+      "tripo_part_9": "hem",
+      "tripo_part_10": "cuff",
+      "tripo_part_13": "cuff",
+      "tripo_part_14": "cuff",
+      "tripo_part_18": "body"
+    },
+    "plain": {
+      "cuff": "plain:zone:rib|main"
+    },
+    "order": [
+      "hood",
+      "sleeve"
+    ],
+    "regions": {
+      "hood": {
+        "roles": [
+          "hood"
+        ],
+        "key": "plain:zone:hood|zone:body|main",
+        "own": true
+      },
+      "sleeve": {
+        "roles": [
+          "sleeve"
+        ],
+        "key": "plain:zone:sleeves|secondary"
+      }
+    },
+    "lining": {
+      "region": "hood",
+      "key": "plain:zone:lining|main"
+    },
+    "rings": {
+      "hem": {
+        "key": "plain:zone:rib|main",
+        "dir": "down"
+      }
+    },
+    "plainKeys": [
+      "plain:zone:hood|zone:body|main",
+      "plain:zone:lining|main",
+      "plain:zone:sleeves|secondary",
+      "plain:zone:rib|main"
+    ],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "hood",
+          "at": -0.006
+        },
+        {
+          "region": "sleeve",
+          "at": -0.005
+        }
+      ],
+      "rings": [
+        {
+          "role": "hem",
+          "at": 0.004
+        }
+      ]
+    },
+    "form": [
+      "hood"
+    ],
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true
+    }
+  }
+}

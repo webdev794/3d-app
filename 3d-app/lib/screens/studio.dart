@@ -38,6 +38,7 @@ import '../sports_catalog.dart'
     show GarmentTile, garmentIds, sportNamed, tileLook;
 import '../widgets/bubble_page.dart' show BubblePage, BubbleCornerPill;
 import '../widgets/drag_tray.dart';
+import '../widgets/preset_strip.dart';
 import '../widgets/flow_ui.dart';
 import '../widgets/kit_viewer_3d.dart';
 import '../widgets/patterns_panel.dart';
@@ -603,6 +604,15 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 )
               : KitPreview(controller: c, height: double.infinity),
         ),
+        // PRESETS (client 25 Nov, 652.png): round preset thumbnails above
+        // Front / Back / Side, to pick at any time; ✕ folds them away.
+        if (_presetStripOn)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 58,
+            child: PresetStrip(c),
+          ),
         // Front / Back / Side at the foot of the 3D, as on the website
         // (172.jpg): the sides stay clear for the kit.
         // (While a logo or words are selected on the kit, the buttons over
@@ -725,7 +735,9 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
           Positioned(
             // Above the Front / Back / Side bar.
             bottom: !_preview && !c.boardMode && !c.viewerModal
-                ? 56 + _overlayH
+                ? 56 +
+                      _overlayH +
+                      (_presetStripOn ? (c.presetStripHidden ? 34 : 112) : 0)
                 : 12,
             left: 0,
             right: 0,
@@ -1228,7 +1240,13 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
                 on: _tray,
               ),
               item('Artwork', Icons.image_outlined, () => _openTool('Artwork')),
-              item('Presets', Icons.style_outlined, () => _openTool('Presets')),
+              item('Presets', Icons.style_outlined, () {
+                // (Brings the PRESETS strip back too, 652.png.)
+                if (c.presetStripHidden) {
+                  c.update(() => c.presetStripHidden = false);
+                }
+                _openTool('Presets');
+              }),
             ],
           ),
         ),
@@ -1267,6 +1285,15 @@ class _DesignStudioScreenState extends State<DesignStudioScreen> {
     _closePanel();
     _openSheet(tool);
   }
+
+  /// The PRESETS strip (652.png) shows over the 3D while no panel is open.
+  bool get _presetStripOn =>
+      !_preview &&
+      !c.boardMode &&
+      !c.viewerModal &&
+      !c.objectOnKit &&
+      _panel == null &&
+      !_asking;
 
   void _closePanel() {
     if (c.closeStudioPanel == _closePanel) c.closeStudioPanel = null;

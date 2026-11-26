@@ -88,6 +88,11 @@
     "speck": 8,
     "data": {
       "insideCloth": true
+    },
+    "cordStrips": {
+      "parts": ["tripo_part_28", "tripo_part_30"],
+      "key": "plain:zone:zip|main",
+      "width": 0.005
     }
   }
 }

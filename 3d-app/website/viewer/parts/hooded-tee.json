@@ -1,5 +1,5 @@
 {
-  "about": "Hooded long-sleeve tee (hooded-tee-textured.glb) coloured from hooded-tee-parts.glb (18 parts; the inner layers 0, 1, 5, 22, 23, 24, 33, 41, 43, 46 count as the body, 12 / 18 (inside the cuffs) as their sleeves) by viewer/tripo-hoodie.mjs, the pullover hoodie's settings (HOODIE): body the print, sleeves their areas, hood plain with its lining, rib cuffs and hem. MODELQ5 2026-11-20.",
+  "about": "Hooded long-sleeve tee (hooded-tee-textured.glb) coloured from hooded-tee-parts.glb (18 parts; the inner layers 0, 1, 5, 22, 23, 24, 33, 41, 43, 46 count as the body, 12 / 18 (inside the cuffs) as their sleeves) by viewer/tripo-hoodie.mjs, the pullover hoodie's settings (HOODIE): body the print, sleeves their areas, hood plain with its lining, rib cuffs and hem. MODELQ5 2026-11-20. (CLIENTOPS 2026-11-25, item 185: no separate lining colour: the hood is one clean colour inside and out; the facing rule gave navy patches inside the opening.) (CLIENTOPS 2026-11-26: the cuff bands one even 2.5 cm all round: their fold found over 4 bins either side, as the zip hoodie's.)",
   "hoodieParts": {
     "glb": "../../../tripo/hooded-tee-parts.glb",
     "roles": {
@@ -57,20 +57,26 @@
         "key": "area:rightSleeve"
       }
     },
-    "lining": {
-      "region": "hood",
-      "key": "plain:zone:lining|secondary"
-    },
     "rings": {
       "cuffL": {
         "key": "plain:zone:rib|main",
         "dir": "out",
-        "beyond": "sleeveL"
+        "beyond": "sleeveL",
+        "width": 0.025,
+        "endSpan": 4,
+        "first": true,
+        "wide": 2.0,
+        "margin": 0.03
       },
       "cuffR": {
         "key": "plain:zone:rib|main",
         "dir": "out",
-        "beyond": "sleeveR"
+        "beyond": "sleeveR",
+        "width": 0.025,
+        "endSpan": 4,
+        "first": true,
+        "wide": 2.0,
+        "margin": 0.03
       },
       "hem": {
         "key": "plain:zone:rib|main",
@@ -84,8 +90,7 @@
       }
     },
     "plainKeys": [
-      "plain:zone:hood|main",
-      "plain:zone:lining|secondary"
+      "plain:zone:hood|main"
     ],
     "sleeveMap": {
       "sleeveL": {

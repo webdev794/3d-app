@@ -241,6 +241,24 @@
     "snap": 0,
     "sigma": 6,
     "seamLip": 0,
-    "lipsBandsOnly": true
+    "lipsBandsOnly": true,
+    "perTri": [
+      "plain:zone:cord|#f4f4f2"
+    ],
+    "seeds": [
+      {
+        "at": [
+          0,
+          0.33,
+          0.11
+        ],
+        "key": "waistband"
+      }
+    ],
+    "perTriGrow": {
+      "near": 0.004,
+      "nz": 0.75,
+      "nearAll": 0.0015
+    }
   }
 }

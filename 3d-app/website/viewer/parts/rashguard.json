@@ -1,5 +1,5 @@
 {
-  "about": "Rash guard (rashguard-parts.glb as the model, HOODIE/MODELQ6 2026-11-20): coloured from its own parts by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made tee's sleeves; the neck band the Collar colour (else the trim colour), the cuff rolls and hem band the trim colour (Secondary), each one even band from its own edge. Stitch lines beside the raglan seams and above the cuffs and hem.",
+  "about": "Rash guard (rashguard-parts.glb as the model, HOODIE/MODELQ6 2026-11-20): coloured from its own parts by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made tee's sleeves; the neck band the Collar colour (else the trim colour), the cuff rolls and hem band the trim colour (Secondary), each one even band from its own edge. Stitch lines beside the raglan seams and above the cuffs and hem. (CLIENTOPS 2026-11-26, item 158: no stitch lines along the raglan sleeve seams: they showed as dots on the back shoulders.)",
   "hoodieParts": {
     "glb": "../../../tripo/rashguard-parts.glb",
     "roles": {
@@ -86,16 +86,7 @@
     },
     "stitches": {
       "sigma": 0.02,
-      "seams": [
-        {
-          "region": "sleeveL",
-          "at": -0.005
-        },
-        {
-          "region": "sleeveR",
-          "at": -0.005
-        }
-      ],
+      "seams": [],
       "rings": [
         {
           "role": "collar",

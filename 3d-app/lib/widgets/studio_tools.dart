@@ -1360,6 +1360,149 @@ class StudioZoneTool extends StatelessWidget {
   );
 }
 
+/// The 3DEEZI presets, shared by Preset designs and the PRESETS strip over
+/// the 3D (client 25 Nov, 652.png): the server's (task 9.148), else the
+/// bundled ones (assets/presets.json, pictures in assets/images/presets).
+class TeamPresets {
+  TeamPresets(this.list, this.bundledIds, {this.offline = false});
+  final List list;
+  final Set<String> bundledIds;
+  final bool offline;
+
+  static Future<List>? _bundled;
+
+  static Future<TeamPresets> load(AppController c) async {
+    final bundled = await (_bundled ??= rootBundle
+        .loadString('assets/presets.json')
+        .then((text) => jsonDecode(text) as List));
+    final ids = {for (final p in bundled.cast<Map>()) '${p['id']}'};
+    try {
+      if (c.api.configured) {
+        final remote = await c.api.presets().timeout(
+          const Duration(seconds: 10),
+        );
+        if (remote.isNotEmpty) return TeamPresets(remote, ids);
+      }
+    } on Object {
+      // Offline or slow: the bundled presets, with a note.
+      return TeamPresets(bundled, ids, offline: true);
+    }
+    return TeamPresets(bundled, ids);
+  }
+
+  /// A design picture preset with no sport (the polo collection, PRESETS2
+  /// 2026-11-24): only on its own garment, any sport.
+  static bool ownGarment(Map p) {
+    final d = p['design'];
+    final layout = d is Map ? d['layout'] : null;
+    return p['sport'] == null &&
+        p['garment'] != null &&
+        layout is Map &&
+        layout['kind'] == 'drawing';
+  }
+
+  /// A sport's own presets (the Rugby League design pictures, PRESETRL
+  /// 2026-11-19) only on that sport (and, with a garment, on it or the
+  /// sport's full kit).
+  static bool forKit(AppController c, Map p) {
+    final sportId = ProjectSync.sports[c.sport];
+    final garmentId = ProjectSync.garments[c.garment];
+    bool fitsKit(Map p) {
+      final g = p['garment'];
+      return g == null ||
+          g == garmentId ||
+          (garmentId == 'fullkit' && g == 'jersey');
+    }
+
+    return p['sport'] != null
+        ? p['sport'] == sportId && fitsKit(p)
+        : ownGarment(p) && p['garment'] == garmentId;
+  }
+
+  /// The 3DEEZI presets for every kit.
+  static bool general(Map p) => p['sport'] == null && !ownGarment(p);
+
+  /// This kit's presets: its own first, then the 3DEEZI ones.
+  List<Map> shownFor(AppController c) {
+    final all = list.cast<Map>();
+    return [
+      for (final p in all)
+        if (forKit(c, p)) p,
+      for (final p in all)
+        if (general(p)) p,
+    ];
+  }
+
+  /// A preset's picture: the bundled one, the saved still, or its colours.
+  Widget image(Map preset) {
+    final id = '${preset['id']}';
+    final thumb = preset['thumbnail'];
+    if (bundledIds.contains(id)) {
+      return Image.asset(
+        'assets/images/presets/$id.webp',
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => swatch(preset),
+      );
+    }
+    if (thumb is String && thumb.startsWith('data:')) {
+      try {
+        return Image.memory(
+          base64Decode(thumb.substring(thumb.indexOf(',') + 1)),
+          fit: BoxFit.cover,
+        );
+      } on Object {
+        // The colours below.
+      }
+    } else if (thumb is String && thumb.startsWith('http')) {
+      return Image.network(
+        thumb,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => swatch(preset),
+      );
+    }
+    return swatch(preset);
+  }
+
+  static Widget swatch(Map preset) {
+    final d = (preset['design'] as Map?) ?? const {};
+    Color col(Object? v) => Color(
+      int.tryParse('ff${'$v'.replaceAll('#', '')}', radix: 16) ?? 0xff10202c,
+    );
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(colors: [col(d['main']), col(d['secondary'])]),
+      ),
+    );
+  }
+}
+
+/// Puts a preset on the kit (YOUR DESIGN kept first), with its note.
+Future<void> applyStudioPreset(
+  BuildContext context,
+  AppController c,
+  String name,
+  Map<String, dynamic> design, {
+  String? id,
+}) async {
+  await c.captureOwnThumb();
+  if (!context.mounted) return;
+  final on = c.layout;
+  final replaced = on == null
+      ? null
+      : on['kind'] == 'drawing'
+      ? 'design picture'
+      : 'print layout';
+  c.applyPreset(design, id: id);
+  showToast(
+    context,
+    replaced == null
+        ? '$name applied. Your logos and player details are preserved.'
+        : '$name applied in place of your $replaced: Undo, or Artwork › '
+              '${replaced == 'design picture' ? 'My design picture' : 'Factory print layout'}, '
+              'puts it back.',
+  );
+}
+
 class StudioPresetsTool extends StatefulWidget {
   const StudioPresetsTool(this.c, {super.key});
   final AppController c;
@@ -1370,20 +1513,14 @@ class StudioPresetsTool extends StatefulWidget {
 /// "Preset designs": ready-made looks (All), the user's saved kits (My
 /// designs) and starred presets (Favourites), as on the website.
 class _StudioPresetsToolState extends State<StudioPresetsTool> {
-  /// The bundled presets (pictures in assets/images/presets): the 3DEEZI
-  /// presets offline, and which ones have a bundled picture.
-  late final _bundled = rootBundle
-      .loadString('assets/presets.json')
-      .then((text) => jsonDecode(text) as List);
-
   /// The 3DEEZI presets from the server (task 9.148), else the bundled ones.
   late final Future<List> _presets = _loadTeam();
 
   /// MY PRESETS: the signed-in user's private presets (null: not loaded).
   List<Map<String, dynamic>>? _mine;
-  Set<String> _bundledIds = {};
+  TeamPresets _team = TeamPresets(const [], const {});
   bool _saving = false;
-  bool _offline = false;
+  bool get _offline => _team.offline;
 
   /// A 3D still at most [size] px wide (the website's 360 px preview).
   static Future<Uint8List?> _shrink(Uint8List? png, int size) async {
@@ -1396,20 +1533,8 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
   }
 
   Future<List> _loadTeam() async {
-    final bundled = await _bundled;
-    _bundledIds = {for (final p in bundled.cast<Map>()) '${p['id']}'};
-    try {
-      if (c.api.configured) {
-        final remote = await c.api.presets().timeout(
-          const Duration(seconds: 10),
-        );
-        if (remote.isNotEmpty) return remote;
-      }
-    } on Object {
-      // Offline or slow: the bundled presets, with a note.
-      _offline = true;
-    }
-    return bundled;
+    _team = await TeamPresets.load(c);
+    return _team.list;
   }
 
   Future<void> _loadMine() async {
@@ -1539,47 +1664,9 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
     }
   }
 
-  /// A preset's picture: the bundled one, the saved still, or its colours.
-  Widget _presetImage(Map preset) {
-    final id = '${preset['id']}';
-    final thumb = preset['thumbnail'];
-    if (_bundledIds.contains(id)) {
-      return Image.asset('assets/images/presets/$id.webp', fit: BoxFit.cover);
-    }
-    if (thumb is String && thumb.startsWith('data:')) {
-      try {
-        return Image.memory(
-          base64Decode(thumb.substring(thumb.indexOf(',') + 1)),
-          fit: BoxFit.cover,
-        );
-      } on Object {
-        // The colours below.
-      }
-    } else if (thumb is String && thumb.startsWith('http')) {
-      return Image.network(
-        thumb,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => _swatch(preset),
-      );
-    }
-    return _swatch(preset);
-  }
-
-  Widget _swatch(Map preset) {
-    final d = (preset['design'] as Map?) ?? const {};
-    Color col(Object? v) => Color(
-      int.tryParse('ff${'$v'.replaceAll('#', '')}', radix: 16) ?? 0xff10202c,
-    );
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [col(d['main']), col(d['secondary'])]),
-      ),
-    );
-  }
-
   Widget _presetCard(Map preset, {bool mine = false}) {
     final card = _card(
-      image: _presetImage(preset),
+      image: _team.image(preset),
       title: '${preset['name']}',
       subtitle: mine
           ? 'My preset'
@@ -1590,6 +1677,7 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
       onTap: () => _apply(
         '${preset['name']}',
         (preset['design'] as Map).cast<String, dynamic>(),
+        id: mine ? null : '${preset['id']}',
       ),
     );
     if (!mine) return card;
@@ -1668,25 +1756,11 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
         .catchError((Object _) => false);
   }
 
-  Future<void> _apply(String name, Map<String, dynamic> design) async {
-    await c.captureOwnThumb();
-    if (!mounted) return;
-    final on = c.layout;
-    final replaced = on == null
-        ? null
-        : on['kind'] == 'drawing'
-        ? 'design picture'
-        : 'print layout';
-    c.applyPreset(design);
-    showToast(
-      context,
-      replaced == null
-          ? '$name applied. Your logos and player details are preserved.'
-          : '$name applied in place of your $replaced: Undo, or Artwork › '
-                '${replaced == 'design picture' ? 'My design picture' : 'Factory print layout'}, '
-                'puts it back.',
-    );
-  }
+  Future<void> _apply(
+    String name,
+    Map<String, dynamic> design, {
+    String? id,
+  }) => applyStudioPreset(context, c, name, design, id: id);
 
   /// YOUR DESIGN, first in All designs and My designs.
   List<Widget> _own() {
@@ -1920,40 +1994,16 @@ class _StudioPresetsToolState extends State<StudioPresetsTool> {
                   '${preset['name']} ${preset['description']}'
                       .toLowerCase()
                       .contains(q);
-              // A sport's own presets (the Rugby League design pictures,
-              // PRESETRL 2026-11-19) only on that sport (and, with a garment,
-              // on it or the sport's full kit), in their own group first.
-              final sportId = ProjectSync.sports[c.sport];
-              final garmentId = ProjectSync.garments[c.garment];
-              bool fitsKit(Map p) {
-                final g = p['garment'];
-                return g == null ||
-                    g == garmentId ||
-                    (garmentId == 'fullkit' && g == 'jersey');
-              }
-
-              // A design picture preset with no sport (the polo collection,
-              // PRESETS2 2026-11-24): only on its own garment, any sport.
-              bool ownGarment(Map p) {
-                final d = p['design'];
-                final layout = d is Map ? d['layout'] : null;
-                return p['sport'] == null &&
-                    p['garment'] != null &&
-                    layout is Map &&
-                    layout['kind'] == 'drawing';
-              }
-
-              bool ownPreset(Map p) => p['sport'] != null
-                  ? p['sport'] == sportId && fitsKit(p)
-                  : ownGarment(p) && p['garment'] == garmentId;
+              // A sport's (or garment's) own presets in their own group
+              // first (TeamPresets.forKit).
               final all = snapshot.data!.cast<Map>();
               final sportShown = [
                 for (final p in all)
-                  if (ownPreset(p) && shows(p)) p,
+                  if (TeamPresets.forKit(c, p) && shows(p)) p,
               ];
               final shown = [
                 for (final p in all)
-                  if (p['sport'] == null && !ownGarment(p) && shows(p)) p,
+                  if (TeamPresets.general(p) && shows(p)) p,
               ];
               final note = _offline
                   ? const Padding(

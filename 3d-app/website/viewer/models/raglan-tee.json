@@ -6,7 +6,9 @@
   "garment": "tee",
   "flag": "raglanTee",
   "ownNeck": "round",
-  "necks": {},
+  "necks": {
+    "v": { "depth": 0.11, "width": 0.012, "endOff": 0.02 }
+  },
   "tiles": [],
   "pictures": [],
   "convert": {

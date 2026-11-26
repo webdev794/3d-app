@@ -53,6 +53,26 @@ export function PatternSwatch({ name, base, ink: own }: { name: string; base: st
     })); break;
     case 'Tribal': body = range(8, 58, 18).flatMap(y => range(0, 58, 12).map(x => <polygon key={`${x}-${y}`} points={`${x},${y} ${x + 6},${y + 9} ${x + 12},${y}`} fill={ink} />)); break;
     case 'Camo': body = [[12, 14, 9], [38, 10, 7], [24, 34, 10], [48, 40, 8], [8, 48, 6]].map(([x, y, r]) => <ellipse key={`${x}-${y}`} cx={x} cy={y} rx={r * 1.2} ry={r * 0.8} fill={ink} />); break;
+    // CLIENT25 2026-11-25 (more patterns), as the viewer draws them (texture.js patternTile).
+    case 'Sash': body = <g stroke={ink}><line x1="62" y1="-4" x2="-4" y2="62" strokeWidth="12" />{[-10, 10].map(o => <line key={o} x1={62 + o} y1={-4 + o} x2={-4 + o} y2={62 + o} strokeWidth="2" />)}</g>; break;
+    case 'Fade': { const id = `fade-${ink.replace(/[^0-9a-z]/gi, '')}`; body = <><defs><linearGradient id={id} x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor={ink} /><stop offset=".35" stopColor={ink} stopOpacity=".7" /><stop offset="1" stopColor={ink} stopOpacity="0" /></linearGradient></defs><rect width="58" height="58" fill={`url(#${id})`} /></>; break; }
+    case 'Halftone': body = range(0, 10, 1).flatMap(row => { const y = 55 - row * 6, r = 2.9 * Math.pow(y / 58, 0.85); return r < 0.5 ? [] : range(row % 2 ? 3 : 0, 61, 6).map(x => <circle key={`${x}-${y}`} cx={x} cy={y} r={r.toFixed(2)} fill={ink} />); }); break;
+    case 'Prism': {
+      let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const pts = range(0, 5, 1).map(j => range(0, 5, 1).map(i => [14.5 * i + (i > 0 && i < 4 ? (rnd() - 0.5) * 8.7 : 0), 14.5 * j + (j > 0 && j < 4 ? (rnd() - 0.5) * 8.7 : 0)]));
+      const tris: ReactNode[] = [];
+      const tri = (key: string, ...p: number[][]) => { const k = rnd(); if (k >= 0.3) tris.push(<polygon key={key} points={p.map(q => q.join(',')).join(' ')} fill={ink} opacity={(0.2 + ((k - 0.3) / 0.7) * 0.75).toFixed(2)} />); };
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) { const a = pts[j][i], b = pts[j][i + 1], c = pts[j + 1][i], d = pts[j + 1][i + 1]; if ((i + j) % 2) { tri(`${i}-${j}a`, a, b, d); tri(`${i}-${j}b`, a, d, c); } else { tri(`${i}-${j}a`, a, b, c); tri(`${i}-${j}b`, b, d, c); } }
+      body = tris; break;
+    }
+    case 'Brush': {
+      let seed = 5; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      body = [[-2, 20, 60, 12, 12], [6, 32, 60, 28, 7], [-2, 50, 44, 42, 10]].flatMap(([x0, y0, x1, y1, bw], s) => range(0, 9, 1).map(b => {
+        const off = (rnd() - 0.5) * bw, st = rnd() * 0.1, en = 1 - rnd() * 0.15;
+        return <line key={`${s}-${b}`} x1={x0 + (x1 - x0) * st} y1={y0 + off + (y1 - y0) * st} x2={x0 + (x1 - x0) * en} y2={y0 + off + (y1 - y0) * en} stroke={ink} strokeOpacity={(0.5 + rnd() * 0.5).toFixed(2)} strokeWidth={(0.8 + rnd() * 1.8).toFixed(2)} strokeLinecap="round" />;
+      })); break;
+    }
+    case 'Waves': body = range(4, 62, 8).map(x => <polyline key={x} points={range(0, 60, 2).map(y => `${(x + 2.5 * Math.sin(y * 0.28 + x * 0.1)).toFixed(1)},${y}`).join(' ')} stroke={ink} strokeWidth="2" fill="none" />); break;
     default: body = <line x1="0" y1="0" x2="58" y2="58" {...line} />;
   }
   return <svg viewBox="0 0 58 58" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="58" height="58" fill={base} />{body}</svg>;

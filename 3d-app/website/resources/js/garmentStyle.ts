@@ -100,7 +100,7 @@ export const fitsFor = (design: Pick<Design, 'garment' | 'zoneColors'>) => (isMo
  * A tile on a ready-made 3D model shows that model's own neck only (user 2026-11-16: nothing is cut; other neck styles come
  * later, laid on top): its look's flag and the model's own neck. null: the garment's necks can be chosen.
  */
-export const MODEL_OWN_NECKS: Record<string, NeckStyle> = { scJersey: 'round', aflGuernsey: 'round', trainingSinglet: 'round', trainingTee: 'round', rugbyJersey: 'round', fbJersey: 'round', rugbyVJersey: 'v', womenRugbyJersey: 'v', womenFootballJersey: 'v', womenSinglet: 'round' };
+export const MODEL_OWN_NECKS: Record<string, NeckStyle> = { scJersey: 'round', aflGuernsey: 'round', trainingSinglet: 'round', rugbyJersey: 'round', fbJersey: 'round', rugbyVJersey: 'v', womenRugbyJersey: 'v', womenFootballJersey: 'v', womenSinglet: 'round' };
 /** A model's own neck by its name where it is not a plain round or V neck (RUGBYJ 2026-11-18, the user: the Rugby League jersey's "Stand-up collar"). */
 export const MODEL_NECK_NAMES: Record<string, string> = { rugbyJersey: 'Stand-up collar', fbJersey: 'Stand-up collar' };
 /** The name of a neck style on this design: the model's own name for its own neck, else "Round neck" / "V-neck". */
@@ -124,8 +124,7 @@ export function fixedNeck(design: Pick<Design, 'garment' | 'zoneColors'>): NeckS
     if (!hasNeckStyle(design.garment)) return null;
     const zc = (design.zoneColors as Record<string, string> | null | undefined) ?? {};
     const flag = Object.keys(MODEL_OWN_NECKS).find(f => HEX.test(zc[f] ?? ''));
-    // (Every training tee is on its ready-made model (viewer recipe `wide`): its own round neck.)
-    if (!flag && design.garment === 'tee') return 'round';
+    // (The training tee: Round neck or V-neck, our V cut in its model (viewer models/training-tee.json necks): MODELQ8 2026-11-25.)
     return flag ? MODEL_OWN_NECKS[flag] : null;
 }
 

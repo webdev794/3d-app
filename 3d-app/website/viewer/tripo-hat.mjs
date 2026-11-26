@@ -19,6 +19,8 @@
 //   innerRay  the inside marked per point (data `inner`, tripomesh.js innerOf): a point whose ray along its normal meets the
 //            hat again further than `innerMin` metres away (default 0.02) faces into the hat; drawn in the inside's plain colour
 //            (the normal-only rule marked the beanie's rib grooves on the outside)
+//   noPom    the beanie model has no pom-pom: no point takes the made beanie's pom-pom place (front half above BEANIE_POM.y);
+//            its crown top stays crown (item 154: the pom's yarn splashed over the crown)
 //   tilt     degrees turned round the side-to-side axis first (+: its front down), so its band lies as the made hat's band
 //            (placing only: the cap model sits tipped back as worn; the made cap's band is level)
 import fs from 'node:fs';
@@ -48,7 +50,7 @@ function readParts(file) {
 const BUILD = { cap: 'buildCap', beanie: 'buildBeanie', 'bucket-hat': 'buildBucketHat' };
 
 export default {
-  lib: "export { buildCap } from './cap.js'; export { buildBeanie } from './beanie.js'; export { buildBucketHat } from './bucket.js';",
+  lib: "export { buildCap, CAP_C } from './cap.js'; export { buildBeanie, BEANIE_POM } from './beanie.js'; export { buildBucketHat } from './bucket.js';",
   async convert({ glb: glb0, lib, settings, tools }) {
     const C = settings.convert ?? {}, log = [];
     let glb = glb0;
@@ -97,6 +99,10 @@ export default {
     let dSum = 0, dMax = 0;
     const half = new Uint8Array(count);
     for (let i = 0; i < count; i++) { const r = placeOf(i, null); half[i] = r?.back ? 1 : 0; const d = r?.d ?? 0; dSum += d; dMax = Math.max(dMax, d); }
+    // (`halfPlane` (FIXER6 2026-11-26, item 162: the cap's halves met in a ragged line down its sides): above `from` (print height,
+    // the crown) a point is on the back half when it lies behind the upright plane z = `z`, so the halves meet in one straight
+    // line; each point then takes the nearest made surface of its own half. Off unless set.)
+    if (C.halfPlane) { const Hp = C.halfPlane; let n2 = 0; for (let i = 0; i < count; i++) { const r = placeOf(i, null); if (!r || r.flat[1] < (Hp.from ?? 0.1)) continue; const h = pos[i * 3 + 2] < (Hp.z ?? 0) ? 1 : 0; if (h !== half[i]) { half[i] = h; place.set(i * 3 + 2, placeOf(i, h)); n2++; } } log.push(`halves by the plane z ${Hp.z ?? 0}: ${n2} points moved`); }
     if (C.smooth) {
       const nb = tools.neighbours(count, I);
       let F = new Float64Array(count * 2); for (let i = 0; i < count; i++) { const r = placeOf(i, null); F[i * 2] = r?.flat[0] ?? 0; F[i * 2 + 1] = r?.flat[1] ?? 0; }
@@ -111,6 +117,43 @@ export default {
       }
       for (let i = 0; i < count; i++) { const r = placeOf(i, null); if (r) place.set(i * 3 + 2, { ...r, flat: [F[i * 2], F[i * 2 + 1]] }); }
     }
+    // (`seamSnap` (FIXER6 2026-11-26, items 153 / 162: the cap's piping and panel colours lay beside the model's own seams):
+    // the model's own seams found as its creases (points where neighbouring faces meet at more than `angle` degrees) whose
+    // print place lies near a made seam (|x| within `from`..`to` on each half); per 1 cm of print height the middle of them;
+    // then every print place on that half and side stretched across (x only, piecewise straight: the middle 0 and the half's
+    // edge at a quarter of the girth kept) so the model's seam lands on the made seam's line (CAP_C / 6), where the print
+    // has its piping and its panels' edges. The model is unchanged; only where its print comes from. Off unless set.)
+    let snapX = null;
+    if (C.seamSnap && lib.CAP_C) {
+      const Z = C.seamSnap, sx0 = lib.CAP_C / 6, E = lib.CAP_C / 4, minA = Z.angle ?? 12, from = Z.from ?? 0.06, to = Z.to ?? 0.15, B0 = Z.yFrom ?? 0.05, B1 = Z.yTo ?? 0.27, BS = 0.01;
+      const fn = new Float64Array(T * 3); for (let t = 0; t < T; t++) { const a = I[t * 3] * 3, b = I[t * 3 + 1] * 3, c = I[t * 3 + 2] * 3, u = [pos[b] - pos[a], pos[b + 1] - pos[a + 1], pos[b + 2] - pos[a + 2]], v = [pos[c] - pos[a], pos[c + 1] - pos[a + 1], pos[c + 2] - pos[a + 2]], m = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]], l = Math.hypot(...m) || 1; fn[t * 3] = m[0] / l; fn[t * 3 + 1] = m[1] / l; fn[t * 3 + 2] = m[2] / l; }
+      const pk = (i) => `${Math.round(pos[i * 3] * 2e4)},${Math.round(pos[i * 3 + 1] * 2e4)},${Math.round(pos[i * 3 + 2] * 2e4)}`, wid = new Map(), W = new Int32Array(count); for (let i = 0; i < count; i++) { const k = pk(i); if (!wid.has(k)) wid.set(k, wid.size); W[i] = wid.get(k); }
+      const ed = new Map(); for (let t = 0; t < T; t++) for (let k = 0; k < 3; k++) { const a = W[I[t * 3 + k]], b = W[I[t * 3 + (k + 1) % 3]], key = a < b ? a * 1e7 + b : b * 1e7 + a; (ed.get(key) ?? ed.set(key, []).get(key)).push(t); }
+      const angW = new Float32Array(wid.size);
+      for (const [key, ts] of ed) { if (ts.length !== 2) continue; const [a, b] = ts, d = Math.abs(fn[a * 3] * fn[b * 3] + fn[a * 3 + 1] * fn[b * 3 + 1] + fn[a * 3 + 2] * fn[b * 3 + 2]), g = (Math.acos(Math.min(1, d)) * 180) / Math.PI; const u = Math.floor(key / 1e7), v = key % 1e7; angW[u] = Math.max(angW[u], g); angW[v] = Math.max(angW[v], g); }
+      const NB = Math.round((B1 - B0) / BS) + 1, mid = {};
+      for (const h of [0, 1]) for (const sg of [1, -1]) {
+        const bins = Array.from({ length: NB }, () => []);
+        for (let i = 0; i < count; i++) { if (half[i] !== h || angW[W[i]] < minA) continue; const r = placeOf(i, null); if (!r) continue; const x = sg * r.flat[0], y = r.flat[1]; if (x < from || x > to || y < B0 - BS / 2 || y > B1 + BS / 2) continue; bins[Math.max(0, Math.min(NB - 1, Math.round((y - B0) / BS)))].push(x); }
+        let m = bins.map((b) => (b.length >= (Z.min ?? 4) ? b.sort((p, q) => p - q)[b.length >> 1] : null));
+        const known = m.map((x, k) => [x, k]).filter(([x]) => x != null);
+        if (!known.length) { mid[`${h}${sg}`] = null; continue; }
+        m = m.map((x, k) => x ?? known.reduce((a, b) => (Math.abs(b[1] - k) < Math.abs(a[1] - k) ? b : a))[0]);
+        m = m.map((_, k) => { let s2 = 0, w2 = 0; for (let o = -2; o <= 2; o++) { const j = k + o; if (j < 0 || j >= NB) continue; const w = Math.exp(-0.5 * o * o); s2 += m[j] * w; w2 += w; } return s2 / w2; });
+        mid[`${h}${sg}`] = m;
+        log.push(`seam ${h ? 'back' : 'front'} ${sg > 0 ? '+x' : '-x'}: ${m.map((x) => (x * 1000).toFixed(0)).join(' ')} mm (made ${(sx0 * 1000).toFixed(0)})`);
+      }
+      snapX = (x, y, h) => {
+        const sg = x < 0 ? -1 : 1, m = mid[`${h}${sg}`], ax = Math.abs(x); if (!m || ax >= E) return x;
+        const f = Math.max(0, Math.min(NB - 1, (y - B0) / BS)), k = Math.floor(f), mm = k + 1 < NB ? m[k] + (m[k + 1] - m[k]) * (f - k) : m[k];
+        return sg * (ax <= mm ? (ax * sx0) / mm : sx0 + ((ax - mm) * (E - sx0)) / (E - mm));
+      };
+    }
+    if (C.noPom && lib.BEANIE_POM) {
+      const top = lib.BEANIE_POM.y - 0.008; let n = 0;
+      for (const [k, r] of place) if (r && !r.back && r.flat[1] > top) { place.set(k, { ...r, flat: [r.flat[0], top] }); n++; }
+      log.push(`no pom-pom: ${n} places held under ${top.toFixed(3)}`);
+    }
     log.push(`nearest made surface: mean ${(dSum / count * 1000).toFixed(1)} mm, most ${(dMax * 1000).toFixed(1)} mm`);
     // ---- Each triangle on one half (most of its corners'); its points copied per half.
     const OP = [], ON = [], OF = [], OB = [], OS = [], idx = [], copy = new Map();
@@ -120,7 +163,7 @@ export default {
       const r = half[i] === h ? placeOf(i, null) : placeOf(i, h);
       const k = OP.length / 3;
       copy.set(key, k);
-      OP.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]); ON.push(nor[i * 3], nor[i * 3 + 1], nor[i * 3 + 2]); OF.push(...(r?.flat ?? [0, 0])); OB.push(h); OS.push(Math.max(0, Math.min(1.27, r?.shade ?? 1)));
+      OP.push(pos[i * 3], pos[i * 3 + 1], pos[i * 3 + 2]); ON.push(nor[i * 3], nor[i * 3 + 1], nor[i * 3 + 2]); OF.push(...(r ? (snapX ? [snapX(r.flat[0], r.flat[1], h), r.flat[1]] : r.flat) : [0, 0])); OB.push(h); OS.push(Math.max(0, Math.min(1.27, r?.shade ?? 1)));
       return k;
     };
     for (let t = 0; t < T; t++) {

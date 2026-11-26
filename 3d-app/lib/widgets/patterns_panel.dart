@@ -228,7 +228,7 @@ class _PatternsPanelState extends State<PatternsPanel> {
         _tile(
           key: ValueKey('pattern-tile-$name'),
           label: name,
-          art: PatternSwatch(name, c.secondaryColor, c.mainColor),
+          art: PatternSwatch(name, c.patternInk, c.mainColor),
           selected: _nameOn(name),
           onTap: () => _applyName(name),
           drop: KitDrop.panel(pattern: name, label: name),

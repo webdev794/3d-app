@@ -201,6 +201,13 @@ const studioPatterns = [
   'Diagonal',
   'Tribal',
   'Camo',
+  // More patterns (client 25 Nov, CLIENT25): viewer texture.js patternTile.
+  'Sash',
+  'Fade',
+  'Halftone',
+  'Prism',
+  'Brush',
+  'Waves',
 ];
 
 /// The patterns a saved design keeps: the Studio's, and Shards (the

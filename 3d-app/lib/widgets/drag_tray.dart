@@ -116,7 +116,7 @@ class DragTray extends StatelessWidget {
             ),
           for (final pattern in studioPatterns)
             tile(
-              PatternSwatch(pattern, c.secondaryColor, c.mainColor),
+              PatternSwatch(pattern, c.patternInk, c.mainColor),
               KitDrop.pattern(pattern),
               pattern,
             ),
@@ -263,7 +263,9 @@ class DragTray extends StatelessWidget {
           );
         }
       });
-      return none ? 'Pattern taken off the pants.' : '$label applied to the pants.';
+      return none
+          ? 'Pattern taken off the pants.'
+          : '$label applied to the pants.';
     }
     if (key is String &&
         partsOf(c.garment).contains(key) &&
@@ -318,7 +320,16 @@ class PatternSwatch extends StatelessWidget {
   final Color ink, base;
   @override
   Widget build(BuildContext context) =>
-      CustomPaint(painter: _SwatchPainter(name, ink, base));
+      CustomPaint(painter: _SwatchPainter(name, visibleInk(ink, base), base));
+
+  /// The pattern's colour, or (when it is too close to the kit's own, as a
+  /// dark tee with a dark Secondary: client 653, every thumbnail blank) cyan
+  /// on a dark kit and near-black on a light one, so each pattern shows.
+  static Color visibleInk(Color ink, Color base) {
+    double lum(Color c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+    if ((lum(ink) - lum(base)).abs() >= 0.18) return ink;
+    return lum(base) < 0.5 ? const Color(0xff16b4f0) : const Color(0xff0b1016);
+  }
 }
 
 class _SwatchPainter extends CustomPainter {
@@ -437,6 +448,128 @@ class _SwatchPainter extends CustomPainter {
               height: r * 1.6,
             ),
             f,
+          );
+        }
+      // CLIENT25 2026-11-25 (more patterns), as the viewer draws them.
+      case 'Sash':
+        final sx = w / 58, sy = h / 58;
+        canvas.drawLine(
+          Offset(62 * sx, -4 * sy),
+          Offset(-4 * sx, 62 * sy),
+          Paint()
+            ..color = ink
+            ..strokeWidth = 12 * sx,
+        );
+        for (final o in const [-10.0, 10.0]) {
+          canvas.drawLine(
+            Offset((62 + o) * sx, (-4 + o) * sy),
+            Offset((-4 + o) * sx, (62 + o) * sy),
+            Paint()
+              ..color = ink
+              ..strokeWidth = 2 * sx,
+          );
+        }
+      case 'Fade':
+        canvas.drawRect(
+          Offset.zero & size,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                ink,
+                ink.withValues(alpha: .7),
+                ink.withValues(alpha: 0),
+              ],
+              stops: const [0, .35, 1],
+            ).createShader(Offset.zero & size),
+        );
+      case 'Halftone':
+        var row = 0;
+        for (var y = h - 3; y > 0; y -= 6, row++) {
+          final r = 2.9 * math.pow((y / h).clamp(0, 1), .85) * w / 58;
+          if (r < .5) continue;
+          for (var x = row.isOdd ? 3.0 : 0.0; x < w + 3; x += 6) {
+            canvas.drawCircle(Offset(x, y), r, f);
+          }
+        }
+      case 'Prism':
+        var seed = 11;
+        double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        final pts = [
+          for (var j = 0; j <= 4; j++)
+            [
+              for (var i = 0; i <= 4; i++)
+                Offset(
+                  w * i / 4 + (i > 0 && i < 4 ? (rnd() - .5) * w * .15 : 0),
+                  h * j / 4 + (j > 0 && j < 4 ? (rnd() - .5) * h * .15 : 0),
+                ),
+            ],
+        ];
+        void tri(Offset a, Offset b, Offset c) {
+          final k = rnd();
+          if (k < .3) return;
+          canvas.drawPath(
+            Path()
+              ..moveTo(a.dx, a.dy)
+              ..lineTo(b.dx, b.dy)
+              ..lineTo(c.dx, c.dy)
+              ..close(),
+            Paint()..color = ink.withValues(alpha: .2 + (k - .3) / .7 * .75),
+          );
+        }
+        for (var j = 0; j < 4; j++) {
+          for (var i = 0; i < 4; i++) {
+            final a = pts[j][i], b = pts[j][i + 1];
+            final c = pts[j + 1][i], d = pts[j + 1][i + 1];
+            if ((i + j).isOdd) {
+              tri(a, b, d);
+              tri(a, d, c);
+            } else {
+              tri(a, b, c);
+              tri(b, d, c);
+            }
+          }
+        }
+      case 'Brush':
+        var seed = 5;
+        double rnd() => (seed = (seed * 16807) % 2147483647) / 2147483647;
+        for (final (x0, y0, x1, y1, bw) in const [
+          (-2.0, 20.0, 60.0, 12.0, 12.0),
+          (6.0, 32.0, 60.0, 28.0, 7.0),
+          (-2.0, 50.0, 44.0, 42.0, 10.0),
+        ]) {
+          for (var b = 0; b < 9; b++) {
+            final off = (rnd() - .5) * bw;
+            final start = rnd() * .1, end = 1 - rnd() * .15;
+            canvas.drawLine(
+              Offset(
+                (x0 + (x1 - x0) * start) * w / 58,
+                (y0 + off + (y1 - y0) * start) * h / 58,
+              ),
+              Offset(
+                (x0 + (x1 - x0) * end) * w / 58,
+                (y0 + off + (y1 - y0) * end) * h / 58,
+              ),
+              Paint()
+                ..color = ink.withValues(alpha: .5 + rnd() * .5)
+                ..strokeWidth = (.8 + rnd() * 1.8) * w / 58
+                ..strokeCap = StrokeCap.round,
+            );
+          }
+        }
+      case 'Waves':
+        for (var x = 4.0; x < w + 4; x += 8) {
+          final path = Path()..moveTo(x, 0);
+          for (var y = 2.0; y <= h; y += 2) {
+            path.lineTo(x + 2.5 * math.sin(y * .28 + x * .1), y);
+          }
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = ink
+              ..strokeWidth = 2
+              ..style = PaintingStyle.stroke,
           );
         }
       default:

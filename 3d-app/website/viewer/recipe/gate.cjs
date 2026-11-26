@@ -82,8 +82,15 @@ async function check() {
   const { chromium } = require('D:/3d-app/3d-app/.tools/browser/node_modules/playwright');
   const { loadImage, createCanvas } = require(path.join(web, 'node_modules/@napi-rs/canvas'));
   const allow = new Set((opt('allow') ?? '').split(',').map((s) => s.trim()).filter(Boolean));
-  const list = tiles();
+  let list = tiles();
   const allowed = (t) => allow.has(t.name) || allow.has(t.name.split('/')[1]) || t.flags.some((f) => allow.has(f)) || allow.has(t.garment);
+  // (`--quick` (user OK 26 Nov 2026, via the coordinator): only the tiles the merge may change plus 3 other tiles spread over
+  // the list as samples, every check on them as usual; much faster for small fix batches.)
+  if (rest.includes('--quick')) {
+    const keep = list.filter(allowed), others = list.filter((t) => !allowed(t)), step = Math.max(1, Math.floor(others.length / 3));
+    list = [...keep, ...[0, 1, 2].map((k) => others[k * step]).filter(Boolean)];
+    console.log(`gate: --quick: ${keep.length} tiles that may change + samples ${list.slice(keep.length).map((t) => t.name).join(', ')}`);
+  }
   console.log(`gate: ${list.length} tiles (${list.filter((t) => t.model).length} on models); may change: ${list.filter(allowed).map((t) => t.name).join(', ') || 'none'}`);
   // (`--no-cover <tile names>`: for this one run only, the cover check skipped on the tiles named (full or short tile names,
   // comma separated; nothing else is skipped). Only with the user's OK: first used on 19 Nov 2026, the user approved it for

@@ -1809,6 +1809,103 @@ export class KitPainter {
     } else if (name === 'Shards') {
       // The shooting shirt picture's side panels (shootingshirt.js): pattern-colour panels with trim-colour blades.
       drawShards(g, ink, this.zoneFill(design, 'secondary'));
+    } else if (name === 'Sash') {
+      // CLIENT25 2026-11-25 (more patterns): a broad sash from the right shoulder to the left hip, with a fine line each side.
+      g.save();
+      g.translate(0, 0.42);
+      g.rotate(Math.atan2(0.62, 0.8));
+      g.fillRect(-1, -0.06, 2, 0.12);
+      g.fillRect(-1, 0.078, 2, 0.01);
+      g.fillRect(-1, -0.088, 2, 0.01);
+      g.restore();
+    } else if (name === 'Fade') {
+      // CLIENT25: the pattern colour rising from the hem and fading out over the chest.
+      if (typeof ink === 'string' && HEX.test(ink)) {
+        const fade = g.createLinearGradient(0, 0, 0, 0.56);
+        fade.addColorStop(0, ink);
+        fade.addColorStop(0.35, `${ink}b0`);
+        fade.addColorStop(1, `${ink}00`);
+        g.fillStyle = fade;
+        g.fillRect(-0.5, -0.02, 1, 0.6);
+      } else {
+        for (let i = 0; i < 70; i++) {
+          g.globalAlpha = Math.pow(1 - i / 70, 1.6);
+          g.fillRect(-0.5, -0.02 + i * 0.008, 1, 0.0082);
+        }
+        g.globalAlpha = 1;
+      }
+    } else if (name === 'Halftone') {
+      // CLIENT25: halftone dots, large at the hem and shrinking to nothing up the body.
+      let row = 0;
+      for (let y = 0.012; y < 0.6; y += 0.021, row++) {
+        const r = 0.0098 * Math.pow(Math.max(0, 1 - y / 0.6), 0.85);
+        if (r < 0.0012) continue;
+        for (let x = -0.5 + (row % 2 ? 0.0105 : 0); x < 0.52; x += 0.021) {
+          g.beginPath();
+          g.arc(x, y, r, 0, Math.PI * 2);
+          g.fill();
+        }
+      }
+    } else if (name === 'Prism') {
+      // CLIENT25: geometric shards, a low-poly field of triangles in the pattern colour at many strengths.
+      let seed = 11;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      const cw = 0.085, ch = 0.075, pts = [];
+      for (let j = 0; j <= 12; j++) {
+        pts.push([]);
+        for (let i = 0; i <= 13; i++) pts[j].push([-0.55 + i * cw + (i && i < 13 ? (rnd() - 0.5) * cw * 0.7 : 0), -0.05 + j * ch + (j && j < 12 ? (rnd() - 0.5) * ch * 0.7 : 0)]);
+      }
+      const tri = (a, b, c) => {
+        const k = rnd();
+        if (k < 0.38) return;
+        g.globalAlpha = 0.18 + ((k - 0.38) / 0.62) * 0.75;
+        g.beginPath();
+        g.moveTo(...a);
+        g.lineTo(...b);
+        g.lineTo(...c);
+        g.closePath();
+        g.fill();
+      };
+      for (let j = 0; j < 12; j++) {
+        for (let i = 0; i < 13; i++) {
+          const a = pts[j][i], b = pts[j][i + 1], c = pts[j + 1][i], d = pts[j + 1][i + 1];
+          if ((i + j) % 2) { tri(a, b, d); tri(a, d, c); } else { tri(a, b, c); tri(b, d, c); }
+        }
+      }
+      g.globalAlpha = 1;
+    } else if (name === 'Brush') {
+      // CLIENT25: bold dry-brush strokes across the chest and low on the body, each made of many fine bristle lines.
+      let seed = 5;
+      const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      g.lineCap = 'round';
+      for (const [x0, y0, x1, y1, w] of [[-0.52, 0.5, 0.52, 0.6, 0.075], [-0.4, 0.36, 0.5, 0.41, 0.045], [-0.52, 0.12, 0.3, 0.2, 0.06]]) {
+        const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy), nx = -dy / len, ny = dx / len;
+        for (let b = 0; b < 26; b++) {
+          const off = (rnd() - 0.5) * w, s = rnd() * 0.08, e = 1 - rnd() * 0.12;
+          g.globalAlpha = 0.45 + rnd() * 0.55;
+          g.lineWidth = 0.002 + rnd() * 0.006;
+          g.beginPath();
+          for (let t = s; t <= e + 1e-6; t += 0.05) {
+            const wob = Math.sin(t * 9 + b) * 0.003;
+            const px = x0 + dx * t + nx * (off + wob), py = y0 + dy * t + ny * (off + wob);
+            if (t === s) g.moveTo(px, py); else g.lineTo(px, py);
+          }
+          g.stroke();
+        }
+      }
+      g.globalAlpha = 1;
+      g.lineCap = 'butt';
+    } else if (name === 'Waves') {
+      // CLIENT25: fine vertical pinstripes that wave down the body.
+      g.lineWidth = 0.0035;
+      for (let x = -0.5; x <= 0.52; x += 0.034) {
+        g.beginPath();
+        for (let y = 0; y <= 0.82; y += 0.01) {
+          const px = x + 0.011 * Math.sin(y * 16 + x * 5);
+          if (y === 0) g.moveTo(px, y); else g.lineTo(px, y);
+        }
+        g.stroke();
+      }
     } else if (name === 'Velocity') {
       g.globalAlpha = 0.85;
       for (let i = 0; i < 9; i++) {
@@ -2495,7 +2592,10 @@ export class KitPainter {
       }
     } else {
       this.markText(design, 'name', { side: 'back', x: 0, y: 0.6 }, backName, 0.06, design.accent, 0.28, textOutline);
-      this.markText(design, 'number', { side: 'back', x: 0, y: 0.38 }, String(design.number ?? '23'), 0.24, design.accent, 0.3, textOutline);
+      // (A model's own place for it when the look gives none (data numberAt: the netball bib's model, its open sides and
+      // straps: RUGBYJ 2026-11-25, Lacrosse pinnie).)
+      const numberAt = !design.marks?.[`${this.partName}_number`] ? this.model?.numberAt : null;
+      this.markText(design, 'number', { side: 'back', x: 0, y: numberAt?.y ?? 0.38 }, String(design.number ?? '23'), numberAt?.size ?? 0.24, design.accent, numberAt?.width ?? 0.3, textOutline);
       // The soccer jersey's model (SCJERSEY, the client's booklet card 138303's places): the "3" mark small above the name
       // line, under the back neck (its own mark, moved and hidden as the others).
       if (this.model?.brandBack && !ownArt) this.markShield(design, 'backCrest', { side: 'back', x: 0, y: 0.66 }, [[0, 0.034], [0.028, 0.018], [0.022, -0.02], [0, -0.036], [-0.022, -0.02], [-0.028, 0.018]].map(([x, y]) => [x * 0.7, y * 0.7]), 0.021, 0.028);

@@ -152,7 +152,6 @@ const modelOwnNecks = {
   'scJersey': 'round',
   'aflGuernsey': 'round',
   'trainingSinglet': 'round',
-  'trainingTee': 'round',
   'rugbyJersey': 'round',
   // (the retired old Rugby League jersey model's flag: its designs show the new model: RUGBYJ)
   'fbJersey': 'round',
@@ -185,8 +184,8 @@ String? fixedNeck(String garment, Map<String, String> zoneColors) {
   for (final e in modelOwnNecks.entries) {
     if (_hex.hasMatch(zoneColors[e.key] ?? '')) return e.value;
   }
-  // (Every training tee is on its ready-made model: its own round neck.)
-  if (garment == 'Training Tee') return 'round';
+  // (The training tee: Round neck or V-neck, our V cut in its model: MODELQ8
+  // 2026-11-25.)
   return null;
 }
 

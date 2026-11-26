@@ -1,6 +1,6 @@
 {
-  "about": "Long-sleeve tee (RUGBYV 2026-11-20, the user: all pending models on their tiles; cards 10730 front / 10732 back): Tripo model longsleeve-tee-textured.glb (shape only), coloured from longsleeve-tee-parts.glb by viewer/tripo-glbparts.mjs. Printed through the made compression top's long-sleeve pattern. Shown by the flag lsTee on the new 'Long-sleeve tee' tiles. Look: the Training tee tile look (teeTile) without its solid-sleeves area.",
-  "glb": "../../../tripo/longsleeve-tee-textured.glb",
+  "about": "Long-sleeve tee (every Long-sleeve tee tile, flag lsTee: Athletics and the others; MODELQ8 2026-11-25, item 176): Tripo model long-sleeve-t-textured.glb (shape only; replaces the first long-sleeve tee model, deleted), the print all over (its parts file splits the neck band unevenly: no parts, so no ragged edges), printed through the made compression top's long-sleeve pattern. Look from the cards 10730 front / 10732 back: golden yellow all over its neck band in the same yellow (part of the print); our 3DEEZI marks in near-black (the card's own text and art not copied). First version (models live first).",
+  "glb": "../../../tripo/long-sleeve-t-textured.glb",
   "converter": "top",
   "part": "compression",
   "garment": "compression",
@@ -14,11 +14,16 @@
     "creaseDeg": 25
   },
   "look": {
-    "secondary": "#27282a",
-    "patternColor": "#00688a",
+    "main": "#f2c01e",
+    "secondary": "#f2c01e",
+    "accent": "#27282a",
+    "patternColor": "#27282a",
+    "pattern": "None",
+    "number": "",
     "zoneColors": {
-      "lsTee": "#27282a",
-      "labelDark": "#2e3034"
+      "lsTee": "#f2c01e",
+      "labelDark": "#2e3034",
+      "brandInk": "#27282a"
     },
     "marks": {
       "top_wordmark": {
@@ -29,7 +34,8 @@
         "y": 0.578,
         "scale": 0.75
       }
-    }
+    },
+    "layers": []
   },
   "check": {
     "views": [

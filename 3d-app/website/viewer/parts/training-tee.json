@@ -1,5 +1,5 @@
 {
-  "about": "Training tee (training-tee2-textured.glb, card 112791; MODELQ8 2026-11-25, replaces the first tee model (the client: it did not look like a T-shirt), which is deleted): coloured from training-tee2-parts.glb (13 parts) by viewer/tripo-hoodie.mjs: body, sleeves, hem band and the small armhole bits the print; the neck band (5) the Collar colour, its foot one smooth line; each cuff (12 the wearer's right, 19 the left) an even 15 mm rib band from its opening in the cuff part colour (part:rightCuff / part:leftCuff). Stitch lines at the band foot and cuffs.",
+  "about": "Training tee (training-tee2-textured.glb, card 112791; MODELQ8 2026-11-25, replaces the first tee model (the client: it did not look like a T-shirt), which is deleted): coloured from training-tee2-parts.glb (13 parts) by viewer/tripo-hoodie.mjs: body, sleeves, hem band and the small armhole bits the print; the neck band (5) the Collar colour, its foot one smooth line; each cuff (12 the wearer's right, 19 the left) an even 15 mm rib band from its opening (wide 1.0, margin 0: its colour stops at the band, none on the body beside the sleeve under the arm; MODELQ8 2026-11-25, item 190) in the cuff part colour (part:rightCuff / part:leftCuff). Stitch lines at the band foot and cuffs.",
   "hoodieParts": {
     "glb": "../../../tripo/training-tee2-parts.glb",
     "roles": {
@@ -32,16 +32,16 @@
       "cuffL": {
         "key": "part:leftCuff",
         "dir": "out",
-        "margin": 0.003,
-        "wide": 1.15,
+        "margin": 0,
+        "wide": 1,
         "width": 0.015,
         "endSpan": 4
       },
       "cuffR": {
         "key": "part:rightCuff",
         "dir": "out",
-        "margin": 0.003,
-        "wide": 1.15,
+        "margin": 0,
+        "wide": 1,
         "width": 0.015,
         "endSpan": 4
       }

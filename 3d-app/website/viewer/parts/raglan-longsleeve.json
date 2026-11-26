@@ -47,6 +47,8 @@
         "where": "x > 0",
         "key": "part:leftSleeve"
       }
-    ]
+    ],
+    "shareDist": 0.1,
+    "sleeveSteps": 40
   }
 }

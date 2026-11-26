@@ -405,6 +405,12 @@ const _patternWords = {
   'Diagonal': 'thin diagonal lines across the body',
   'Tribal': 'bands of small interlocking triangles across the body',
   'Camo': 'a camouflage pattern',
+  'Sash': 'a broad diagonal sash from one shoulder to the opposite hip',
+  'Fade': 'the pattern colour fading up from the hem',
+  'Halftone': 'halftone dots, large at the hem and shrinking up the body',
+  'Prism': 'geometric shards of triangles in several strengths',
+  'Brush': 'bold dry-brush strokes across the chest and body',
+  'Waves': 'fine wavy vertical pinstripes',
 };
 
 String _gradientWords(Map<dynamic, dynamic> g) {

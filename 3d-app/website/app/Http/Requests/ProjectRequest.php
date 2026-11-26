@@ -100,7 +100,7 @@ class ProjectRequest extends FormRequest
     public function rules(): array
     {
         $required = $this->isMethod('post') ? 'required' : 'sometimes';
-        $patterns = ['Solid', 'Stripes', 'Chevron', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo'];
+        $patterns = ['Solid', 'Stripes', 'Chevron', 'Velocity', 'Blades', 'Swirl', 'Hoops', 'Dots', 'Diagonal', 'Tribal', 'Camo', 'Sash', 'Fade', 'Halftone', 'Prism', 'Brush', 'Waves'];
         $color = 'regex:/^#[0-9a-fA-F]{6}$/';
         // How a word looks (task 9.146): viewer/src/wordart.js; on a fixed mark and on a text object.
         $wordLook = fn (string $at) => [

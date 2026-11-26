@@ -297,7 +297,12 @@ List<Map<String, dynamic>> _tileObjects(String? picture) {
     // The bibs pictures (FN5 2026-10-30, as config/catalog.php $trainingBibs and
     // $netballBibs): the training bibs' GS under the logo; the netball bibs' big
     // GS and the cyan binding down each side edge, front and back.
-    'bibs' => letters('GS', y: 0.42),
+    // (RUGBYJ 181, 26 Nov: the back GS lower and smaller, at the bib model's
+    // number place, so the back straps never cut it; as config/catalog.php.)
+    'bibs' => [
+      letters('GS', y: 0.42).first,
+      letters('GS', y: 0.27, size: 0.14).last,
+    ],
     'netball-bibs' => [
       ...letters('GS', y: 0.38, size: 0.26),
       for (final side in const ['front', 'back'])
@@ -1237,11 +1242,12 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'varsityHoodie': {'main': '#1d1d1e', 'secondary': '#d9a704', 'accent': '#1d1d1e', 'patternColor': '#d9a704', 'number': '23', 'zoneColors': {'body': '#1d1d1e', 'sleeves': '#d9a704', 'rib': '#1d1d1e', 'ribStripe': '#d9a704', 'snaps': '#1d1d1e', 'pocketTrim': '#d9a704', 'varsityHoodie': '#ffffff', 'hood': '#1d1d1e', 'lining': '#1d1d1e'}, 'marks': {'top_wordmark': {'side': 'back', 'x': 0, 'y': 0.53}}, 'layers': []},
     'footballShorts': {'main': '#2a56b4', 'secondary': '#2a56b4', 'accent': '#1f8a3c', 'patternColor': '#2a56b4', 'pattern': 'None', 'number': '', 'zoneColors': {'footballShorts': '#2a56b4', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.12, 'y': 0.1, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
     'helmetModel': {'main': '#1c2433', 'secondary': '#e3a81c', 'accent': '#e3a81c', 'zoneColors': {'helmetModel': '#ffffff', 'helmetStripe': '#e3a81c', 'faceMask': '#2b2d31'}, 'layers': []},
-    'muaythaiShorts': {'main': '#f4c51c', 'secondary': '#f4c51c', 'accent': '#1f2023', 'patternColor': '#e0b010', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#1f2023'}, 'cuffs': {'colour': '#1f2023'}}, 'zoneColors': {'muaythaiShorts': '#f4c51c', 'brandInk': '#1f2023'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'hidden': true}, 'shorts_wordmark': {'side': 'front', 'x': 0, 'y': 0.2, 'scale': 1.3}}, 'layers': []},
+    'muaythaiShorts': {'main': '#f4c51c', 'secondary': '#f4c51c', 'accent': '#1f2023', 'patternColor': '#e0b010', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#1f2023'}, 'cuffs': {'colour': '#1f2023'}}, 'zoneColors': {'muaythaiShorts': '#f4c51c', 'brandInk': '#1f2023'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.15, 'y': 0.07, 'scale': 0.6}, 'shorts_wordmark': {'side': 'front', 'x': 0, 'y': 0.2, 'scale': 1.3}}, 'layers': []},
     'pufferJacket': {'main': '#e8642e', 'zoneColors': {'pufferJacket': '#ffffff', 'body': '#e8642e', 'shoulder': '#e8642e', 'side': '#e8642e', 'stripe': '#e8642e', 'zip': '#2b2b2e', 'rib': '#2b2b2e'}},
-    'fightShorts': {'main': '#232427', 'secondary': '#232427', 'accent': '#ffffff', 'patternColor': '#3a3b3f', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#232427'}}, 'zoneColors': {'fightShorts': '#232427', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'hidden': true}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
+    'fightShorts': {'main': '#232427', 'secondary': '#232427', 'accent': '#ffffff', 'patternColor': '#3a3b3f', 'pattern': 'None', 'number': '', 'parts': {'waistband': {'colour': '#232427'}}, 'zoneColors': {'fightShorts': '#232427', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.15, 'y': 0.07, 'scale': 0.7}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
     'tennisSkirt': {'main': '#8fcbe9', 'secondary': '#1f2a6b', 'accent': '#1f2a6b', 'patternColor': '#1f2a6b', 'pattern': 'None', 'number': '', 'zoneColors': {'tennisSkirt': '#8fcbe9'}, 'layers': []},
     'bucketModel': {'main': '#3f5a3a', 'secondary': '#2f6b3c', 'accent': '#2f6b3c', 'zoneColors': {}, 'layers': []},
     'beanieModel': {'main': '#e8b220', 'secondary': '#e8b220', 'accent': '#e8b220', 'zoneColors': {}, 'layers': []},
@@ -1264,7 +1270,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'womenSinglet': {'main': '#f4f5f7', 'secondary': '#1e2a44', 'accent': '#1e2a44', 'patternColor': '#1e2a44', 'number': '', 'zoneColors': {'womenSinglet': '#1e2a44'}, 'parts': {'collar': {'colour': '#1e2a44'}}, 'marks': {'top_wordmark': {'x': 0, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'hidden': true}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
     'raglanLs': {'secondary': '#27282a', 'accent': '#c8102e', 'patternColor': '#00688a', 'parts': {'leftSleeve': {'colour': '#c8102e'}, 'rightSleeve': {'colour': '#c8102e'}}, 'zoneColors': {'raglanLs': '#27282a', 'labelDark': '#2e3034'}, 'marks': {'top_wordmark': {'y': 0.515, 'scale': 0.55}, 'top_crest': {'y': 0.578, 'scale': 0.75}}},
     'womenTee': {'secondary': '#27282a', 'patternColor': '#00688a', 'zoneColors': {'womenTee': '#27282a', 'labelDark': '#2e3034'}, 'marks': {'top_wordmark': {'y': 0.515, 'scale': 0.55}, 'top_crest': {'y': 0.578, 'scale': 0.75}}},
-    'lsTee': {'secondary': '#27282a', 'patternColor': '#00688a', 'zoneColors': {'lsTee': '#27282a', 'labelDark': '#2e3034'}, 'marks': {'top_wordmark': {'y': 0.515, 'scale': 0.55}, 'top_crest': {'y': 0.578, 'scale': 0.75}}},
+    'lsTee': {'main': '#f2c01e', 'secondary': '#f2c01e', 'accent': '#27282a', 'patternColor': '#27282a', 'pattern': 'None', 'number': '', 'zoneColors': {'lsTee': '#f2c01e', 'labelDark': '#2e3034', 'brandInk': '#27282a'}, 'marks': {'top_wordmark': {'y': 0.515, 'scale': 0.55}, 'top_crest': {'y': 0.578, 'scale': 0.75}}, 'layers': []},
     'longsleevePolo': {'main': '#14213d', 'secondary': '#ffffff', 'accent': '#00a0d8', 'patternColor': '#00a0d8', 'pattern': 'None', 'number': '', 'zoneColors': {'longsleevePolo': '#ffffff', 'collar': '#ffffff', 'rib': '#14213d'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.4}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.6}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
     'sleevelessHoodie': {'main': '#161616', 'zoneColors': {'sleevelessHoodie': '#ffffff', 'stripe': '#00f6fe'}, 'marks': {'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.85}, 'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.6}}},
     'sweatshirt': {'main': '#161616', 'zoneColors': {'sweatshirt': '#ffffff', 'stripe': '#00f6fe'}, 'marks': {'top_crest': {'x': 0, 'y': 0.565, 'scale': 0.85}, 'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.6}}},
@@ -1272,7 +1278,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'womenFootballJersey': {'main': '#1f4fa8', 'secondary': '#ffffff', 'accent': '#ffffff', 'patternColor': '#ffffff', 'pattern': 'None', 'number': '9', 'zoneColors': {'womenFootballJersey': '#ffffff', 'rib': '#ffffff'}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.7}, 'top_number': {'color': '#ffffff'}, 'top_name': {'hidden': true}}, 'layers': []},
     'windbreakerJacket': {'zoneColors': {'windbreakerJacket': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#00c4f0', 'stripe': '#24272b', 'zip': '#00c4f0'}},
     'waterproofJacket': {'zoneColors': {'waterproofJacket': '#ffffff', 'body': '#24272b', 'shoulder': '#24272b', 'side': '#00c4f0', 'stripe': '#24272b', 'zip': '#00c4f0'}},
-    'hoodedTee': {'main': '#f2f4f6', 'secondary': '#1e2a44', 'accent': '#00a0d8', 'patternColor': '#00a0d8', 'number': '', 'zoneColors': {'hoodedTee': '#ffffff', 'hood': '#f2f4f6', 'lining': '#1e2a44', 'rib': '#1e2a44'}, 'marks': {'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.3}, 'top_wordmark': {'x': 0, 'y': 0.45, 'scale': 0.6}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
+    'hoodedTee': {'main': '#f2f4f6', 'secondary': '#1e2a44', 'accent': '#00a0d8', 'patternColor': '#00a0d8', 'number': '', 'zoneColors': {'hoodedTee': '#ffffff', 'lining': '#1e2a44', 'rib': '#1e2a44', 'brandInk': '#1e2a44'}, 'marks': {'top_crest': {'x': 0, 'y': 0.58, 'scale': 0.85}, 'top_wordmark': {'x': 0, 'y': 0.515, 'scale': 0.6}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
     'afJersey': {'zoneColors': {'afJersey': '#ffffff'}},
     'bballHoodie': {'main': '#161616', 'zoneColors': {'stripe': '#00f6fe', 'bballHoodie': '#ffffff'}, 'marks': {'top_crest': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_wordmark': {'x': -0.09, 'y': 0.6, 'scale': 0.4}}},
     'baseballJersey': {'main': '#1f6fa6', 'secondary': '#262e48', 'accent': '#262e48', 'patternColor': '#262e48', 'number': '23', 'zones': [], 'parts': {'leftSleeve': {'colour': '#262e48'}, 'rightSleeve': {'colour': '#262e48'}, 'collar': {'colour': '#262e48'}}, 'zoneColors': {'baseballJersey': '#262e48'}, 'marks': {'top_wordmark': {'x': 0, 'y': 0.5, 'scale': 0.75}, 'top_crest': {'x': 0.09, 'y': 0.6, 'scale': 0.3}, 'top_number': {'color': '#ffffff'}}, 'layers': []},
@@ -1288,10 +1294,10 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     'tsPants': {'zoneColors': {'shoulder': '#27282a', 'side': '#16b4f0', 'sideBlade': '#0a5ae6', 'stripe': '#16b4f0', 'zip': '#27282a', 'pantsStripe': '#16b4f0', 'tsPants': '#27282a'}, 'marks': {'top_crest': {'x': 0.105, 'y': 0.605, 'scale': 0.6}, 'top_wordmark': {'x': 0.105, 'y': 0.572, 'scale': 0.75}, 'shorts_crest': {'x': 0.17, 'y': 0.84}, 'shorts_wordmark': {'x': 0.17, 'y': 0.802}}},
     'womenRugbyShorts': {'main': '#272e48', 'secondary': '#272e48', 'accent': '#e2bf3a', 'patternColor': '#e2bf3a', 'parts': {'waistband': {'colour': '#272e48'}, 'shortsHem': {'colour': '#272e48'}}, 'zoneColors': {'womenRugbyShorts': '#272e48'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': 0.13, 'y': 0.075, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': -0.14, 'y': 0.065, 'scale': 0.5}}, 'layers': []},
     'trainingShorts': {'main': '#e3ca3b', 'secondary': '#2a52a8', 'accent': '#2a52a8', 'patternColor': '#2a52a8', 'parts': {'waistband': {'colour': '#2a52a8'}}, 'zoneColors': {'trainingShorts': '#2a52a8'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.13, 'y': 0.075, 'scale': 0.85}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.06, 'scale': 0.5}}, 'layers': []},
-    'rashGuard': {'zoneColors': {'rashGuard': '#ffffff'},  'pattern': 'Blades', 'patternColor': '#1672f5', 'parts': {'sides': {'colour': '#27282a', 'pattern': 'Blades'}}},
-    'trainingTee': {'main': '#a9cbe8', 'secondary': '#f2e52a', 'accent': '#1e2a44', 'patternColor': '#1e2a44', 'number': '', 'zoneColors': {'trainingTee': '#f2e52a'}, 'parts': {'collar': {'colour': '#f2e52a'}}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.09, 'y': 0.6, 'scale': 0.3}, 'top_number': {'hidden': true}, 'top_name': {'side': 'back', 'x': 0, 'y': 0.66, 'scale': 0.5}}, 'layers': []},
+    'rashGuard': {'zoneColors': {'rashGuard': '#ffffff'},  'pattern': 'None', 'patternColor': '#1672f5', 'parts': {'sides': {'colour': '#27282a'}}},
+    'trainingTee': {'main': '#a9cbe8', 'secondary': '#f2e52a', 'accent': '#1e2a44', 'patternColor': '#1e2a44', 'number': '', 'zoneColors': {'trainingTee': '#f2e52a'}, 'parts': {'collar': {'colour': '#f2e52a'}}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'x': -0.1, 'y': 0.6, 'scale': 0.75}, 'top_number': {'hidden': true}, 'top_name': {'side': 'back', 'x': 0, 'y': 0.66, 'scale': 0.5}}, 'layers': []},
     'poloShirt': {'main': '#dbe3ed', 'secondary': '#2b2c30', 'accent': '#2b2c30', 'patternColor': '#2b2c30', 'number': '', 'zoneColors': {'poloShirt': '#2b2c30'}, 'parts': {'collar': {'colour': '#2b2c30'}}, 'marks': {'top_wordmark': {'x': 0.09, 'y': 0.6, 'scale': 0.45}, 'top_crest': {'hidden': true}, 'top_number': {'hidden': true}, 'top_name': {'hidden': true}}, 'layers': []},
-    'fitnessTop': {'zoneColors': {'fitnessTop': '#ffffff'},  'zones': solid(['sides']), 'layers': <Map<String, dynamic>>[]},
+    'fitnessTop': {'zoneColors': {'fitnessTop': '#ffffff'}, 'marks': {'top_wordmark': {'x': -0.085, 'y': 0.6, 'scale': 0.45}}, 'layers': <Map<String, dynamic>>[]},
     'aflGuernsey': {'main': '#d6b13a', 'secondary': '#1f3f8a', 'accent': '#1e2758', 'patternColor': '#1e2758', 'number': '1', 'zoneColors': {'aflGuernsey': '#3e71aa'}, 'marks': {'top_wordmark': {'x': -0.085, 'y': 0.6, 'scale': 0.4}, 'top_crest': {'x': 0.085, 'y': 0.6, 'scale': 0.28}, 'top_frontNumber': {'x': 0, 'y': 0.15, 'scale': 1.1}, 'top_number': {'x': 0, 'y': 0.2, 'scale': 1}}, 'layers': <Map<String, dynamic>>[{'type': 'shape', 'id': 'tile-band', 'name': 'Chest band', 'part': 'top', 'side': 'front', 'x': 0, 'y': 0.48, 'shape': 'rectangle', 'w': 0.6, 'h': 0.155, 'colorFrom': 'secondary'}, {'type': 'shape', 'id': 'tile-band-back', 'name': 'Chest band (back)', 'part': 'top', 'side': 'back', 'x': 0, 'y': 0.48, 'shape': 'rectangle', 'w': 0.6, 'h': 0.155, 'colorFrom': 'secondary'}], 'parts': {'collar': {'colour': '#3e71aa'}}},
     'bballSinglet': {
       'main': '#e4bf00',
@@ -1457,9 +1463,11 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'trainingSinglet': '#ffffff',
     },
   };
+  // (POCKETPOLO 2026-11-26: no Blades print; solid side panels + royal-blue blade, as the website.)
   looks['bladesSidesModel'] = {
     ...looks['bladesSides']!,
-    'zoneColors': <String, String>{'trainingSinglet': '#ffffff'},
+    'pattern': 'None',
+    'zoneColors': <String, String>{'trainingSinglet': '#ffffff', 'sideBlade': '#1c58c8'},
   };
   // (CLIENTOPS 2026-11-23, as config/catalog.php: tiles onto the 3D models already
   // live, each in its own look with only the model's flag added.)
@@ -1537,10 +1545,13 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
       'netballBib': '#27282a',
     },
   };
+  // (POCKETPOLO 2026-11-26, user approved: no Blades print; solid side panels with a royal-blue blade, as the website.)
   looks['bladesSidesWomenSinglet'] = {
     ...looks['bladesSides']!,
+    'pattern': 'None',
     'zoneColors': <String, String>{
       'womenSinglet': '#27282a',
+      'sideBlade': '#1c58c8',
     },
   };
   looks['tennisDress'] = {
@@ -1700,7 +1711,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       "Women's windbreaker",
       "Fitted women's windbreaker with a rib collar.",
       'Track jacket',
-      image: 'waterproof-jacket',
+      image: 'women-windbreaker',
       look: 'womenWindbreaker',
     ),
     GarmentTile(
@@ -1812,7 +1823,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       "Women's windbreaker",
       "Fitted women's windbreaker for cold match days.",
       'Track jacket',
-      image: 'waterproof-jacket',
+      image: 'women-windbreaker',
       look: 'womenWindbreaker',
     ),
     GarmentTile(
@@ -2034,6 +2045,12 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Varsity jacket',
       'Letterman jacket for the club.',
       'Varsity jacket',
+    ),
+    GarmentTile(
+      'Hooded varsity jacket',
+      'Letterman jacket with a hood.',
+      'Varsity jacket',
+      look: 'varsityHoodie',
     ),
     GarmentTile(
       'Puffer jacket',
@@ -2271,7 +2288,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       "Women's windbreaker",
       "Fitted women's windbreaker for game days.",
       'Track jacket',
-      image: 'waterproof-jacket',
+      image: 'women-windbreaker',
       look: 'womenWindbreaker',
     ),
     GarmentTile(
@@ -2430,7 +2447,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Raglan tee',
       'Raglan tee with contrast sleeves for race days.',
       'Training Tee',
-      image: 'tee',
+      image: 'raglan-tee',
       look: 'raglanTee',
     ),
     GarmentTile(
@@ -2906,7 +2923,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Raglan tee',
       'Raglan tee with contrast sleeves.',
       'Training Tee',
-      image: 'tee',
+      image: 'raglan-tee',
       look: 'raglanTee',
     ),
     GarmentTile(
@@ -3136,7 +3153,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Raglan tee',
       'Raglan tee with contrast sleeves for the gym.',
       'Training Tee',
-      image: 'tee',
+      image: 'raglan-tee',
       look: 'raglanTee',
     ),
     GarmentTile(
@@ -3252,7 +3269,7 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Raglan tee',
       'Raglan tee with contrast sleeves for the clubhouse.',
       'Training Tee',
-      image: 'tee',
+      image: 'raglan-tee',
       look: 'raglanTee',
     ),
     GarmentTile(

@@ -1,5 +1,5 @@
 {
-  "about": "Pullover hoodie (hoodie-textured.glb, HOODIE 2026-11-19): coloured from the same garment split into 21 parts by Tripo (hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made hoodie's sleeves (a design picture's sleeves land there); the hood one plain colour (Hood colour, else Main), its lining (the cloth facing into the hood) the Lining colour, else Secondary; the cuffs and waistband rib (Rib colour, else Main), each one even band from its opening's fold; the kangaroo pocket its own colour where it has one (else the print); the cords the Cord colour, else the rib's. Stitch lines beside the raglan seams, the hood seam, round the pocket and above each rib band.",
+  "about": "Pullover hoodie (hoodie-textured.glb, HOODIE 2026-11-19): coloured from the same garment split into 21 parts by Tripo (hoodie-parts.glb) by viewer/tripo-hoodie.mjs: the body the print; the raglan sleeves the Left / Right sleeve areas (else the print), their print places on the made hoodie's sleeves (a design picture's sleeves land there); the hood one plain colour (Hood colour, else Main), its lining (the cloth facing into the hood) the Lining colour, else Secondary; the cuffs and waistband rib (Rib colour, else Main), each one even band from its opening's fold; the kangaroo pocket its own colour where it has one (else the print); the cords the Cord colour, else the rib's. Stitch lines beside the raglan seams, the hood seam, round the pocket and above each rib band. (CLIENTOPS 2026-11-26, items 164/175: the lining parts go with the hood, one clean colour; the lining part border spilled over the rim and a fold-over band came out ragged.)",
   "hoodieParts": {
     "glb": "../../../tripo/hoodie-parts.glb",
     "roles": {
@@ -7,14 +7,14 @@
       "tripo_part_1": "hem",
       "tripo_part_11": "sleeveR",
       "tripo_part_13": "sleeveL",
-      "tripo_part_14": "lining",
+      "tripo_part_14": "hood",
       "tripo_part_15": "cuffR",
       "tripo_part_16": "cuffL",
       "tripo_part_18": "cuffR",
       "tripo_part_19": "cord",
       "tripo_part_20": "hem",
       "tripo_part_21": "pocket",
-      "tripo_part_22": "lining",
+      "tripo_part_22": "hood",
       "tripo_part_24": "hood",
       "tripo_part_25": "hem",
       "tripo_part_26": "hem",
@@ -22,7 +22,7 @@
       "tripo_part_28": "hem",
       "tripo_part_29": "hem",
       "tripo_part_4": "hood",
-      "tripo_part_7": "lining",
+      "tripo_part_7": "hood",
       "tripo_part_9": "pocket"
     },
     "split": [
@@ -33,20 +33,12 @@
       }
     ],
     "order": [
-      "lining",
       "hood",
       "sleeveL",
       "sleeveR",
       "pocket"
     ],
     "regions": {
-      "lining": {
-        "roles": [
-          "lining"
-        ],
-        "key": "plain:zone:lining|secondary",
-        "own": true
-      },
       "hood": {
         "roles": [
           "hood"
@@ -107,8 +99,7 @@
       "cord": "plain:zone:cord|zone:rib|main"
     },
     "plainKeys": [
-      "plain:zone:hood|print",
-      "plain:zone:lining|secondary"
+      "plain:zone:hood|print"
     ],
     "sleeveMap": {
       "sleeveL": {
@@ -193,7 +184,6 @@
     },
     "form": [
       "hood",
-      "lining",
       "cord"
     ],
     "sigma": 0.015,

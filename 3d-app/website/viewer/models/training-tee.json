@@ -1,11 +1,13 @@
 {
-  "about": "Training tees (every tee tile without another model flag; WIDE: old saved tee designs open on it too): Tripo model training-tee2-textured.glb (card 112791; MODELQ8 2026-11-25: replaces the first tee model, which the client said did not look like a T-shirt; its files and look are gone), its shape only, coloured from training-tee2-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/training-tee.json). Look from the card (the tee tiles' look, trainingTee): light blue body, yellow neck band and cuffs; our 3DEEZI marks only. Round neck (the V-neck choice: next round).",
+  "about": "Training tees (every tee tile without another model flag; WIDE: old saved tee designs open on it too): Tripo model training-tee2-textured.glb (card 112791; MODELQ8 2026-11-25: replaces the first tee model, which the client said did not look like a T-shirt; its files and look are gone), its shape only, coloured from training-tee2-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/training-tee.json). Look from the card (the tee tiles' look, trainingTee): light blue body, yellow neck band and cuffs; our 3DEEZI marks only. Round neck, and the V-neck choice: our V cut in it with our band in the trim colour (MODELQ8 2026-11-26).v: its point 10 cm under the made tee's neck point, as the made tee's V) with our band in the collar / trim colour. (Item 190, MODELQ8 2026-11-25: the 3 crest a full chest-crest size, level with the wordmark.)",
   "glb": "../../../tripo/training-tee2-textured.glb",
   "converter": "top",
   "part": "tee",
   "flag": "trainingTee",
   "ownNeck": "round",
-  "necks": {},
+  "necks": {
+    "v": { "depth": 0.11, "width": 0.012 }
+  },
   "tiles": [],
   "pictures": [],
   "convert": {
@@ -33,9 +35,9 @@
         "scale": 0.45
       },
       "top_crest": {
-        "x": -0.09,
+        "x": -0.1,
         "y": 0.6,
-        "scale": 0.3
+        "scale": 0.75
       },
       "top_number": {
         "hidden": true

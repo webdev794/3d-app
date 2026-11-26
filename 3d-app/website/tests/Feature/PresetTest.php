@@ -48,6 +48,28 @@ class PresetTest extends TestCase
         }
     }
 
+    /** PRESETS2 2026-11-24: Netball 01-18 on the netball dress (sport netball), Polo 01-06 on the polo (no sport). */
+    public function test_the_netball_and_polo_presets_are_design_pictures(): void
+    {
+        $all = $this->getJson('/api/v1/presets')->assertOk()->json('data');
+        $nb = array_values(array_filter($all, fn ($p) => str_starts_with($p['id'], 'netball-')));
+        $po = array_values(array_filter($all, fn ($p) => preg_match('/^polo-\d\d$/', $p['id'])));
+        $this->assertSame(array_map(fn ($n) => sprintf('Netball %02d', $n), range(1, 18)), array_column($nb, 'name'));
+        $this->assertSame(array_map(fn ($n) => sprintf('Polo %02d', $n), range(1, 6)), array_column($po, 'name'));
+        foreach ([...$nb, ...$po] as $p) {
+            $netball = str_starts_with($p['id'], 'netball-');
+            $this->assertSame($netball ? 'netball' : null, $p['sport']);
+            $this->assertSame($netball ? 'netball-dress' : 'polo', $p['garment']);
+            $this->assertSame('drawing', $p['design']['layout']['kind']);
+            $this->assertSame('preset:'.$p['id'], $p['design']['layout']['asset']);
+            $this->assertFileExists(public_path('media/presets/drawings/'.$p['id'].'.jpg'));
+            $this->assertFileExists(public_path('media/presets/'.$p['id'].'.webp'));
+        }
+        Sanctum::actingAs(User::factory()->create());
+        $project = ['name' => 'NB', 'sport' => 'netball', 'garment' => 'netball-dress', 'mode' => 'dyo', 'status' => 'draft', 'design' => $nb[0]['design'] + ['logoText' => '3DEEZI']];
+        $this->postJson('/api/v1/projects', $project)->assertCreated()->assertJsonPath('data.design.layout.asset', 'preset:netball-01');
+    }
+
     public function test_the_file_is_the_fallback_while_the_table_is_empty(): void
     {
         Preset::query()->delete();

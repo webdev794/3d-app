@@ -102,9 +102,57 @@ vm.runInNewContext(fs.readFileSync(file, 'utf8'), ctx);
 const D = ctx.window.TRIPO_MESHES[name], keys = [...(D.partKeys ?? [])];
 // (fromParts: each piece, the cloth's and the model's own separate pieces (S.ownReg), takes the key of most of its triangles'
 // parts; a piece mostly cloth shows the print.)
+// (`pieces.perTri`: [part keys] (FIXER6 2026-11-26, the swim shorts' drawcord): a 3D part joined to the cloth (a cord tied on
+// the waistband) is drawn per triangle in its key's plain colour, exactly on the model's own regions, as the parts step found
+// it; its triangles take no part in the pieces' votes, so the cloth round it keeps the colour of its own piece. Off unless set.)
+// (A cloth triangle with all three corners on such a part (a thin strip along the cord, given to the cloth under it when the
+// parts were found) is drawn as that part too.)
+const perTriKeys = new Set(settings.perTri ?? []), perTriOf = new Int16Array(triPartIn && perTriKeys.size ? A.T : 0);
+if (perTriOf.length) {
+  const isKey = (t) => t < triPartIn.length && triPartIn[t] > 0 && perTriKeys.has(D.partKeys?.[triPartIn[t] - 1]), at = new Map();
+  for (let t = 0; t < A.T; t++) if (isKey(t)) { perTriOf[t] = triPartIn[t]; for (let k = 0; k < 3; k++) at.set(A.F[t * 3 + k], triPartIn[t]); }
+  let caps = 0;
+  for (let pass = 0; pass < 3; pass++) {
+  for (let t = 0; t < A.T; t++) if (!perTriOf[t] && t < triPartIn.length && triPartIn[t] === 0) { const c = [0, 1, 2].map((k) => at.get(A.F[t * 3 + k])); if (c[0] && c[0] === c[1] && c[1] === c[2]) perTriOf[t] = c[0]; }
+  // (and a cap closing the part's end (a cord's tip): a point off the part whose triangles all reach the part with both other corners)
+  const fan = new Map();
+  for (let t = 0; t < A.T; t++) if (!perTriOf[t] && t < triPartIn.length && triPartIn[t] === 0) for (let k = 0; k < 3; k++) { const v = A.F[t * 3 + k]; if (!at.has(v)) (fan.get(v) ?? fan.set(v, []).get(v)).push(t); }
+  const allOf = new Map(); for (let t = 0; t < A.T; t++) for (let k = 0; k < 3; k++) { const v = A.F[t * 3 + k]; if (fan.has(v)) allOf.set(v, (allOf.get(v) ?? 0) + 1); }
+  for (const [v, ts] of fan) {
+    if (ts.length < 3 || allOf.get(v) !== ts.length) continue;
+    const ks = ts.map((t) => { const o = [0, 1, 2].map((k) => A.F[t * 3 + k]).filter((u) => u !== v).map((u) => at.get(u)); return o.length === 2 && o[0] && o[0] === o[1] ? o[0] : 0; });
+    if (ks.every((x) => x && x === ks[0])) { for (const t of ts) perTriOf[t] = ks[0]; at.set(v, ks[0]); caps++; }
+  }
+  }
+  // (`perTriGrow` { near, nz }: the part's own underside, joined to the cloth without a crease (a cord's loop lying on the
+  // waistband): grown from the part over the cloth triangles beside it that do not face straight out (|normal z| < nz) and lie
+  // within `near` metres of the part's own points.)
+  let grown = 0;
+  if (settings.perTriGrow) {
+    const { near = 0.006, nz = 0.75, nearAll = 0 } = settings.perTriGrow, G2 = 0.01, pg = new Map(), gk2 = (p) => p.map((c) => Math.floor(c / G2)).join(',');
+    for (const v of at.keys()) { const p = [A.P[v * 3], A.P[v * 3 + 1], A.P[v * 3 + 2]], k = gk2(p); (pg.get(k) ?? pg.set(k, []).get(k)).push(p); }
+    const close = (p, r = near) => { const [x, y, z] = p.map((c) => Math.floor(c / G2)); for (let a2 = -1; a2 <= 1; a2++) for (let b2 = -1; b2 <= 1; b2++) for (let c2 = -1; c2 <= 1; c2++) for (const q of pg.get(`${x + a2},${y + b2},${z + c2}`) ?? []) if (Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2]) < r) return true; return false; };
+    for (let changed = true; changed;) {
+      changed = false;
+      for (let t = 0; t < A.T; t++) {
+        if (perTriOf[t] || t >= triPartIn.length || (triPartIn[t] > 0 && perTriKeys.has(D.partKeys?.[triPartIn[t] - 1]))) continue;
+        const c = [0, 1, 2].map((k) => at.get(A.F[t * 3 + k])).filter(Boolean); if (c.length < 2 || c[0] !== c[1]) continue;
+        const pts = [0, 1, 2].map((k) => [A.P[A.F[t * 3 + k] * 3], A.P[A.F[t * 3 + k] * 3 + 1], A.P[A.F[t * 3 + k] * 3 + 2]]);
+        // (a thin strip along the part: every corner within `nearAll` of the part's own points, whichever way it faces)
+        if (!(nearAll > 0 && pts.every((p) => close(p, nearAll)))) {
+          if (Math.abs(A.FN[t * 3 + 2]) >= nz) continue;
+          if (!pts.every((p) => close(p))) continue;
+        }
+        perTriOf[t] = c[0]; for (let k = 0; k < 3; k++) at.set(A.F[t * 3 + k], c[0]); grown++; changed = true;
+      }
+    }
+  }
+  console.log(`[${name}] perTri: ${perTriOf.filter(Boolean).length} triangles (${caps} end caps, ${grown} grown)`);
+}
+const perTri = (t) => t < perTriOf.length && perTriOf[t] > 0;
 if (triPartIn) {
   const votes = new Map(), regOf = (v) => (S.ownReg[v] >= 0 ? S.ownReg[v] : S.reg[v]);
-  for (let t = 0; t < A.T; t++) { const r = regOf(A.F[t * 3]); if (r < 0 || regOf(A.F[t * 3 + 1]) !== r || regOf(A.F[t * 3 + 2]) !== r) continue; const m = votes.get(r) ?? votes.set(r, new Map()).get(r); m.set(triPartIn[t], (m.get(triPartIn[t]) ?? 0) + 1); }
+  for (let t = 0; t < A.T; t++) { const r = regOf(A.F[t * 3]); if (r < 0 || regOf(A.F[t * 3 + 1]) !== r || regOf(A.F[t * 3 + 2]) !== r || perTri(t)) continue; const m = votes.get(r) ?? votes.set(r, new Map()).get(r); m.set(triPartIn[t], (m.get(triPartIn[t]) ?? 0) + 1); }
   for (const [r, m] of votes) { const [p, c] = [...m].sort((x, y) => y[1] - x[1])[0], all = [...m.values()].reduce((s2, x) => s2 + x, 0); if (p > 0 && c > all / 2 && D.partKeys?.[p - 1]) regKey[r] = D.partKeys[p - 1]; }
 }
 // (`pieces.seeds`: [{ at: [x, y, z], key }]: the piece holding the model point nearest `at` (the cloth's, or one of the model's own
@@ -231,6 +279,7 @@ for (let t = 0; t < IDX.length / 3; t++) {
     // (fromParts: a triangle of the model's own separate band (a hem band) keeps its band's own key: drawn in that plain colour
     // all over, crisp, as the per-triangle parts were; not as a lip.)
     if (ownTri.has(t)) { tp[t] = idxOf(ownTri.get(t)); if (lip) lips--; }
+    if (perTri(t)) { const k = keys.indexOf(D.partKeys[perTriOf[t] - 1]); if (k >= 0) { tp[t] = k + 1; if (lip) lips--; } }
   }
   D.triPart = Buffer.from(tp).toString('base64');
   console.log(`[${name}] lips (both faces printed): ${lips} triangles`);

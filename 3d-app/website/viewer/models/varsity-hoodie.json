@@ -1,0 +1,52 @@
+{
+  "about": "Jackets > Hooded varsity jacket (new tile after Varsity jacket; MODELQ8 2026-11-25, coordinator; card 134966): Tripo model varsity-hoodie-textured.glb (shape only), placed on the made varsity jacket and printed through its pattern, coloured from varsity-hoodie-parts.glb by viewer/tripo-hoodie.mjs (viewer/parts/varsity-hoodie.json): body the print, sleeves the Sleeves colour (else Secondary), the hood (outside) the Hood colour (else Body, else Main) and its lining plain (Lining, else Main: black), the hem band and cuffs the Rib colour (else Main), the pocket welts as the body (their trim edges came out ragged). Look as the varsity jacket (black body, gold sleeves), the varsity's Material choice (wool + leather, cotton, polyester) as on the varsity. Our marks only. First version (models live first). The club arched across the back sits lower (y 0.53), clear of the hood.",
+  "glb": "../../../tripo/varsity-hoodie-textured.glb",
+  "converter": "top",
+  "part": "varsity",
+  "flag": "varsityHoodie",
+  "ownNeck": "hood",
+  "necks": {},
+  "tiles": [],
+  "pictures": [],
+  "convert": {
+    "made": "varsity",
+    "creaseDeg": 25,
+    "top": 0.92
+  },
+  "look": {
+    "main": "#1d1d1e",
+    "secondary": "#d9a704",
+    "accent": "#1d1d1e",
+    "patternColor": "#d9a704",
+    "number": "23",
+    "zoneColors": {
+      "body": "#1d1d1e",
+      "sleeves": "#d9a704",
+      "rib": "#1d1d1e",
+      "ribStripe": "#d9a704",
+      "snaps": "#1d1d1e",
+      "pocketTrim": "#d9a704",
+      "varsityHoodie": "#ffffff",
+      "hood": "#1d1d1e",
+      "lining": "#1d1d1e"
+    },
+    "marks": {
+      "top_wordmark": {
+        "side": "back",
+        "x": 0,
+        "y": 0.53
+      }
+    },
+    "layers": []
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ180D70Y700P60"
+    ]
+  }
+}

@@ -15,7 +15,9 @@
     "align": "back",
     "tilt": 19,
     "smooth": 10,
-    "innerRay": true
+    "innerRay": true,
+    "seamSnap": { "yFrom": 0.1, "yTo": 0.24 },
+    "halfPlane": { "z": 0, "from": 0.1 }
   },
   "look": {
     "main": "#f2c418",

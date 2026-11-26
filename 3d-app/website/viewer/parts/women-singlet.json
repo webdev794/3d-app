@@ -48,6 +48,7 @@
     "data": {
       "insideCloth": true
     },
-    "cuffWidth": 0.01
+    "cuffWidth": 0.01,
+    "evenRadial": 0.006
   }
 }

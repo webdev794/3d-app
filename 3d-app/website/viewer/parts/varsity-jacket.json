@@ -1,5 +1,5 @@
 {
-  "about": "Varsity jacket (varsity-jacket-textured.glb) coloured from varsity-jacket-parts.glb (9 parts) by viewer/tripo-hoodie.mjs: body 7, placket 41 and the small back piece 33 the print (the made varsity pattern), sleeves 2 the Sleeves colour (a smooth region), rib collar 10 (a smooth region) and the cuffs 8 + cuff ends 30/31 the Rib colour, the waistband (part of the body piece) a rib ring 5 cm from the hem fold, welt pocket trims 18 the Pocket trim colour. CLIENTOPS 2026-11-23.",
+  "about": "Varsity jacket (varsity-jacket-textured.glb) coloured from varsity-jacket-parts.glb (9 parts) by viewer/tripo-hoodie.mjs: body 7, placket 41 and the small back piece 33 the print (the made varsity pattern), sleeves 2 the Sleeves colour (a smooth region), rib collar 10 (a smooth region) and the cuffs 8 + cuff ends 30/31 the Rib colour, the waistband (part of the body piece) a rib ring 5 cm from the hem fold, welt pocket trims 18 the Pocket trim colour. CLIENTOPS 2026-11-23. MODELQ7 2026-11-25 (item 159): no insideCloth: the inside (lining seen through the open front) drawn in one plain inside colour, not the print. Item 159 (720): our own snap buttons down the front, one per snap of part 41 (snapsFrom), in the Snaps colour (else Secondary).",
   "hoodieParts": {
     "glb": "../../../tripo/varsity-jacket-parts.glb",
     "roles": {
@@ -14,25 +14,24 @@
       "tripo_part_18": "welt"
     },
     "plain": {
-      "rib": "plain:zone:rib|main",
-      "welt": "plain:zone:pocketTrim|zone:sleeves|secondary"
+      "rib": "plain:zone:rib|main"
     },
     "plainKeys": [
       "plain:zone:collar|zone:rib|main",
       "plain:zone:rib|main",
-      "plain:zone:sleeves|secondary"
+      "plain:zone:sleeves|secondary",
+      "plain:zone:pocketTrim|zone:sleeves|secondary"
     ],
     "sigma": 0.015,
     "reach": 0.03,
     "far": 0.03,
     "island": 60,
     "speck": 8,
-    "data": {
-      "insideCloth": true
-    },
+    "data": {},
     "order": [
       "collar",
-      "sleeve"
+      "sleeve",
+      "welt"
     ],
     "regions": {
       "collar": {
@@ -46,6 +45,13 @@
           "sleeve"
         ],
         "key": "plain:zone:sleeves|secondary"
+      },
+      "welt": {
+        "roles": [
+          "welt"
+        ],
+        "key": "plain:zone:pocketTrim|zone:sleeves|secondary",
+        "steps": 20
       }
     },
     "rings": {
@@ -54,6 +60,10 @@
         "dir": "down",
         "width": 0.05
       }
+    },
+    "snapsFrom": {
+      "part": "tripo_part_41",
+      "oneRow": true
     }
   }
 }

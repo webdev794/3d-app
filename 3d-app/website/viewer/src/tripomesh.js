@@ -114,7 +114,8 @@ function vOf(name, neck) {
   if (own) {
     if (!window.TRIPO_MESHES?.[name]) return null;
     const tip = tripoTip(decode(name), 0.738 - own.depth);
-    return tip == null ? null : { width: own.width ?? 0.011, roll: 0.0014, lift: 0.0009, trims: false, tip, key: neck };
+    // (A model split into pieces (the tee, tripo-hoodie.mjs): its pieces carried onto the cut shape, as the netball bib's.)
+    return tip == null ? null : { width: own.width ?? 0.011, roll: 0.0014, lift: 0.0009, trims: false, tip, key: neck, ...(own.endOff != null ? { endOff: own.endOff } : {}), ...(decode(name).data.piece ? { pieces: true } : {}) };
   }
   if (name === 'netball-dress') return neck === 'v' || neck === 'shallow' ? DRESS_V : null;
   // (The soccer jersey, SCJERSEY: its V-neck is its own V; its round neck and shallow V are filled in: fillNeck.)
@@ -355,7 +356,11 @@ function cutNeck(name, V = DRESS_V) {
       cshade.push(topShade * (b < -roll ? 0.8 : 1));
     });
   });
+  // (A model split into pieces (the tee): the band's last 8 mm at each end left off; there it would run on past the model's
+  // own round band and stand off it (MODELQ8 2026-11-26). It ends on that band, which covers the place.)
+  const endOff = V.pieces && !V.wrap ? V.endOff ?? 0.008 : 0;
   for (let i = 0; i + 1 < path.length; i++) for (let r = 0; r + 1 < R; r++) {
+    if (endOff && (along[i] < endOff || along.at(-1) - along[i + 1] < endOff)) continue;
     const a = i * R + r, c = a + R;
     cidx.push(a, c, a + 1, a + 1, c, c + 1);
   }
@@ -478,7 +483,22 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // (A model with both print places by its sleeves' seams (data flatB / flatS, RUGBYJ altUv): the body's place of every point
   // carried as `uvBody` (main.js prints the body's fragments from it) and a triangle across a sleeve's seam given the sleeve's
   // place as its uv, so each side of the seam prints from its own place: a straight seam under a design picture.)
-  const alt = M === decoded.get(name) && M.data.flatB && M.data.flatS ? { fB: new Int16Array(bytes(M.data.flatB)), sB: new Uint8Array(bytes(M.data.sideB)), fS: new Int16Array(bytes(M.data.flatS)), sS: new Uint8Array(bytes(M.data.sideS)) } : null;
+  // (A neck cut on such a model (the tee's V, cutNeck V.pieces, MODELQ8 2026-11-26): the cut shape's new points given the
+  // places of their edge's two ends (between them; the side of the nearer end), so its body still prints its marks.)
+  const altCut = !!M.srcTri && M.data === decoded.get(name)?.data;
+  const alt = (M === decoded.get(name) || altCut) && M.data.flatB && M.data.flatS ? ((a) => {
+    if (!altCut) return a;
+    const o = { fB: new Int16Array(n * 2), sB: new Uint8Array(n), fS: new Int16Array(n * 2), sS: new Uint8Array(n) };
+    for (const k of ['fB', 'sB', 'fS', 'sS']) o[k].set(a[k].subarray(0, M.n0 * (k[0] === 'f' ? 2 : 1)));
+    M.srcPt.forEach(([p, q, t], j) => {
+      const i = M.n0 + j, e = t < 0.5 ? p : q;
+      for (const [f, s] of [['fB', 'sB'], ['fS', 'sS']]) {
+        o[s][i] = a[s][e];
+        for (let c = 0; c < 2; c++) o[f][i * 2 + c] = a[s][p] === a[s][q] ? Math.round(a[f][p * 2 + c] + (a[f][q * 2 + c] - a[f][p * 2 + c]) * t) : a[f][e * 2 + c];
+      }
+    });
+    return o;
+  })({ fB: new Int16Array(bytes(M.data.flatB)), sB: new Uint8Array(bytes(M.data.sideB)), fS: new Int16Array(bytes(M.data.flatS)), sS: new Uint8Array(bytes(M.data.sideS)) }) : null;
   const uvAt = (fx, fy, half) => [half ? 0.5 + (0.5 * (maxX - fx)) / span : (0.5 * (fx - minX)) / span, (fy - minY) / span];
   const uvBOf = (i, half = alt.sB[i] & 1) => uvAt(alt.fB[i * 2] * M.data.flatUnit, alt.fB[i * 2 + 1] * M.data.flatUnit, half);
   const uvSOf = (i, half = alt.sS[i] & 1) => uvAt(alt.fS[i * 2] * M.data.flatUnit, alt.fS[i * 2 + 1] * M.data.flatUnit, half);
@@ -657,7 +677,16 @@ export function tripoShape(name, frame, neck = null, { dropBand = false } = {}) 
   // (How far out the neck band reaches, for its tips: texture.js.)
   let bandReach = 0;
   if (band && M.across) for (let i = 0; i < n; i++) if (band[i] === 1) bandReach = Math.max(bandReach, Math.abs(M.pos[i * 3]));
-  return { geometry, points, side, data: M.data, layout: layoutOf(M.data), vEdge: cut?.vEdge ?? R?.vEdge ?? null, neckRim: R?.neckRim ?? null, insideGroup: !!insideGroup, partKeys: partGroups || PC ? M.data.partKeys ?? [] : null, pieces: !!PC, collar: cut ? collarGeometry(cut.collar, frame, SW, !!M.across) : R ? collarGeometry(R.collar, frame, SW) : null, bandReach, filled: !!fill };
+  const collar = cut ? collarGeometry(cut.collar, frame, SW, !!M.across) : R ? collarGeometry(R.collar, frame, SW) : null;
+  // (Our V band on a model split into pieces (the tee, MODELQ8 2026-11-26): drawn as the model's own collar piece, so it is
+  // in the collar's colour (the trim colour) as the dress's V band; its body print place its own (uvBody).)
+  const collarKey = PC && collar ? (M.data.partKeys ?? []).indexOf('collar') + 1 : 0;
+  if (collarKey) {
+    const m = collar.getAttribute('position').count;
+    collar.setAttribute('piece', new THREE.BufferAttribute(Float32Array.from({ length: m * 3 }, (_, k) => (k % 3 === 2 ? 0 : collarKey)), 3));
+    if (UB) collar.setAttribute('uvBody', new THREE.BufferAttribute(collar.getAttribute('uv').array.slice(), 2));
+  }
+  return { geometry, points, side, data: M.data, layout: layoutOf(M.data), vEdge: cut?.vEdge ?? R?.vEdge ?? null, neckRim: R?.neckRim ?? null, insideGroup: !!insideGroup, partKeys: partGroups || PC ? M.data.partKeys ?? [] : null, pieces: !!PC, collar, bandReach, filled: !!fill };
 }
 
 /**
@@ -1096,6 +1125,8 @@ export function tripoNeckOutline(name, neck) {
 
 /** Our V-neck binding (cutNeck's `collar`) as a shape printed in the neck binding's colour (its swatch, BAND_SWATCH). */
 function collarGeometry(C, { minX, minY, span }, swatch = BAND_SWATCH, strip = false) {
+  // (A model with no swatch of its own (an empty list: the tee): BAND_SWATCH, as when it has none.)
+  if (!swatch?.[0]) swatch = BAND_SWATCH;
   const n = C.pos.length / 3, [x, y] = swatch[0], uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
   // (`strip`: printed from the swatch's strip as the model's own band (bandAt), across ours from its foot (row 0) up its face
   // (the first 6 rows of each place along it: cutNeck) to its rolled top (1) and over.)

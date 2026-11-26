@@ -306,6 +306,10 @@ function addRelief(target, painter) {
   const altUv = pieced && !!painter.model?.altUv;
   // (A collar style laid on the model (modelcollars.js, RUGBYJ): the model's own collar pieces and the cloth inside a V not drawn.)
   const mcHide = pieced && painter.model?.collarHide ? painter.model.collarHide : null, mcV = mcHide?.v;
+  // (An area drawn per pixel from the model's shape (data `slab`, RUGBYJ 2026-11-25, the polo's side panels: the model's big
+  // side triangles could not carry a narrow area's two edges): |z - zmid| < hw below `top` and out from |x| > minX, in its
+  // key's colour as a piece's (weight 2 all over, 1 where the print shows the Main), its edges one pixel antialiased.)
+  const slab = pieced && painter.model?.slab ? painter.model.slab : null;
   // (A model whose data asks for it (`narrowEdge`, RUGBYJ 2026-11-18: the rugby jersey's folded sleeve openings showed specks of
   // the edge light): the edge light only right at the outline, as the Football jersey's; RUGBYJ 2026-11-19, QATEST -365: still
   // pale dots along the openings' folded rims, so none at all on it.)
@@ -313,8 +317,11 @@ function addRelief(target, painter) {
   // (A model's cloth wound inward (tripomesh.js innerOf: facings, the collar's inside, hems and cuffs turned up) drawn in the
   // inside's colour (uniform insidePlain, paintAll), never the print mirrored; a part's own colour kept; no edge light.)
   const innerPlain = !!painter.innerPlain;
+  // (A model whose data asks for it (`backPlain`, RUGBYJ 2026-11-26, item 189: the sports bra's cup seen through the racerback
+  // showed the chest mark and patches): its inside faces plain in the inside's colour too, never the print seen from behind.)
+  const backPlain = innerPlain && !!painter.model?.backPlain;
   if (innerPlain) target.userData.insidePlain ??= { value: new THREE.Color(0.5, 0.5, 0.5) };
-  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '') + (insideCloth ? '-insidecloth' : '') + (narrowEdge ? '-narrowedge' : '') + (altUv ? '-altuv' : '') + (innerPlain ? '-inner' : '') + (mcHide ? `-mc${mcHide.keys.join('_')}${mcV ? `v${mcV.apexY.toFixed(4)}_${mcV.slope.toFixed(4)}` : ''}` : '');
+  target.customProgramCacheKey = () => (LOOK2 ? 'sewing-relief-2' : 'sewing-relief') + (skirtLight ? '-skirt' : '') + (Q ? '-edge' : '') + (dress ? '-dress' : '') + (bball ? '-bball' : '') + (matte ? '-matte' : '') + (keyed ? '-parts' : '') + (pieced ? `-pieces${lipKey}` : '') + (insideCloth ? '-insidecloth' : '') + (narrowEdge ? '-narrowedge' : '') + (altUv ? '-altuv' : '') + (backPlain ? '-backplain' : '') + (innerPlain ? '-inner' : '') + (slab ? `-slab${JSON.stringify(slab).replace(/[^0-9a-z.,-]/gi, '')}` : '') + (mcHide ? `-mc${mcHide.keys.join('_')}${mcV ? `v${mcV.apexY.toFixed(4)}_${mcV.slope.toFixed(4)}` : ''}` : '');
   target.onBeforeCompile = (shader) => {
     if (innerPlain) {
       shader.uniforms.insidePlain = target.userData.insidePlain;
@@ -338,10 +345,10 @@ function addRelief(target, painter) {
         .replace('#include <normal_fragment_begin>', '#include <normal_fragment_begin>\n\tif ( pieceLip && dot( normal, vViewPosition ) < 0.0 ) normal = - normal;');
       shader.uniforms.pieceMain = target.userData.pieceMain;
       shader.vertexShader = shader.vertexShader
-        .replace('#include <common>', `#include <common>\nattribute vec3 piece;\nvarying vec3 vPiece;${mcHide ? '\nvarying vec3 vMcPos;' : ''}${altUv ? '\nattribute vec2 uvBody;\nvarying vec2 vUvBody;' : ''}`)
-        .replace('#include <begin_vertex>', `#include <begin_vertex>\n\tvPiece = piece;${mcHide ? '\n\tvMcPos = position;' : ''}${altUv ? '\n\t#ifdef USE_MAP\n\tvUvBody = ( mapTransform * vec3( uvBody, 1 ) ).xy;\n\t#endif' : ''}`);
+        .replace('#include <common>', `#include <common>\nattribute vec3 piece;\nvarying vec3 vPiece;${mcHide ? '\nvarying vec3 vMcPos;' : ''}${slab ? '\nvarying vec3 vSlabPos;' : ''}${altUv ? '\nattribute vec2 uvBody;\nvarying vec2 vUvBody;' : ''}`)
+        .replace('#include <begin_vertex>', `#include <begin_vertex>\n\tvPiece = piece;${mcHide ? '\n\tvMcPos = position;' : ''}${slab ? '\n\tvSlabPos = position;' : ''}${altUv ? '\n\t#ifdef USE_MAP\n\tvUvBody = ( mapTransform * vec3( uvBody, 1 ) ).xy;\n\t#endif' : ''}`);
       shader.fragmentShader = shader.fragmentShader
-        .replace('#include <common>', `#include <common>\nvarying vec3 vPiece;\nuniform vec3 pieceMain;${mcHide ? '\nvarying vec3 vMcPos;' : ''}${altUv ? '\nvarying vec2 vUvBody;' : ''}`)
+        .replace('#include <common>', `#include <common>\nvarying vec3 vPiece;\nuniform vec3 pieceMain;${mcHide ? '\nvarying vec3 vMcPos;' : ''}${slab ? '\nvarying vec3 vSlabPos;' : ''}${altUv ? '\nvarying vec2 vUvBody;' : ''}`)
         .replace('#include <map_fragment>', `#include <map_fragment>
 	int pieceA = int( vPiece.x + 0.5 ) - 1, pieceB = int( vPiece.y + 0.5 ) - 1;
 	float pieceSide = pieceA == pieceB ? 1.0 : clamp( 0.5 + vPiece.z / max( fwidth( vPiece.z ), 1e-4 ), 0.0, 1.0 );${altUv ? '\n#ifdef USE_MAP\n\tif ( ( pieceSide >= 0.5 ? pieceA : pieceB ) < 0 ) diffuseColor = vec4( diffuse, opacity ) * texture2D( map, vUvBody );\n#endif' : ''}${mcHide ? `
@@ -353,13 +360,19 @@ function addRelief(target, painter) {
 	vec3 pieceRep = ( pieceTA.rgb * pieceFA * pieceSide + pieceTB.rgb * pieceFB * ( 1.0 - pieceSide ) ) / max( pieceF, 1e-3 );
 	float pieceFull = mix( step( 1.5, pieceTB.w ), step( 1.5, pieceTA.w ), pieceSide );
 	float pieceW = pieceF * max( pieceFull, 1.0 - smoothstep( 0.05, 0.16, distance( diffuseColor.rgb, pieceMain ) ) );
-	diffuseColor.rgb = mix( diffuseColor.rgb, pieceRep, pieceW );`)
+	diffuseColor.rgb = mix( diffuseColor.rgb, pieceRep, pieceW );${slab ? `
+${slab.plane ? `	float slabP = dot( vSlabPos, vec3( ${slab.plane.slice(0, 3).map((v) => (+v).toFixed(4)).join(', ')} ) ) - ${(+slab.plane[3]).toFixed(4)};
+	float slabIn = clamp( slabP / max( fwidth( slabP ), 1e-5 ) + 0.5, 0.0, 1.0 );` : `	float slabD = abs( vSlabPos.z - ${(+slab.zmid).toFixed(4)} );
+	float slabIn = clamp( ( ${(+slab.hw).toFixed(4)} - slabD ) / max( fwidth( slabD ), 1e-5 ) + 0.5, 0.0, 1.0 ) * clamp( ( ${(+slab.top).toFixed(4)} - vSlabPos.y ) / max( fwidth( vSlabPos.y ), 1e-5 ) + 0.5, 0.0, 1.0 ) * step( ${(+slab.minX).toFixed(4)}, abs( vSlabPos.x ) );`}
+	vec4 slabT = partTint[ ${slab.key} ];
+	float slabW = slabIn * step( 0.5, slabT.w ) * max( step( 1.5, slabT.w ), 1.0 - smoothstep( 0.05, 0.16, distance( diffuseColor.rgb, pieceMain ) ) );
+	diffuseColor.rgb = mix( diffuseColor.rgb, slabT.rgb, slabW );` : ''}`)
         .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
 #ifdef USE_EMISSIVEMAP
 	totalEmissiveRadiance = mix( totalEmissiveRadiance, emissive * pieceRep, pieceW );
 #endif`);
     }
-    if (innerPlain) shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `\tif ( vInner > 0.5${pieced ? ' && pieceW < 0.5' : ''} ) diffuseColor.rgb = insidePlain;\n#include <color_fragment>`);
+    if (innerPlain) shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `\tif ( ( vInner > 0.5${backPlain ? ' || ! gl_FrontFacing' : ''} )${pieced ? ' && pieceW < 0.5' : ''}${slab ? ' && slabW < 0.5' : ''} ) diffuseColor.rgb = insidePlain;\n#include <color_fragment>`);
     if (insideCloth) shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `if ( ! gl_FrontFacing ) outgoingLight = max( outgoingLight, diffuseColor.rgb * 0.45 );
 #include <opaque_fragment>`);
     if (skirtLight) shader.fragmentShader.replace('#include <opaque_fragment>', `${SKIRT_LIGHT}\n#include <opaque_fragment>`);
@@ -465,6 +478,23 @@ const PARTS = {
 const TRIPO_PARTS = { 'netball-dress': 'netball-dress', bballshorts: 'basketball-shorts' };
 
 const HEX6 = /^#[0-9a-f]{6}$/i;
+/** (MODELQ7 2026-11-25, item 159) Snap buttons on a model: one small domed stud per entry [x, y, z, nx, ny, nz] (metres, the
+ *  part's own space), facing out along the normal, 13 mm across, standing 2.5 mm proud. One instanced mesh, never picked. */
+function snapButtons(list) {
+  const n = list.length / 6, geo = new THREE.SphereGeometry(0.0065, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+  geo.scale(1, 0.38, 1);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xc9ccd1, metalness: 0.55, roughness: 0.35 });
+  const mesh = new THREE.InstancedMesh(geo, mat, n), up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion(), m = new THREE.Matrix4();
+  for (let i = 0; i < n; i++) {
+    const p = new THREE.Vector3(list[i * 6], list[i * 6 + 1], list[i * 6 + 2]), nn = new THREE.Vector3(list[i * 6 + 3], list[i * 6 + 4], list[i * 6 + 5]).normalize();
+    q.setFromUnitVectors(up, nn);
+    m.compose(p, q, new THREE.Vector3(1, 1, 1));
+    mesh.setMatrixAt(i, m);
+  }
+  mesh.userData.keep = false;
+  mesh.raycast = () => {};
+  return mesh;
+}
 // The Basketball > Basketball singlet tile (BBSINGLET 2026-11-13: its look's flag design.zoneColors.bballSinglet): the
 // singlet on its own model, basketball-singlet (its own V neck); every other singlet keeps the made one.
 // (A design picture (a garment drawing: the AI designer's, an uploaded mockup) of the garment a model is for goes on that
@@ -593,7 +623,7 @@ function paintPlains(part, design) {
     if (layout && key === 'inside') { const c = new THREE.Color(part.layoutInside ?? design.main).multiplyScalar(0.9); tint[k].set(c.r, c.g, c.b, 1); return; }
     // (HOODIE 2026-11-19: the hoodie's rib bands ('plain:zone:rib...') take the picture's band colour; its hood, lining and cords the
     // picture's own colour.)
-    const c = new THREE.Color(layout && key.startsWith('plain:') && !key.startsWith('plain:zone:rib') && part.layoutInside ? part.layoutInside : layout && (key.startsWith('plain:zone:rib') || key === 'collar' || key === 'waistband' || key === 'part:cuffs' || key === 'part:leftCuff' || key === 'part:rightCuff') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? (part.garment.cap || part.garment.hat ? plainHex(key, design) : null) ?? design.secondary);
+    const c = new THREE.Color(layout && key.startsWith('plain:') && !key.startsWith('plain:zone:rib') && part.layoutInside ? part.layoutInside : layout && (key.startsWith('plain:zone:rib') || key === 'collar' || key === 'waistband' || key === 'part:cuffs' || key === 'part:leftCuff' || key === 'part:rightCuff') && (part.layoutBand ?? part.layoutRim) ? part.layoutBand ?? part.layoutRim : colours[k] ?? (part.garment.cap || part.garment.hat || HEX6.test(design.zoneColors?.varsityHoodie ?? '') ? plainHex(key, design) : null) ?? design.secondary);
     if (key === 'inside') c.multiplyScalar(0.9);
     // (On a model split into pieces (main.js `pieced`): a band (collar, waistband) one plain colour all over (w 2); any
     // other piece takes its colour where the print shows the Main (w 1).)
@@ -899,7 +929,7 @@ function buildKit(kind) {
     // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
     // (A collar style laid on the model: its own collar (and a V's cloth) not drawn: addRelief.)
     const mcData = partKind === 'jersey' && mCollar && tripo?.data?.neckRing ? tripo.data : null;
-    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.backPlain ? { backPlain: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.numberAt ? { numberAt: tripo.data.numberAt } : {}), ...(tripo.data?.slab ? { slab: tripo.data.slab } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
     // (A model split into its pieces: its shape, for each part's own look inside its own pieces, PATTERNDND-5 piecepaint.js.)
     if (tripo?.pieces) painter.pieceGeometry = tripo.geometry;
     if (tripo?.geometry?.getAttribute('inner')) painter.innerPlain = true;
@@ -1007,10 +1037,17 @@ function buildKit(kind) {
     // (A model's printed piping (data `piping`, RUGBYJ 2026-11-20): coloured in paintAll.)
     const piping = tripo?.data?.piping ? pipingStrip(tripo.data.piping) : null;
     if (piping) group.add(piping);
+    // (A model's drawcords of our own (data `cords`, FIXER6 2026-11-26, item 191: the puffer jacket's cords were partly the
+    // cloth itself): straight strips laid on the cloth, in the colour of the cords' own part (paintAll).)
+    const cordStrips = tripo?.data?.cords?.lines?.length ? pipingStrip(tripo.data.cords.lines, tripo.data.cords.width ?? 0.005, 0.0014) : null;
+    if (cordStrips) { cordStrips.userData.key = tripo.data.cords.key; group.add(cordStrips); }
     // (A model's zip (its data's `zip`, MODELQ5 2026-11-19, the Zip-up polo: its own short neck zip carried on straight down
     // the centre front to the hem, the user's mockup 612): our own tape and metal teeth laid on the cloth, the print under it.)
     const zip = tripo?.data?.zip ? zipStrips(tripo.data.zip) : null;
     if (zip) group.add(zip.tape, zip.teeth, zip.pull);
+    // (MODELQ7 2026-11-25: a model's own snap buttons (data `snaps`): our press studs on the cloth, item 159.)
+    const snaps = tripo?.data?.snaps?.length ? snapButtons(tripo.data.snaps) : null;
+    if (snaps) group.add(snaps);
     // (The collar style's own pieces on the model, in the collar's colour (paintPlains).)
     const modelCollar = mcData ? buildModelCollar(mCollar, mcData, shape, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, side: THREE.DoubleSide })) : null;
     if (modelCollar) group.add(modelCollar.group);
@@ -1199,8 +1236,9 @@ function buildKit(kind) {
     base += partKind === 'shorts' || partKind === 'trackpants' || partKind === 'bballshorts' ? garment.frame.maxY * stretch - (partKind === 'trackpants' ? 0.09 : 0.06) : 0;
     kit.add(group);
     group.add(glow);
-    parts.push({ plains, insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo, zip, modelCollar });
+    parts.push({ snaps, plains, insideFront, painter, texture, rim, cord, garment, material: partMaterial, inside, label, hoodie, track, varsity, hq, glow, tripo, zip, modelCollar });
     parts[parts.length - 1].piping = piping;
+    parts[parts.length - 1].cordStrips = cordStrips;
   }
   dressParts(true);
   frameKit();
@@ -1553,8 +1591,12 @@ async function paintAll() {
     // (A model's printed piping: the trim colour (the painter's, texture.js model.colours[1]), else the Secondary; under a
     // design picture its band colour.)
     if (part.piping) { const t = part.painter.model?.colours?.[1]; part.piping.material.color.set(layout ? part.layoutBand ?? design.secondary : typeof t === 'string' ? t : design.secondary); }
+    // (A model's own drawcord strips: the colour of their part's key (partColours), else the Secondary; under a design picture
+    // its band colour.)
+    if (part.cordStrips) { const k = (part.tripo?.partKeys ?? []).indexOf(part.cordStrips.userData.key), c = part.painter.model?.partColours?.[k]; part.cordStrips.material.color.set(layout ? part.layoutBand ?? design.secondary : k >= 0 && typeof c === 'string' ? c : design.secondary ?? '#27282a'); }
     if (part.plains) paintPlains(part, design);
     if (part.zip) paintZip(part, design);
+    if (part.snaps) part.snaps.material.color.set(HEX6.test(design.zoneColors?.snaps ?? '') ? design.zoneColors.snaps : HEX6.test(design.secondary ?? '') ? design.secondary : '#c9ccd1');
     part.inside.envMapIntensity = nfl ? 0.3 : part.garment?.bball ? 0.12 : 1;
     // (The Rugby League shorts' model: the inside of its waistband in the band's colour, seen from above.)
     if (part.painter.modelBand && !layout) bandInside(part);

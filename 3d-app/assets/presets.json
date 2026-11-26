@@ -574,5 +574,767 @@
         "kind": "drawing"
       }
     }
+  },
+  {
+    "id": "netball-01",
+    "name": "Netball 01",
+    "description": "Netball preset collection 01, design 01 (GS): white and blue sweeping swooshes around the hem.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-01",
+        "name": "Netball 01",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-02",
+    "name": "Netball 02",
+    "description": "Netball preset collection 01, design 02 (GA): white side panels with blue edges and a white V-neck trim.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-02",
+        "name": "Netball 02",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-03",
+    "name": "Netball 03",
+    "description": "Netball preset collection 01, design 03 (WA): a white chevron with blue edges across the skirt.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-03",
+        "name": "Netball 03",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-04",
+    "name": "Netball 04",
+    "description": "Netball preset collection 01, design 04 (C): a white diagonal sash with a blue edge across the skirt.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-04",
+        "name": "Netball 04",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-05",
+    "name": "Netball 05",
+    "description": "Netball preset collection 01, design 05 (GD): white and blue flame curves rising from the hem.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-05",
+        "name": "Netball 05",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-06",
+    "name": "Netball 06",
+    "description": "Netball preset collection 01, design 06 (GK): a white yoke with a blue band and white and blue hem stripes.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-06",
+        "name": "Netball 06",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-07",
+    "name": "Netball 07",
+    "description": "Netball preset collection 02, design 07 (GS): a blue and white pixel fade on the skirt.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-07",
+        "name": "Netball 07",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-08",
+    "name": "Netball 08",
+    "description": "Netball preset collection 02, design 08 (GA): white crossing lines with blue triangle panels at the hem.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-08",
+        "name": "Netball 08",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-09",
+    "name": "Netball 09",
+    "description": "Netball preset collection 02, design 09 (WA): white and blue waves across the skirt.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-09",
+        "name": "Netball 09",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-10",
+    "name": "Netball 10",
+    "description": "Netball preset collection 02, design 10 (WD): white brush-stroke lightning with blue flashes.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-10",
+        "name": "Netball 10",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-11",
+    "name": "Netball 11",
+    "description": "Netball preset collection 02, design 11 (GD): white and blue rays fanning out from the hem.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-11",
+        "name": "Netball 11",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-12",
+    "name": "Netball 12",
+    "description": "Netball preset collection 02, design 12 (GK): white geometric lines with blue triangle panels and a white V-neck trim.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-12",
+        "name": "Netball 12",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-13",
+    "name": "Netball 13",
+    "description": "Netball side panel collection, design 13 (GS): white side panels with blue edges.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-13",
+        "name": "Netball 13",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-14",
+    "name": "Netball 14",
+    "description": "Netball side panel collection, design 14 (GA): white side panels with blue and cyan stripes and a white V-neck trim.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-14",
+        "name": "Netball 14",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-15",
+    "name": "Netball 15",
+    "description": "Netball side panel collection, design 15 (WA): white side panels with blue chevron flashes.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-15",
+        "name": "Netball 15",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-16",
+    "name": "Netball 16",
+    "description": "Netball side panel collection, design 16 (C): black pinstriped side panels with blue edges.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-16",
+        "name": "Netball 16",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-17",
+    "name": "Netball 17",
+    "description": "Netball side panel collection, design 17 (WD): white side panels with blue diamonds.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-17",
+        "name": "Netball 17",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "netball-18",
+    "name": "Netball 18",
+    "description": "Netball side panel collection, design 18 (GK): white and blue curved side stripes and a white V-neck trim.",
+    "sport": "netball",
+    "garment": "netball-dress",
+    "design": {
+      "garment": "netball-dress",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:netball-18",
+        "name": "Netball 18",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "netball-dress"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "polo-01",
+    "name": "Polo 01",
+    "description": "Polo preset collection 01, design 01: white side panels with blue edges and blue cuffs.",
+    "garment": "polo",
+    "design": {
+      "garment": "polo",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:polo-01",
+        "name": "Polo 01",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "polo"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "polo-02",
+    "name": "Polo 02",
+    "description": "Polo preset collection 01, design 02: white and blue shoulder slashes with a blue dot fade.",
+    "garment": "polo",
+    "design": {
+      "garment": "polo",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:polo-02",
+        "name": "Polo 02",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "polo"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "polo-03",
+    "name": "Polo 03",
+    "description": "Polo preset collection 01, design 03: a white yoke with a blue band over a dot fade.",
+    "garment": "polo",
+    "design": {
+      "garment": "polo",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:polo-03",
+        "name": "Polo 03",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "polo"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "polo-04",
+    "name": "Polo 04",
+    "description": "Polo preset collection 01, design 04: white and blue sweeps at the shoulder and hem.",
+    "garment": "polo",
+    "design": {
+      "garment": "polo",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:polo-04",
+        "name": "Polo 04",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "polo"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "polo-05",
+    "name": "Polo 05",
+    "description": "Polo preset collection 01, design 05: tonal chevrons with a white and blue chevron across the waist.",
+    "garment": "polo",
+    "design": {
+      "garment": "polo",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:polo-05",
+        "name": "Polo 05",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "polo"
+        ],
+        "kind": "drawing"
+      }
+    }
+  },
+  {
+    "id": "polo-06",
+    "name": "Polo 06",
+    "description": "Polo preset collection 01, design 06: a white and blue swoosh across the body and blue cuffs.",
+    "garment": "polo",
+    "design": {
+      "garment": "polo",
+      "main": "#0b0b0d",
+      "secondary": "#ffffff",
+      "accent": "#1e8ff0",
+      "pattern": "None",
+      "patternColor": "#1e8ff0",
+      "gradient": null,
+      "zones": {},
+      "layers": [],
+      "layout": {
+        "asset": "preset:polo-06",
+        "name": "Polo 06",
+        "roles": [
+          "front",
+          "back"
+        ],
+        "hemFold": false,
+        "joinLines": false,
+        "parts": [
+          "polo"
+        ],
+        "kind": "drawing"
+      }
+    }
   }
 ]

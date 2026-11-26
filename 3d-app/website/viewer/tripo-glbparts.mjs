@@ -310,7 +310,10 @@ function linesOf(w, sigma, region = null) {
 // The signed distance of every outside point from the nearest of the lines (+ in the piece) within `reach`, else by its
 // share (+/- reach).
 function distOf(lines, w) {
-  const d = Float32Array.from({ length: V }, (_, v) => (w[v] >= 0.5 ? reach : -reach)), bd = new Float32Array(V).fill(9);
+  // (`shareDist` (FIXER6 2026-11-26, the raglan long-sleeve's underarm, item 171): away from every line, the distance from the
+  // share's own smooth half-way contour ((share - 0.5) x shareDist m, within +/- reach), so where a seam has no line (by the
+  // armpit) the colour edge follows that smooth contour, not the triangles. Off unless set.)
+  const d = Float32Array.from({ length: V }, (_, v) => (settings.shareDist ? Math.max(-reach, Math.min(reach, (w[v] - 0.5) * settings.shareDist)) : w[v] >= 0.5 ? reach : -reach)), bd = new Float32Array(V).fill(9);
   for (const L of lines) L.C.forEach((p, i) => { for (const v of nearPts(p, reach)) {
     if (!outside[v] || dot(N3(v), L.normal[i]) < (settings.facingCut ?? -0.2)) continue;
     const e = Math.hypot(...sub(P3(v), p)); if (e >= bd[v]) continue;
@@ -377,6 +380,17 @@ const evenShare = (s, up = false) => {
   return Float32Array.from({ length: V }, (_, v) => { const dp = depth(v); return onSleeve(v) && dp > -0.03 && dp < 0.12 ? Math.max(0, Math.min(1, 0.5 + edgeOf(v) / 0.01)) : 0; });
 };
 const wC = settings.evenCollar ? evenShare(COLLAR, true) : shareOf((v) => key[v] === COLLAR, settings.collarSteps ?? 12), linesC = linesOf(wC, settings.collarSigma ?? sigma, settings.evenCollar ? (v) => outside[v] || evenRings.get(COLLAR).onSleeve(v) : settings.collarBand ? () => true : null), dC = distOf(linesC, wC);
+// (`collarMainLine` (FIXER6 2026-11-26, the raglan tee's back neck, item 172): the collar only on the collar's side of its
+// main foot line (the longest closed one); a fleck of the parts' neck pieces below it, with a short line of its own round it,
+// is the cloth round it. Off unless set.)
+if (settings.collarMainLine) {
+  const main = linesC.filter((l) => l.closed).sort((a, b) => b.len - a.len)[0];
+  if (main && linesC.length > 1) {
+    const dM = distOf([main], wC); let off = 0;
+    for (let v = 0; v < V; v++) if (dC[v] > 0 && dM[v] < 0) { dC[v] = dM[v]; off++; }
+    report.push(`collar points below its main line: ${off}`);
+  }
+}
 // (`neckRing` (RUGBYJ 2026-11-19, client 611 collars): the collar's foot line, the longest closed one, into the data: points
 // on the cloth and the cloth's outward normal there; main.js lays our own collar styles along it.)
 if (settings.neckRing) { const L = linesC.filter((l) => l.closed).sort((a, b) => b.len - a.len)[0]; if (L) D.neckRing = { c: L.C.flatMap((p) => p.map((x) => +x.toFixed(5))), n: L.normal.flatMap((p) => p.map((x) => +x.toFixed(3))) }; }
@@ -394,7 +408,7 @@ const below = Int16Array.from(key);
 }
 // (`evenKeys` (MODELQ8 2026-11-23): only these sleeve keys are even bands (the tennis skirt: its hem binding, not its side piping).)
 const evenOf = (s) => settings.evenCuffs && (!CUFFON.size || CUFFON.has(s)) && (!settings.evenKeys || settings.evenKeys.includes(keys[s - 1]));
-const dS = LINED.map((s) => { const w = SLEEVES.includes(s) && evenOf(s) ? evenShare(s) : shareOf((v) => below[v] === s || CUFFON.get(below[v]) === s), L = linesOf(w, sigma, SLEEVES.includes(s) && evenOf(s) ? (v) => outside[v] || evenRings.get(s).onSleeve(v) : null); report.push(`${keys[s - 1]} lines ${L.map((x) => `${x.len} mm${x.closed ? ' closed' : ''}`).join(', ')}`); return distOf(L, w); });
+const dS = LINED.map((s) => { const w = SLEEVES.includes(s) && evenOf(s) ? evenShare(s) : shareOf((v) => below[v] === s || CUFFON.get(below[v]) === s, settings.sleeveSteps ?? 12), L = linesOf(w, sigma, SLEEVES.includes(s) && evenOf(s) ? (v) => outside[v] || evenRings.get(s).onSleeve(v) : null); report.push(`${keys[s - 1]} lines ${L.map((x) => `${x.len} mm${x.closed ? ' closed' : ''}`).join(', ')}`); return distOf(L, w); });
 
 // ---- Per outside point: collar where it is in the collar, else the sleeve it is in, else the print; the line nearest it
 // with its two pieces. Inside points: as the outside cloth facing them (the band inside the collar below).
