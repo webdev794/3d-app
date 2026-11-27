@@ -142,7 +142,7 @@ void main() {
       // A new project uploads with the server's ids and garment slugs.
       c
         ..startDyo()
-        ..sport = 'Soccer'
+        ..sport = 'Football'
         ..garment = 'Full Kit'
         ..sponsorImage = png;
       c.saveProject('Mantis Home', thumbnail: png);
@@ -155,7 +155,7 @@ void main() {
       expect(sent['garment'], 'fullkit');
       expect(sent['thumbnail'], startsWith('data:image/png;base64,'));
       expect(sent['design']['sponsorImage'], startsWith('data:image/png'));
-      expect(sent['design']['app']['sport'], 'Soccer');
+      expect(sent['design']['app']['sport'], 'Football');
 
       // Saving again under the same name updates the same server project.
       c.saveProject('Mantis Home');
@@ -360,7 +360,7 @@ void main() {
       // Ordering needs an account.
       c
         ..startDyo()
-        ..sport = 'Soccer';
+        ..sport = 'Football';
       c.saveProject('Club Home');
       final kit = c.projects.first;
       await expectLater(

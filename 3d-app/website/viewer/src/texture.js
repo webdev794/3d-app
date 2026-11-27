@@ -1075,7 +1075,8 @@ export class KitPainter {
       seams.push(...own.seams);
       folds.push(...own.folds);
     }
-    if (hasPocket(this.kind) && !back) {
+    // (Not on a ready-made model with its own pocket pieces (data ownPocket: the Polo with pocket, POCKETPOLO 2026-11-25).)
+    if (hasPocket(this.kind) && !back && !this.model?.ownPocket) {
       // The chest pocket: sewn on round its sides and bottom with two rows of stitching, its top hem stitched across
       // (with a short bar tack at each top corner) and turned in at the top edge.
       const { x0, x1, top, hem } = POCKET;
@@ -2300,7 +2301,8 @@ export class KitPainter {
       // picture; CF1 2026-10-29), in the trim colour.
       // (DT4: about 1 cm wide and running down the front of the chest to the underarm, as the picture's; and a stripe
       // along each sleeve's underside from the underarm to the cuff.)
-      if (this.kind === 'compression') {
+      // (Not on a model that draws its own piping along its own seams: model.ownPiping, FIXER6 2026-11-26, item 198.)
+      if (this.kind === 'compression' && !this.model?.ownPiping) {
         g.save();
         // (The picture's piping is a brighter cyan than its panels: design.zoneColors.piping, else the trim; FM print.)
         g.strokeStyle = HEX.test(design.zoneColors?.piping ?? '') ? design.zoneColors.piping : trim;
@@ -2377,7 +2379,7 @@ export class KitPainter {
       }
       // The chest pocket: a soft shadow on the shirt round its sewn edges and its top hem in the trim colour (the
       // pocket itself is the body's fabric, or its own colour zone: Apply to area, Chest pocket).
-      if (hasPocket(this.kind) && !back) {
+      if (hasPocket(this.kind) && !back && !this.model?.ownPocket) {
         const { x0, x1, top, hem } = POCKET;
         g.save();
         g.strokeStyle = 'rgba(0,0,0,0.16)';
@@ -2729,7 +2731,9 @@ export class KitPainter {
     // the neck to the cuff, 5 cm wide; none while it has no colour of its own (Hoodie areas).
     // (FN5 2026-10-30, DT7: as the picture, 11 cm wide so it shows over the top of the shoulder and down the outer
     // sleeve from the front, shading from the stripe colour at the shoulder to a deeper royal blue at the cuff.)
-    if (own('stripe')) {
+    // (Not on a model whose sleeves carry the stripe colour as their own part (the Basketball Warm-up hoodie's model, key
+    // zone:stripe|print, CLIENTOPS 2026-11-27, item 147): there the printed band only spilled cyan bits onto its hood by the neck.)
+    if (own('stripe') && !this.model?.keys?.includes('zone:stripe|print')) {
       g.save();
       this.side(back);
       // (FX-H 2026-11-02, DT11: a band along the top, about 30% of the sleeve, black below it.)
@@ -3012,7 +3016,7 @@ export class KitPainter {
     const g = this.ctx;
     for (const [zone, name] of Object.entries(design.zones ?? {})) {
       if (!name || name === 'None') continue;
-      if (zone === 'pocket' && (back || !(hasPocket(this.kind) || isHoodie(this.kind)))) continue;
+      if (zone === 'pocket' && (back || !(hasPocket(this.kind) || isHoodie(this.kind)) || (hasPocket(this.kind) && this.model?.ownPocket))) continue;
       if (zone === 'hood' && (!back || !(isHoodie(this.kind) || isTrack(this.kind)))) continue;
       g.save();
       this.side(back);

@@ -10,6 +10,7 @@ import 'project_store_stub.dart'
     if (dart.library.io) 'project_store_io.dart'
     if (dart.library.js_interop) 'project_store_web.dart'
     as platform;
+import 'sports_catalog.dart';
 
 /// Saves the user's projects on the device so they survive app restarts.
 /// Web projects use browser storage; phones use the device file system.
@@ -97,7 +98,7 @@ class ProjectStore {
     return Project(
       id: j['id'] as String,
       title: j['title'] as String,
-      sport: j['sport'] as String,
+      sport: currentSportName(j['sport'] as String),
       garment: j['garment'] as String,
       mode: j['mode'] as String,
       version: j['version'] as int,

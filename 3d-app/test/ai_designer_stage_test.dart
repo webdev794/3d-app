@@ -44,7 +44,7 @@ void main() {
     expect(garmentInBrief('A darts pocket polo'), 'Polo with pocket');
     expect(garmentInBrief('A fishing shirt with a hood'), 'Polo'); // images/416: the closest to a fishing shirt
     expect(garmentInBrief('Colours from my childhood club'), isNull);
-    expect(sportInBrief('soccer home kit')?.sport, 'Soccer');
+    expect(sportInBrief('soccer home kit')?.sport, 'Football');
     expect(sportInBrief('boxing club gear')?.id, 'fight-wear');
     expect(sportInBrief('something plain'), isNull);
   });
@@ -147,14 +147,14 @@ void main() {
       expect(c.trackStyle, 'hood');
       await tester.pump(const Duration(seconds: 5));
       await tester.pump(const Duration(milliseconds: 400));
-      // Back to the AI designer (same session): Soccer's plain track jacket.
+      // Back to the AI designer (same session): Football's plain track jacket.
       c.go(AppScreen.aiDesigner);
       await tester.pump(const Duration(milliseconds: 500));
       await tester.pump(const Duration(milliseconds: 500));
       expect(c.screen, AppScreen.aiDesigner);
-      await tester.ensureVisible(find.text('SOCCER'));
+      await tester.ensureVisible(find.text('FOOTBALL'));
       await tester.pump();
-      await tester.tap(find.text('SOCCER'));
+      await tester.tap(find.text('FOOTBALL'));
       await tester.pump();
       await tester.enterText(
         find.byType(TextField).last,

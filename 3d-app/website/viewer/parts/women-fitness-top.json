@@ -4,5 +4,6 @@
   "creaseDeg": 25,
   "keys": ["inside"],
   "rules": [ { "regions": [0], "part": "inside" } ],
-  "smooth": 0
+  "smooth": 0,
+  "seamPiping": { "from": 0.53, "to": 0.705, "seed": 0.17, "angle": 40, "tol": 0.022, "lift": 0.0015, "fit": 2, "near": 0.004, "snap": 0.0025, "sigma": 0.012, "fitTop": { "front": 0.688 } }
 }

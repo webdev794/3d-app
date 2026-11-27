@@ -83,7 +83,7 @@ void main() {
     c.pattern = 'Camo';
     final project = Project(
       title: 'Club kit',
-      sport: 'Soccer',
+      sport: 'Football',
       garment: 'Full Kit',
       mode: 'DYO',
       kit: c.kit,

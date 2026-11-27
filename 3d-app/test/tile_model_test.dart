@@ -8,7 +8,7 @@ import 'package:three_deezi/model_flags.dart';
 void main() {
   AppController football(Map<String, String> zoneColors, {String? neck}) =>
       AppController()
-        ..sport = 'Soccer'
+        ..sport = 'Football'
         ..garment = 'Jersey'
         ..productName = 'Football jersey'
         ..zoneColors = zoneColors

@@ -185,7 +185,7 @@ String? garmentInBrief(String text) {
   return null;
 }
 
-/// The sport a brief names when no tile was picked ("soccer" → Soccer).
+/// The sport a brief names when no tile was picked ("soccer" → Football).
 AiQuickSport? sportInBrief(String text) {
   final t = text.toLowerCase();
   const words = [

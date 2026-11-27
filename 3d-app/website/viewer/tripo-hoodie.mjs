@@ -493,6 +493,49 @@ D.flat = Buffer.from(flat.buffer).toString('base64'); D.side = Buffer.from(side)
 D.flatB = Buffer.from(altB.buffer).toString('base64'); D.sideB = Buffer.from(altSideB).toString('base64');
 D.flatS = Buffer.from(fS.buffer).toString('base64'); D.sideS = Buffer.from(sS).toString('base64');
 
+// ---- `armSplit` { regions: [names] } (FIXER6 2026-11-27, item 159 / 733: the varsity's back underarm showed body-coloured bits on
+// the sleeve and sleeve-coloured bits on the body): below the armpit each hanging arm and the body are separate cloth; per side
+// the highest height (1 mm steps) at which that arm is still apart from the body; below it every point of the arm that shows the
+// print or a sleeve takes its side's sleeve region, and every point of the body showing a sleeve region shows the print. Bands
+// (rings) and plain parts are left as they are. Off unless set.
+if (settings.armSplit) {
+  const SR = (settings.armSplit.regions ?? []).map((nm) => regions.find((r) => r.name === nm)).filter(Boolean), sleeveKeys = new Set(SR.map((r) => r.key));
+  const keyFor = (sg) => { if (SR.length === 1) return SR[0].key; let best = null, bx = -9; for (const r of SR) { let sx = 0, k = 0; for (let v = 0; v < V; v++) if (r.w[v] > 0.5) { sx += A.P[v * 3]; k++; } const mx = k ? (sg * sx) / k : -9; if (mx > bx) { bx = mx; best = r.key; } } return best; };
+  const par = new Int32Array(V), fnd = (x) => { while (par[x] !== x) x = par[x] = par[par[x]]; return x; };
+  const compsBelow = (Y) => { for (let v = 0; v < V; v++) par[v] = v; for (let t = 0; t < A.T; t++) { const c = [A.F[t * 3], A.F[t * 3 + 1], A.F[t * 3 + 2]]; if (c.some((v) => A.P[v * 3 + 1] >= Y)) continue; par[fnd(c[0])] = fnd(c[1]); par[fnd(c[1])] = fnd(c[2]); } const size = new Map(), sx = new Map(); for (let v = 0; v < V; v++) if (A.P[v * 3 + 1] < Y) { const r = fnd(v); size.set(r, (size.get(r) ?? 0) + 1); sx.set(r, (sx.get(r) ?? 0) + A.P[v * 3]); } return { size, sx }; };
+  const armOf = (Y, sg) => { const { size, sx } = compsBelow(Y), big = [...size].filter(([, k]) => k > V * 0.01); const arm = big.find(([r, k]) => (sg * sx.get(r)) / k > 0.12); return arm ? arm[0] : -1; };
+  let lo2 = 9, hi2 = -9; for (let v = 0; v < V; v++) { lo2 = Math.min(lo2, A.P[v * 3 + 1]); hi2 = Math.max(hi2, A.P[v * 3 + 1]); }
+  let moved = 0;
+  for (const sg of [1, -1]) {
+    const K = keyFor(sg); if (K == null) continue;
+    let Y = -9; for (let y = lo2 + (hi2 - lo2) * 0.3; y < hi2; y += 0.005) { if (armOf(y, sg) >= 0) Y = y; else if (Y > -9) break; }
+    if (Y < -8) { report.push(`armSplit ${sg > 0 ? '+x' : '-x'}: no arm apart`); continue; }
+    while (armOf(Y + 0.001, sg) >= 0) Y += 0.001;
+    const arm = armOf(Y, sg); compsBelow(Y);
+    for (let v = 0; v < V; v++) {
+      if (A.P[v * 3 + 1] >= Y || sg * A.P[v * 3] <= 0 || field[v] === -1 || field[v] >= 100) continue;
+      const onArm = fnd(v) === arm, a = pair[v * 2], b = pair[v * 2 + 1];
+      if (onArm) { if ((a === 0 || sleeveKeys.has(a)) && (b === 0 || sleeveKeys.has(b)) && !(a === K && b === K)) { pair[v * 2] = pair[v * 2 + 1] = K; S[v] = 0.01; field[v] = -1; moved++; } }
+      else if ((sleeveKeys.has(a) || sleeveKeys.has(b)) && (a === 0 || sleeveKeys.has(a)) && (b === 0 || sleeveKeys.has(b))) { pair[v * 2] = pair[v * 2 + 1] = 0; S[v] = 0.01; field[v] = -1; moved++; }
+    }
+    report.push(`armSplit ${sg > 0 ? '+x' : '-x'}: arm apart below y ${Y.toFixed(3)}`);
+  }
+  report.push(`armSplit: ${moved} points`);
+}
+// (`lonePoints` (POCKET2 2026-11-27, the Polo with pocket's collar: a few points of the body colour inside the collar showed as
+// sharp white triangles in contrasting colours): a patch of at most `lonePoints` points of one colour (joined over the whole
+// mesh) whose neighbours round it are all of one other colour takes that colour. Off unless set.)
+if (settings.lonePoints) {
+  const eff = (v) => { const a = pair[v * 2], b = pair[v * 2 + 1]; return a === b ? a : S[v] > 0 ? a : b; }, max = +settings.lonePoints || 6;
+  const E = Int16Array.from({ length: V }, (_, v) => eff(v)), seen = new Uint8Array(V); let lone = 0;
+  for (let s0 = 0; s0 < V; s0++) {
+    if (seen[s0]) continue; seen[s0] = 1; const comp = [s0], k0 = E[s0], rim = new Set(); let big = false;
+    for (let i = 0; i < comp.length && !big; i++) for (const u of A.nb[comp[i]]) { if (E[u] !== k0) { rim.add(E[u]); continue; } if (!seen[u]) { seen[u] = 1; comp.push(u); if (comp.length > max) { big = true; break; } } }
+    if (big || rim.size !== 1) continue;
+    const K = [...rim][0]; for (const v of comp) { pair[v * 2] = pair[v * 2 + 1] = K; S[v] = 0.01; field[v] = -1; lone++; }
+  }
+  report.push(`lone points taken in: ${lone}`);
+}
 // ---- Data: per point its pair and distance; triangles whose corners have different pairs: one line for all three corners.
 const n = m.n, q = (s) => Math.max(1, Math.min(255, Math.round(128 + (s * 1000) / 0.4))), out = new Uint8Array(n * 3);
 for (let i = 0; i < n; i++) { const v = A.weld[i], a = pair[v * 2], b = pair[v * 2 + 1]; out[i * 3] = a; out[i * 3 + 1] = b; out[i * 3 + 2] = q(a === b ? 0.01 : S[v]); }

@@ -1242,6 +1242,7 @@ Map<String, dynamic> tileLook(String name, {String? picture}) {
     // mark small on the wearer's right chest and the 3DEEZI wordmark big
     // across the chest (website catalog.php). No text or logo from the picture.
     // Looks of the models added by the shared recipe (viewer/tripo-add.mjs).
+    'poloPocket': {'main': '#313234', 'secondary': '#27282a', 'zoneColors': {'poloPocket': '#ffffff', 'quarterZip': '#c9ccd1', 'collarPiping': '#16b4f0'}, 'marks': {'top_wordmark': {'x': -0.09, 'y': 0.581, 'scale': 0.258}, 'top_crest': {'x': -0.09, 'y': 0.617, 'scale': 0.9}}},
     'varsityHoodie': {'main': '#1d1d1e', 'secondary': '#d9a704', 'accent': '#1d1d1e', 'patternColor': '#d9a704', 'number': '23', 'zoneColors': {'body': '#1d1d1e', 'sleeves': '#d9a704', 'rib': '#1d1d1e', 'ribStripe': '#d9a704', 'snaps': '#1d1d1e', 'pocketTrim': '#d9a704', 'varsityHoodie': '#ffffff', 'hood': '#1d1d1e', 'lining': '#1d1d1e'}, 'marks': {'top_wordmark': {'side': 'back', 'x': 0, 'y': 0.53}}, 'layers': []},
     'footballShorts': {'main': '#2a56b4', 'secondary': '#2a56b4', 'accent': '#1f8a3c', 'patternColor': '#2a56b4', 'pattern': 'None', 'number': '', 'zoneColors': {'footballShorts': '#2a56b4', 'brandInk': '#ffffff'}, 'marks': {'shorts_number': {'hidden': true}, 'shorts_crest': {'x': -0.12, 'y': 0.1, 'scale': 0.8}, 'shorts_wordmark': {'side': 'front', 'x': 0.15, 'y': 0.07, 'scale': 0.7}}, 'layers': []},
     'helmetModel': {'main': '#1c2433', 'secondary': '#e3a81c', 'accent': '#e3a81c', 'zoneColors': {'helmetModel': '#ffffff', 'helmetStripe': '#e3a81c', 'faceMask': '#2b2d31'}, 'layers': []},
@@ -2854,6 +2855,8 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Polo with pocket',
       'Club polo with a chest pocket.',
       'Polo with pocket',
+      image: 'pocketpolo',
+      look: 'poloPocket',
     ),
     GarmentTile('Club tee', 'Soft tee for social bowls.', 'Training Tee'),
     GarmentTile(
@@ -3101,6 +3104,8 @@ const _sportTiles = <String, List<GarmentTile>>{
       'Work polo with pocket',
       'Hard-wearing polo with a chest pocket.',
       'Polo with pocket',
+      image: 'pocketpolo',
+      look: 'poloPocket',
     ),
     GarmentTile('Work tee', 'Tough tee for every job.', 'Training Tee'),
     GarmentTile(
@@ -3355,7 +3360,7 @@ const sportCategories = <SportCategory>[
     more: false,
   ),
   SportCategory('basketball', 'Basketball', 'sports', 'Singlet + Shorts'),
-  SportCategory('football', 'Soccer', 'sports', 'Jersey + Shorts'),
+  SportCategory('football', 'Football', 'sports', 'Jersey + Shorts'),
   SportCategory('afl', 'AFL', 'sports', 'Guernsey + Shorts'),
   SportCategory(
     'headwear',
@@ -3387,13 +3392,7 @@ const sportCategories = <SportCategory>[
     heading: 'Rugby',
     more: false,
   ),
-  SportCategory(
-    'hockey',
-    'Ice Hockey',
-    'sports',
-    'Jersey + Socks',
-    aiLabel: 'Hockey',
-  ),
+  SportCategory('hockey', 'Hockey', 'sports', 'Jersey + Socks'),
   // Added 2026-10-21 (task 9.79). The client's first six come first.
   SportCategory(
     'american-football',
@@ -3538,10 +3537,9 @@ const sportCategories = <SportCategory>[
   ),
   SportCategory(
     'training',
-    'Training / Gym',
+    'Training',
     'apparel',
     'Tee + Hoodie',
-    aiLabel: 'Training',
   ),
   SportCategory(
     'fight-wear',
@@ -3611,10 +3609,22 @@ const sportCategories = <SportCategory>[
   ),
 ];
 
-/// The category with the app name [name], if any.
+/// The app's old names for sports now named as on the website (27 Nov
+/// 2026), so designs and projects saved under them still open.
+const renamedSports = {
+  'Soccer': 'Football',
+  'Ice Hockey': 'Hockey',
+  'Training / Gym': 'Training',
+};
+
+/// [name] as the app names the sport now (an old name reads as its new one).
+String currentSportName(String name) => renamedSports[name] ?? name;
+
+/// The category with the app name [name] (or its old name), if any.
 SportCategory? sportNamed(String? name) {
+  final now = name == null ? null : currentSportName(name);
   for (final s in sportCategories) {
-    if (s.name == name) return s;
+    if (s.name == now) return s;
   }
   return null;
 }

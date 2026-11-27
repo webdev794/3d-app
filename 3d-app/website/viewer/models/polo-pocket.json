@@ -1,0 +1,59 @@
+{
+  "about": "Polo with pocket (Lawn Bowls > Polo with pocket, Workwear > Work polo with pocket, and every pocketpolo design): the user's own Tripo model polo-pocket-textured-2.glb (POCKET2 2026-11-27; replaces the zip polo + Blender pocket, deleted): a button-placket polo with a sewn-on chest pocket on the wearer's left chest. Coloured from polo-pocket-parts-2.glb by viewer/tripo-hoodie.mjs (parts/polo-pocket.json). Wide: on every Polo with pocket tile and saved design, the tile's look (as poloZipPocket, with the flag) on both tiles.",
+  "glb": "../../../tripo/polo-pocket-textured-2.glb",
+  "converter": "top",
+  "part": "pocketpolo",
+  "flag": "poloPocket",
+  "wide": true,
+  "ownNeck": "polo",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Polo with pocket",
+      "image": "pocketpolo"
+    },
+    {
+      "name": "Work polo with pocket",
+      "image": "pocketpolo"
+    }
+  ],
+  "pictures": [],
+  "convert": {
+    "made": "polo",
+    "creaseDeg": 25,
+    "top": 0.969
+  },
+  "look": {
+    "main": "#313234",
+    "secondary": "#27282a",
+    "zoneColors": {
+      "poloPocket": "#ffffff",
+      "quarterZip": "#c9ccd1",
+      "collarPiping": "#16b4f0"
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": -0.09,
+        "y": 0.581,
+        "scale": 0.258
+      },
+      "top_crest": {
+        "x": -0.09,
+        "y": 0.617,
+        "scale": 0.9
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-45",
+      "Q90",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ40D70Y700P60"
+    ]
+  }
+}

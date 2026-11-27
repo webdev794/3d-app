@@ -73,6 +73,7 @@ const modelFlags = [
   'helmetModel',
   'footballShorts',
   'varsityHoodie',
+  'poloPocket',
 ];
 
 /// [next] zoneColors with the model flags of [was] it lacks put back.

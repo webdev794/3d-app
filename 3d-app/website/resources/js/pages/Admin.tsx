@@ -23,6 +23,7 @@ import RemoveTestAccounts from './AdminTestAccounts';
 import SuppliersAdmin, { MadeByFilter, MadeBySelect } from './AdminSuppliers';
 import { Factory } from 'lucide-react';
 import PresetsAdmin from './AdminPresets';
+import AdminModelPainter from './AdminModelPainter'; // MODEL-PAINTER
 import { Layers as PresetsIcon } from 'lucide-react';
 
 export interface AdminUser extends User { is_admin: boolean; is_designer?: boolean; designer_all?: boolean; projects_count?: number; orders_count?: number }
@@ -98,7 +99,7 @@ const sections = [
 /** The admin console: dashboard, API settings, users, projects, orders and database tools. */
 export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: User; onNotice: (text: string) => void; onLogout: () => void; catalog: Catalog | null }) {
   const { section = 'dashboard', itemId } = useParams();
-  const current = sections.find(s => s.id === section) ?? sections[0];
+  const current = sections.find(s => s.id === section) ?? (section === 'model-painter' ? { id: 'model-painter', label: 'Model Painter', icon: Palette, title: 'Model Painter', sub: 'Paint a garment tile’s colour areas on its 3D model by hand (internal tool, opened by its address only).' } : sections[0]); // MODEL-PAINTER: was ?? sections[0];
   const [stats, setStats] = useState<Stats | null>(null);
   const [apiState, setApiState] = useState<ApiSettings | null>(null);
   const [error, setError] = useState('');
@@ -143,6 +144,7 @@ export default function AdminPage({ me, onNotice, onLogout, catalog }: { me: Use
           : section === 'partners' ? <PartnersPanel onNotice={onNotice} />
           : section === 'suppliers' ? <SuppliersAdmin onNotice={onNotice} />
           : section === 'presets' ? <PresetsAdmin catalog={catalog} onNotice={onNotice} />
+          : section === 'model-painter' ? <AdminModelPainter catalog={catalog} /> // MODEL-PAINTER
           : section === 'team' ? <AdminTeam mode="admin" itemId={itemId} onNotice={onNotice} />
           : section === 'support' ? <SupportPanel onNotice={onNotice} />
           : section === 'database' ? <DatabasePanel onNotice={onNotice} />

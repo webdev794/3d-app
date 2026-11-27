@@ -44,7 +44,8 @@
         "roles": [
           "sleeve"
         ],
-        "key": "plain:zone:sleeves|secondary"
+        "key": "plain:zone:sleeves|secondary",
+        "steps": 60
       },
       "welt": {
         "roles": [
@@ -61,6 +62,7 @@
         "width": 0.05
       }
     },
+    "armSplit": { "regions": ["sleeve"] },
     "snapsFrom": {
       "part": "tripo_part_41",
       "oneRow": true

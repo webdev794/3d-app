@@ -17,7 +17,11 @@ import 'sports_catalog.dart';
 /// other way round.
 class ProjectSync {
   /// App sport name → the website's catalogue id (lib/sports_catalog.dart).
-  static final sports = {for (final s in sportCategories) s.name: s.id};
+  /// (Old names, as "Soccer", after the new ones: saved projects keep them.)
+  static final sports = {
+    for (final s in sportCategories) s.name: s.id,
+    for (final e in renamedSports.entries) e.key: sportNamed(e.value)!.id,
+  };
   static const garments = garmentIds;
 
   /// The body for `POST /projects` and `PATCH /projects/{id}`.
@@ -123,7 +127,9 @@ class ProjectSync {
       approved: j['status'] == 'approved',
       title: text(j['name']) ?? 'Untitled',
       sport:
-          text(app['sport']) ??
+          (text(app['sport']) == null
+              ? null
+              : currentSportName(text(app['sport'])!)) ??
           (d['sportName'] is String &&
                   customName(d['sportName'] as String).isNotEmpty
               ? customName(d['sportName'] as String)

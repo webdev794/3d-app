@@ -23,7 +23,7 @@ void main() {
     c.zoneColors = {'shoulder': '#e63946', 'stripe': '#ffffff', 'collar': '#081c15', 'zip': '#ffd166'};
     final project = Project(
       title: 'Warriors track',
-      sport: 'Training / Gym',
+      sport: 'Training',
       garment: 'Track jacket',
       mode: 'DYO',
       kit: c.kit,
@@ -53,7 +53,7 @@ void main() {
   test('other garments do not send the style; the order form, the AI brief and the sports know it', () {
     final c = AppController(store: FakeStore());
     addTearDown(c.dispose);
-    final project = Project(title: 'Plain', sport: 'Training / Gym', garment: 'Hoodie', mode: 'DYO', kit: c.kit, updated: DateTime.now());
+    final project = Project(title: 'Plain', sport: 'Training', garment: 'Hoodie', mode: 'DYO', kit: c.kit, updated: DateTime.now());
     expect((ProjectSync.toServer(project)['design'] as Map).containsKey('trackStyle'), isFalse);
     expect(orderGarmentFor('Track jacket'), 'jacket');
     expect(garmentInBrief('a navy track jacket with gold stripes'), 'Track jacket');

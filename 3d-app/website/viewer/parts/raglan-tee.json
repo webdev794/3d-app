@@ -31,7 +31,7 @@
     "collarSigma": 0.015,
     "evenCollar": false,
     "looseBits": 200,
-    "data": { "insideCloth": true },
+    "data": { "insideCloth": true, "ownSleeves": true },
     "twoWayOut": true,
     "keysWhere": [
       { "part": "tripo_part_20", "where": "x > 0", "key": "part:leftSleeve" }

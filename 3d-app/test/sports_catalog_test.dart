@@ -45,6 +45,7 @@ void main() {
       (String text) {
         return (
           id: field(text, 'id')!,
+          name: field(text, 'name')!,
           group: field(text, 'group')!,
           prompt: field(text, 'prompt'),
           heading: field(text, 'heading'),
@@ -109,7 +110,9 @@ void main() {
     for (final w in website) {
       final s = sportWithId(w.id);
       expect(s, isNotNull, reason: w.id);
-      expect(s!.group, w.group, reason: w.id);
+      // The same name as on the website (27 Nov: "Hockey", not "Ice Hockey").
+      expect(s!.name, w.name, reason: w.id);
+      expect(s.group, w.group, reason: w.id);
       expect(s.hint, w.prompt, reason: w.id);
       expect(s.heading, w.heading, reason: w.id);
       expect(s.more, w.more, reason: w.id);
@@ -178,9 +181,14 @@ void main() {
       {for (final s in sportCategories) s.name}.length,
       sportCategories.length,
     );
+    expect(ProjectSync.sports['Football'], 'football');
+    expect(ProjectSync.sports['Hockey'], 'hockey');
+    expect(ProjectSync.sports['Training'], 'training');
+    // (Designs saved under the old app names still find their sport.)
     expect(ProjectSync.sports['Soccer'], 'football');
     expect(ProjectSync.sports['Ice Hockey'], 'hockey');
     expect(ProjectSync.sports['Training / Gym'], 'training');
+    expect(sportNamed('Ice Hockey')?.id, 'hockey');
     expect(ProjectSync.sports['American Football'], 'american-football');
     expect(ProjectSync.sports['Darts & Pool'], 'darts');
     // Netball's rules are read from the website's list, not left out.

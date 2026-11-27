@@ -34,7 +34,7 @@ void main() {
     final logo = art.readAsBytesSync();
     c
       ..startDyo()
-      ..sport = 'Ice Hockey'
+      ..sport = 'Hockey'
       ..garment = 'Training Tee'
       ..logoImage = logo
       ..sponsorImage = logo
@@ -70,7 +70,7 @@ void main() {
     expect(await other.signIn(email: email, password: 'Password123!'), isNull);
     await other.syncProjects();
     final copy = other.projects.firstWhere((x) => x.remoteId == p.remoteId);
-    expect(copy.sport, 'Ice Hockey');
+    expect(copy.sport, 'Hockey');
     expect(copy.garment, 'Training Tee');
     expect(copy.kit.fabric, c.fabric);
     expect(copy.kit.spec?.designName, 'Live');

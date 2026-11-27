@@ -35,6 +35,7 @@ import { processImage } from './imagetools.js';
 import { zoneAt, partAt, useRaglanJersey, useModelHem, useModelTop, useModelPanels } from './zones.js';
 import { piecePartAt, pieceTintW, pieceAreas } from './piecepaint.js';
 import { colourFor } from './colourpick.js';
+import { useAreaMaps, areaMapTag } from './modelpainter-hook.js'; // MODEL-PAINTER
 import { buildWingCollar, paintWingCollar } from './wingcollar.js';
 import { neckShape, neckCut, rugbyCollar, roundBack } from './necks.js';
 import { collarSpec, fitSpec, collarColours, paintCollarBand, buildCollarParts } from './rugbycollars.js';
@@ -839,7 +840,7 @@ function buildKit(kind) {
   // (The basketball singlet's model: its own side insert and hem as the Side panels and Hem areas: zones.js.)
   const bbName = list.includes('singlet') ? singletModel() : null, bbData = bbName && tripoReady(bbName) ? window.TRIPO_MESHES[bbName] : null;
   useModelTop(bbData?.insert ? { insert: bbData.insert, hemTop: bbData.hemTop } : null);
-  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '') + (list.some((p) => tripoOf(p) && tripoReady(tripoOf(p))) ? `:tripo${list.map((p) => tripoOf(p) ?? '').join(',')}` : '') + (mCollar ? `:mc:${mCollar}` : '') + (fbj ? `:fbj:${fbNeck ?? 'round'}${design.fit === 'tight' ? ':pro' : ''}` : '');
+  const key = (splitToe ? 'split:' : '') + (zipPolo && (list.includes('polo') || list.includes('pocketpolo')) ? 'zip:' : '') + (layout && !layout.drawing ? 'layout:' : '') + list.join('+') + (cut ? `:cut:${layout.key}` : '') + (list.includes('trackjacket') && trackHood ? ':hood' : '') + (crewKit ? ':crew' : '') + (necks.some(Boolean) ? `:neck:${necks.join(',')}` : '') + (collar ? `:collar:${collar.id}` : '') + (fit ? `:fit:${fit}` : '') + (kind === 'five-panel-cap' ? ':five' : '') + (kind === 'beanie' && HEX6.test(design.zoneColors?.beanieOne ?? '') ? ':nopom' : '') + (list.includes('trackpants') && HEX6.test(design.zoneColors?.sideBlade ?? '') ? ':jog' : '') + (rugbyCut ? ':rugcut' : '') + (plainShorts ? `:plain${plainShorts}` : '') + (varsityBoxy ? ':boxy' : '') + (list.includes('jersey') && HEX6.test(design.zoneColors?.wingCollar ?? '') ? ':soccer' : '') + (list.includes('nfljersey') && HEX6.test(design.zoneColors?.badge ?? '') ? ':game' : '') + (list.some((p) => tripoOf(p) && tripoReady(tripoOf(p))) ? `:tripo${list.map((p) => tripoOf(p) ?? '').join(',')}` : '') + (mCollar ? `:mc:${mCollar}` : '') + (fbj ? `:fbj:${fbNeck ?? 'round'}${design.fit === 'tight' ? ':pro' : ''}` : '') + areaMapTag(); // MODEL-PAINTER: + areaMapTag()
   if (key === currentKind) return;
   // (Set when the kit is built, at the end: a build that throws half way is made again by the next design instead of
   // being taken as built, which left a half-made kit until another garment was chosen: LIVEFIX L1 2026-11-12.)
@@ -929,7 +930,7 @@ function buildKit(kind) {
     // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
     // (A collar style laid on the model: its own collar (and a V's cloth) not drawn: addRelief.)
     const mcData = partKind === 'jersey' && mCollar && tripo?.data?.neckRing ? tripo.data : null;
-    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.backPlain ? { backPlain: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.numberAt ? { numberAt: tripo.data.numberAt } : {}), ...(tripo.data?.slab ? { slab: tripo.data.slab } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.backPlain ? { backPlain: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.ownPiping ? { ownPiping: true } : {}), ...(tripo.data?.ownSleeves ? { ownSleeves: true } : {}), ...(tripo.data?.ownPocket ? { ownPocket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.numberAt ? { numberAt: tripo.data.numberAt } : {}), ...(tripo.data?.slab ? { slab: tripo.data.slab } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
     // (A model split into its pieces: its shape, for each part's own look inside its own pieces, PATTERNDND-5 piecepaint.js.)
     if (tripo?.pieces) painter.pieceGeometry = tripo.geometry;
     if (tripo?.geometry?.getAttribute('inner')) painter.innerPlain = true;
@@ -1063,7 +1064,8 @@ function buildKit(kind) {
       if (painter.model?.insert) group.add(new THREE.Mesh(tripo.collar, inside));
     }
     // The pocket polo's chest pocket: its own piece of the same printed fabric, standing off the front.
-    if (garment.pocket) {
+    // (Not on a ready-made model: the Polo with pocket's model has its own pocket pieces, POCKETPOLO 2026-11-25.)
+    if (garment.pocket && !tripo) {
       const pocket = new THREE.Mesh(garment.pocket, partMaterial);
       pocket.userData.part = parts.length;
       pocket.castShadow = true;
@@ -1528,6 +1530,7 @@ async function paintAll() {
   if (design.garment === 'shorts' && !layout && HEX6.test(design.zoneColors?.bballBand ?? '')) { step('loading the 3D garment model'); await loadTripo(TRIPO_PARTS.bballshorts); }
   // (The Basketball kit: both basketball models, BBTILES.)
   if (bballKitOn()) for (const part of BBALL_KIT) { step('loading the 3D garment model'); await loadTripo(tripoOf(part)); }
+  await useAreaMaps(design); // MODEL-PAINTER
   step('building the 3D garment');
   buildKit(design.garment);
   // (The Rugby League shorts' model: its even light; any other kit: the stage's own.)
@@ -1590,7 +1593,9 @@ async function paintAll() {
     part.material.userData.insidePlain?.value.copy(part.inside.color);
     // (A model's printed piping: the trim colour (the painter's, texture.js model.colours[1]), else the Secondary; under a
     // design picture its band colour.)
-    if (part.piping) { const t = part.painter.model?.colours?.[1]; part.piping.material.color.set(layout ? part.layoutBand ?? design.secondary : typeof t === 'string' ? t : design.secondary); }
+    // (A model's own seam piping (data `ownPiping`, FIXER6 2026-11-26, item 198: the women's fitness top): the piping colour
+    // (zoneColors.piping), as the made compression top's printed piping, else the trim colour below.)
+    if (part.piping && part.painter.model?.ownPiping && HEX6.test(design.zoneColors?.piping ?? '') && !layout) part.piping.material.color.set(design.zoneColors.piping); else if (part.piping) { const t = part.painter.model?.colours?.[1]; part.piping.material.color.set(layout ? part.layoutBand ?? design.secondary : typeof t === 'string' ? t : design.secondary); }
     // (A model's own drawcord strips: the colour of their part's key (partColours), else the Secondary; under a design picture
     // its band colour.)
     if (part.cordStrips) { const k = (part.tripo?.partKeys ?? []).indexOf(part.cordStrips.userData.key), c = part.painter.model?.partColours?.[k]; part.cordStrips.material.color.set(layout ? part.layoutBand ?? design.secondary : k >= 0 && typeof c === 'string' ? c : design.secondary ?? '#27282a'); }

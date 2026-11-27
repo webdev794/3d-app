@@ -1314,7 +1314,7 @@
     "design": {
       "garment": "polo",
       "main": "#0b0b0d",
-      "secondary": "#ffffff",
+      "secondary": "#0b0b0d",
       "accent": "#1e8ff0",
       "pattern": "None",
       "patternColor": "#1e8ff0",

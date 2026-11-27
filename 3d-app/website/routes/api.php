@@ -207,6 +207,11 @@ Route::prefix('v1')->middleware('throttle:api')->group(function () {
             Route::post('/presets/order', [Admin\PresetAdminController::class, 'reorder'])->name('presets.order');
             Route::patch('/presets/{preset}', [Admin\PresetAdminController::class, 'update'])->whereNumber('preset')->name('presets.update');
             Route::delete('/presets/{preset}', [Admin\PresetAdminController::class, 'destroy'])->whereNumber('preset')->name('presets.destroy');
+            // MODEL-PAINTER (admin tool, 2026-11-26; remove with model-painter/REMOVE.md): the hand-painted colour-area maps.
+            Route::get('/model-maps', [Admin\ModelPainterController::class, 'show'])->name('model-maps'); // MODEL-PAINTER
+            Route::put('/model-maps', [Admin\ModelPainterController::class, 'save'])->name('model-maps.save'); // MODEL-PAINTER
+            Route::post('/model-maps/copy', [Admin\ModelPainterController::class, 'copy'])->name('model-maps.copy'); // MODEL-PAINTER
+            Route::delete('/model-maps', [Admin\ModelPainterController::class, 'destroy'])->name('model-maps.destroy'); // MODEL-PAINTER
             Route::apiResource('support-messages', Admin\SupportMessageController::class)->only(['index', 'update', 'destroy'])->whereNumber('support_message');
             Route::get('/settings', [Admin\SettingsController::class, 'show'])->name('settings');
             Route::put('/settings', [Admin\SettingsController::class, 'update'])->name('settings.update');

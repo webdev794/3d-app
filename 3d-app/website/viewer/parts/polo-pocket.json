@@ -1,0 +1,97 @@
+{
+  "about": "Polo with pocket (polo-pocket-textured-2.glb, POCKET2 2026-11-27) coloured from polo-pocket-parts-2.glb (8 parts) by viewer/tripo-hoodie.mjs: body with both sleeves (7), the small shoulder bit (19), the back-neck tape (22) and the hem band (16) the print; the collar with its button placket (5) the Collar colour, its foot one smooth line; the chest pocket (12) the Chest pocket colour else the trim colour, its top band (20) the collar piping colour else the trim colour, each with one smooth border; the cuffs (6, one part: split at x = 0, + the wearer's left) even 17 mm bands from their openings (part:leftCuff / part:rightCuff). Stitch lines at the collar foot and cuffs. Data ownPocket: the made pocket polo's printed pocket is not printed on the model.",
+  "hoodieParts": {
+    "glb": "../../../tripo/polo-pocket-parts-2.glb",
+    "roles": {
+      "tripo_part_7": "body",
+      "tripo_part_19": "body",
+      "tripo_part_22": "body",
+      "tripo_part_16": "body",
+      "tripo_part_5": "collar",
+      "tripo_part_12": "pocket",
+      "tripo_part_20": "pocketBand",
+      "tripo_part_6": "cuffR"
+    },
+    "split": [
+      {
+        "part": "tripo_part_6",
+        "where": "x > 0",
+        "role": "cuffL"
+      }
+    ],
+    "order": [
+      "collar",
+      "pocketBand",
+      "pocket"
+    ],
+    "regions": {
+      "collar": {
+        "roles": [
+          "collar"
+        ],
+        "key": "collar",
+        "own": true
+      },
+      "pocketBand": {
+        "roles": [
+          "pocketBand"
+        ],
+        "key": "zone:collarPiping|trim"
+      },
+      "pocket": {
+        "roles": [
+          "pocket"
+        ],
+        "key": "zone:pocket|trim"
+      }
+    },
+    "rings": {
+      "cuffL": {
+        "key": "part:leftCuff",
+        "dir": "out",
+        "margin": 0,
+        "wide": 1,
+        "width": 0.017,
+        "endSpan": 4
+      },
+      "cuffR": {
+        "key": "part:rightCuff",
+        "dir": "out",
+        "margin": 0,
+        "wide": 1,
+        "width": 0.017,
+        "endSpan": 4
+      }
+    },
+    "plainKeys": [],
+    "stitches": {
+      "sigma": 0.02,
+      "seams": [
+        {
+          "region": "collar",
+          "at": -0.006
+        }
+      ],
+      "rings": [
+        {
+          "role": "cuffL",
+          "at": 0.004
+        },
+        {
+          "role": "cuffR",
+          "at": 0.004
+        }
+      ]
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "data": {
+      "insideCloth": true,
+      "ownPlacket": true,
+      "ownPocket": true
+    }
+  }
+}

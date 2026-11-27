@@ -75,11 +75,11 @@ void main() {
         await tester.tap(find.byIcon(Icons.chevron_right_rounded));
         await tester.pumpAndSettle();
       }
-      expect(find.text('DESIGN ICE HOCKEY'), findsOneWidget);
-      expect(litTile('Ice Hockey'), findsOneWidget);
+      expect(find.text('DESIGN HOCKEY'), findsOneWidget);
+      expect(litTile('Hockey'), findsOneWidget);
       expect(
         find
-            .descendant(of: row, matching: find.text('ICE HOCKEY'))
+            .descendant(of: row, matching: find.text('HOCKEY'))
             .hitTestable(),
         findsOneWidget,
       );
@@ -88,21 +88,21 @@ void main() {
       await tester.tap(find.text('SPORTS'));
       await tester.pumpAndSettle();
       expect(
-        find.descendant(of: row, matching: find.text('TRAINING / GYM')),
+        find.descendant(of: row, matching: find.text('TRAINING')),
         findsNothing,
       );
       await tester.tap(find.text('APPAREL'));
       await tester.pumpAndSettle();
       expect(
-        find.descendant(of: row, matching: find.text('SOCCER')),
+        find.descendant(of: row, matching: find.text('FOOTBALL')),
         findsNothing,
       );
       // (The first apparel is Headwear since 2026-11-02, CP1: the stage turns
-      // to it; its Training / Gym tile turns it on.)
+      // to it; its Training tile turns it on.)
       expect(find.text('DESIGN HEADWEAR'), findsOneWidget);
       final training = find.descendant(
         of: row,
-        matching: find.text('TRAINING / GYM'),
+        matching: find.text('TRAINING'),
       );
       await tester.scrollUntilVisible(
         training,
@@ -112,11 +112,11 @@ void main() {
       expect(training, findsOneWidget);
       await tester.tap(training);
       await tester.pumpAndSettle();
-      expect(find.text('DESIGN TRAINING / GYM'), findsOneWidget);
-      expect(litTile('Training / Gym'), findsOneWidget);
+      expect(find.text('DESIGN TRAINING'), findsOneWidget);
+      expect(litTile('Training'), findsOneWidget);
 
       // Turning the stage to a sport goes back to ALL so its tile can light up
-      // (the last sport, Esports, sits just before Training / Gym).
+      // (the last sport, Esports, sits just before Training).
       await tester.tap(find.byIcon(Icons.chevron_left_rounded));
       await tester.pumpAndSettle();
       expect(find.text('DESIGN ESPORTS'), findsOneWidget);

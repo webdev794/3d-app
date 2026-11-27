@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RECIPE_MODELS } from './recipemodels.js';
+import { areaMapTag } from './modelpainter-hook.js'; // MODEL-PAINTER
 
 /**
  * Ready-made garment models (Tripo, 2026-11-12): a garment's own 3D shape from a model file instead of the shape made
@@ -45,7 +46,7 @@ const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer
 
 /** The model decoded (once): positions, normals, flat places (garment metres), side (bit 1: on the back half of the
  *  atlas; bit 2: a trim on the cloth, such as a bib tab), shade, triangles. */
-const decoded = new Map();
+const decodedAll = new Map(), decoded = { has: (k) => decodedAll.has(k + areaMapTag()), get: (k) => decodedAll.get(k + areaMapTag()), set: (k, v) => decodedAll.set(k + areaMapTag(), v) }; // MODEL-PAINTER (was: new Map())
 function decode(name) {
   if (decoded.has(name)) return decoded.get(name);
   const D = window.TRIPO_MESHES[name], n = D.count;
