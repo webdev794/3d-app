@@ -1,0 +1,59 @@
+{
+  "about": "Polo with pocket (Lawn Bowls > Polo with pocket, Workwear > Work polo with pocket, and every pocketpolo design): the Zip-up polo's Tripo model (polo-shirt-textured.glb) with a sewn-on chest patch pocket added in Blender as its own pieces on the wearer's left chest (POCKETPOLO 2026-11-25: polo-pocket-textured.glb / polo-pocket-parts.glb, nodes pocket + pocket_band; the polo's own shape unchanged). The pocket takes the Chest pocket colour (zoneColors.pocket) else the trim colour; its top hem band the collar piping colour else the trim colour, as the tile picture. The model's own short neck zip carried on as our zip tape and teeth down to the chest only (zipLine bottom), as the tile picture. Wide: on every Polo with pocket tile and saved design, the tile's look (as poloZipPocket, with the flag) on both tiles.",
+  "glb": "../../../tripo/polo-pocket-textured.glb",
+  "converter": "top",
+  "part": "pocketpolo",
+  "flag": "poloPocket",
+  "wide": true,
+  "ownNeck": "polo",
+  "necks": {},
+  "tiles": [
+    {
+      "name": "Polo with pocket",
+      "image": "pocketpolo"
+    },
+    {
+      "name": "Work polo with pocket",
+      "image": "pocketpolo"
+    }
+  ],
+  "pictures": [],
+  "convert": {
+    "made": "polo",
+    "creaseDeg": 25,
+    "top": 0.969
+  },
+  "look": {
+    "main": "#313234",
+    "secondary": "#27282a",
+    "zoneColors": {
+      "poloPocket": "#ffffff",
+      "quarterZip": "#c9ccd1",
+      "collarPiping": "#16b4f0"
+    },
+    "marks": {
+      "top_wordmark": {
+        "x": -0.09,
+        "y": 0.581,
+        "scale": 0.258
+      },
+      "top_crest": {
+        "x": -0.09,
+        "y": 0.617,
+        "scale": 0.9
+      }
+    }
+  },
+  "check": {
+    "views": [
+      "Front",
+      "Back",
+      "Q45",
+      "Q-45",
+      "Q90",
+      "Q135",
+      "zoomD70Y700P60",
+      "zoomQ40D70Y700P60"
+    ]
+  }
+}

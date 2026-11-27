@@ -141,9 +141,9 @@ void main() {
       await tester.pumpAndSettle();
       await revealTap(tester, 'HOODED TRACKSUIT');
       expect(c.trackStyle, 'hood');
-      // Change sport: Soccer's Track jacket has no hood of its own.
+      // Change sport: Football's Track jacket has no hood of its own.
       c.update(() {
-        c.sport = 'Soccer';
+        c.sport = 'Football';
         GarmentScreen.startOn(c);
       });
       await tester.pumpAndSettle();

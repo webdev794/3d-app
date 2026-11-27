@@ -929,7 +929,7 @@ function buildKit(kind) {
     // (A model with its parts per triangle: the painter paints none of the made garment's trims and gives the parts' colours.)
     // (A collar style laid on the model: its own collar (and a V's cloth) not drawn: addRelief.)
     const mcData = partKind === 'jersey' && mCollar && tripo?.data?.neckRing ? tripo.data : null;
-    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.backPlain ? { backPlain: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.numberAt ? { numberAt: tripo.data.numberAt } : {}), ...(tripo.data?.slab ? { slab: tripo.data.slab } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
+    if (tripo?.partKeys) painter.model = { ...(painter.model ?? { swatch: [] }), keys: tripo.partKeys, pieces: !!tripo.pieces, ...(tripo.data?.brandBack ? { brandBack: true } : {}), ...(tripo.data?.insideCloth ? { insideCloth: true } : {}), ...(tripo.data?.backPlain ? { backPlain: true } : {}), ...(tripo.data?.madeAreas ? { madeAreas: true } : {}), ...(tripo.data?.ownPlacket ? { ownPlacket: true } : {}), ...(tripo.data?.ownSleeves ? { ownSleeves: true } : {}), ...(tripo.data?.ownPocket ? { ownPocket: true } : {}), ...(tripo.data?.narrowEdge ? { narrowEdge: true } : {}), ...(tripo.data?.numberAt ? { numberAt: tripo.data.numberAt } : {}), ...(tripo.data?.slab ? { slab: tripo.data.slab } : {}), ...(tripo.data?.flatB && tripo.data?.flatS ? { altUv: true } : {}), ...(tripo.data?.matte ? { matte: true } : {}) };
     // (A model split into its pieces: its shape, for each part's own look inside its own pieces, PATTERNDND-5 piecepaint.js.)
     if (tripo?.pieces) painter.pieceGeometry = tripo.geometry;
     if (tripo?.geometry?.getAttribute('inner')) painter.innerPlain = true;
@@ -1063,7 +1063,8 @@ function buildKit(kind) {
       if (painter.model?.insert) group.add(new THREE.Mesh(tripo.collar, inside));
     }
     // The pocket polo's chest pocket: its own piece of the same printed fabric, standing off the front.
-    if (garment.pocket) {
+    // (Not on a ready-made model: the Polo with pocket's model has its own pocket pieces, POCKETPOLO 2026-11-25.)
+    if (garment.pocket && !tripo) {
       const pocket = new THREE.Mesh(garment.pocket, partMaterial);
       pocket.userData.part = parts.length;
       pocket.castShadow = true;

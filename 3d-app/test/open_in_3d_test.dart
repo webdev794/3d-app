@@ -50,10 +50,10 @@ void main() {
   test('a soccer jersey opens on the jersey in the picture\'s colours', () {
     final r = DesignReading.fromJson(
       _reading({}),
-      sport: 'Soccer',
+      sport: 'Football',
       asked: 'Jersey',
     );
-    final c = AppController()..concepts = [Concept(_spec('Soccer', 'Jersey'))];
+    final c = AppController()..concepts = [Concept(_spec('Football', 'Jersey'))];
     c.openReading(0, r);
     expect(c.screen, AppScreen.studio);
     expect(c.garment, 'Jersey');

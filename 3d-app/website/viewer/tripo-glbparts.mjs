@@ -794,12 +794,15 @@ for (let t = 0; t < A.T; t++) {
 // along which main.js lays our own zip tape and teeth (the model's shape unchanged, the print under it).)
 if (settings.zipLine) {
   const yTop = place([0, settings.zipLine.top, 0])[1];
-  const zr = (v) => outside[v] && A.P[v * 3 + 2] > 0 && A.P[v * 3 + 1] < yTop && Math.abs(A.P[v * 3]) < 0.05;
+  // (`bottom` (POCKETPOLO 2026-11-25, the Polo with pocket's short neck zip): the line only down to that height (the parts
+  // file's own), not to the hem; unset: to the hem as before.)
+  const yBot = settings.zipLine.bottom != null ? place([0, settings.zipLine.bottom, 0])[1] : -Infinity;
+  const zr = (v) => outside[v] && A.P[v * 3 + 2] > 0 && A.P[v * 3 + 1] < yTop && A.P[v * 3 + 1] > yBot && Math.abs(A.P[v * 3]) < 0.05;
   const Lz = linesOf(Float32Array.from({ length: V }, (_, v) => 0.5 + A.P[v * 3] * 50), settings.zipLine.sigma ?? 0.01, zr).sort((a2, b2) => b2.len - a2.len)[0];
   if (Lz) {
     if (Lz.C[0][1] < Lz.C[Lz.C.length - 1][1]) { Lz.C.reverse(); Lz.normal.reverse(); }
     // (down to its lowest point only (past it the line runs back up the hem's turned-up inside), ending 6 mm above the fold)
-    const yLow = Math.min(...Lz.C.map((q) => q[1])), cutAt = Lz.C.findIndex((q) => q[1] <= yLow + (settings.zipLine.end ?? 0.006));
+    const yLow = Math.min(...Lz.C.map((q) => q[1])), cutAt = settings.zipLine.bottom != null ? -1 : Lz.C.findIndex((q) => q[1] <= yLow + (settings.zipLine.end ?? 0.006));
     if (cutAt > 0) { Lz.C = Lz.C.slice(0, cutAt); Lz.normal = Lz.normal.slice(0, cutAt); Lz.len = Lz.C.length * 2; }
     D.zip = [{ c: Lz.C.flatMap((q) => q.map((x) => +x.toFixed(5))), n: Lz.normal.map((q) => (q[2] < 0 ? q.map((x) => -x) : q)).flatMap((q) => q.map((x) => +x.toFixed(3))) }];
     report.push(`zip line ${Lz.len} mm, from ${Lz.C[0][1].toFixed(3)} down to ${Lz.C[Lz.C.length - 1][1].toFixed(3)}`);

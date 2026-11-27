@@ -1,5 +1,5 @@
 {
-  "about": "Warm-up hoodie (basketball-hoodie.glb, HOODIE/MODELQ6 2026-11-20, first version): parts per triangle from the model's own seams: its sleeves the Sleeve stripe colour (the tile look's cyan; else the print), the hood's inside the Lining colour (else Secondary), its rib cuffs and hem bands the Rib colour (else Main), its zip the Zip colour (else Secondary); everything else the print.",
+  "about": "Warm-up hoodie (basketball-hoodie.glb, HOODIE/MODELQ6 2026-11-20, first version): parts per triangle from the model's own seams: its sleeves the Sleeve stripe colour (the tile look's cyan; else the print), the hood's inside the Lining colour (else Secondary), its rib cuffs and hem bands the Rib colour (else Main), its zip the Zip colour (else Secondary); everything else the print. (CLIENTOPS 2026-11-26, item 147: stray specks cleaned: part islands under 200 triangles go back to the cloth, cloth islands under 200 triangles inside one part join it.)",
   "glb": "../../../tripo/basketball-hoodie.glb",
   "creaseDeg": 25,
   "keys": [
@@ -40,5 +40,6 @@
       "where": "r > 0 && Math.abs(x) < 0.025 && z > 0.05 && y < 0.86 && size < 900",
       "part": "plain:zone:zip|secondary"
     }
-  ]
+  ],
+  "minCloth": 200
 }

@@ -201,7 +201,7 @@
     "island": 60,
     "speck": 8,
     "data": {
-      "insideCloth": true
+      "insideCloth": true, "ownSleeves": true
     },
     "bodyEdge": [
       [

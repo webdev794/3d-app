@@ -1075,7 +1075,8 @@ export class KitPainter {
       seams.push(...own.seams);
       folds.push(...own.folds);
     }
-    if (hasPocket(this.kind) && !back) {
+    // (Not on a ready-made model with its own pocket pieces (data ownPocket: the Polo with pocket, POCKETPOLO 2026-11-25).)
+    if (hasPocket(this.kind) && !back && !this.model?.ownPocket) {
       // The chest pocket: sewn on round its sides and bottom with two rows of stitching, its top hem stitched across
       // (with a short bar tack at each top corner) and turned in at the top edge.
       const { x0, x1, top, hem } = POCKET;
@@ -2377,7 +2378,7 @@ export class KitPainter {
       }
       // The chest pocket: a soft shadow on the shirt round its sewn edges and its top hem in the trim colour (the
       // pocket itself is the body's fabric, or its own colour zone: Apply to area, Chest pocket).
-      if (hasPocket(this.kind) && !back) {
+      if (hasPocket(this.kind) && !back && !this.model?.ownPocket) {
         const { x0, x1, top, hem } = POCKET;
         g.save();
         g.strokeStyle = 'rgba(0,0,0,0.16)';
@@ -3012,7 +3013,7 @@ export class KitPainter {
     const g = this.ctx;
     for (const [zone, name] of Object.entries(design.zones ?? {})) {
       if (!name || name === 'None') continue;
-      if (zone === 'pocket' && (back || !(hasPocket(this.kind) || isHoodie(this.kind)))) continue;
+      if (zone === 'pocket' && (back || !(hasPocket(this.kind) || isHoodie(this.kind)) || (hasPocket(this.kind) && this.model?.ownPocket))) continue;
       if (zone === 'hood' && (!back || !(isHoodie(this.kind) || isTrack(this.kind)))) continue;
       g.save();
       this.side(back);

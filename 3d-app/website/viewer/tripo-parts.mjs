@@ -225,6 +225,17 @@ export function glbParts(glb, S) {
       if (q.length < (S.minPiece ?? 25)) for (const u of q) part[u] = 0;
     }
   }
+  // (`minCloth` (CLIENTOPS 2026-11-26, the warm-up hoodie's stray dark specks on its sleeve): a cloth island under that many
+  // triangles wholly inside one part joins that part. Off unless set.)
+  if (S.minCloth) {
+    const seen = new Uint8Array(T);
+    for (let t = 0; t < T; t++) {
+      if (part[t] || seen[t]) continue;
+      const q = [t], round = new Set(); seen[t] = 1;
+      for (let k = 0; k < q.length; k++) for (const u of nbs[q[k]]) { if (part[u]) round.add(part[u]); else if (!seen[u]) { seen[u] = 1; q.push(u); } }
+      if (q.length < S.minCloth && round.size === 1) { const p2 = [...round][0]; for (const u of q) part[u] = p2; }
+    }
+  }
   return { part, triReg };
 }
 

@@ -169,7 +169,9 @@ export function pieceFootprints(painter) {
       const e = entry(parts, named);
       e.body[side] = 'cut';
       grow(e.bodyBoxes, side, poly);
-      const sleeve = bodySleeve(painter, painter.fromCanvas(cx, cy));
+      // (Not on a model whose sleeves are pieces of their own (data ownSleeves, FIXER6 2026-11-27, items 200 / 173): there the
+      // body's piece is all body; the made garment's sleeve areas in it painted the sleeve colour on the body.)
+      const sleeve = painter.model?.ownSleeves ? null : bodySleeve(painter, painter.fromCanvas(cx, cy));
       if (sleeve && printed.includes(sleeve)) { const sl = entry(parts, sleeve); sl.body[side] = sleeve; grow(sl.bodyBoxes, side, poly); }
       return;
     }
@@ -270,6 +272,10 @@ export function paintPieceParts(painter, design, back) {
   for (const [part, e] of fp.parts) {
     const style = painter.partStyle(design, part), box = partBox(e, side);
     if (!style || !box) continue;
+    // (A sleeve of its own colour only on a model whose sleeves are pieces of their own (ownSleeves, FIXER6 2026-11-27, item 200):
+    // its piece's plain colour (main.js partTint) colours it; painted into the print as well it spilled onto the body beside the
+    // raglan edge, where the two share print places, in jagged teeth.)
+    if (painter.model?.ownSleeves && /Sleeve$/.test(part) && style.own && !style.pattern && !style.fade && style.opacity >= 1) continue;
     for (const clip of partClips(painter, fp, e, side)) {
       g.save();
       clip(g);

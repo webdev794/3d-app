@@ -38,7 +38,7 @@
     "evenCollar": false,
     "looseBits": 200,
     "data": {
-      "insideCloth": true
+      "insideCloth": true, "ownSleeves": true
     },
     "twoWayOut": true,
     "keysWhere": [

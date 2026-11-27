@@ -239,6 +239,7 @@ $look = function (string $name, array $extra = []): array {
         // 3DEEZI wordmark big across the chest where the picture's team name is (no second line: the singlet has no other
         // text mark); colours set so the stage renders them as the picture's. No text or logo from the picture.)
         // (Looks of the models added by the shared recipe: viewer/tripo-add.mjs, viewer/models/<name>.json.)
+        'poloPocket' => ['main' => '#313234', 'secondary' => '#27282a', 'zoneColors' => ['poloPocket' => '#ffffff', 'quarterZip' => '#c9ccd1', 'collarPiping' => '#16b4f0'], 'marks' => ['top_wordmark' => ['x' => -0.09, 'y' => 0.581, 'scale' => 0.258], 'top_crest' => ['x' => -0.09, 'y' => 0.617, 'scale' => 0.9]]],
         'varsityHoodie' => ['main' => '#1d1d1e', 'secondary' => '#d9a704', 'accent' => '#1d1d1e', 'patternColor' => '#d9a704', 'number' => '23', 'zoneColors' => ['body' => '#1d1d1e', 'sleeves' => '#d9a704', 'rib' => '#1d1d1e', 'ribStripe' => '#d9a704', 'snaps' => '#1d1d1e', 'pocketTrim' => '#d9a704', 'varsityHoodie' => '#ffffff', 'hood' => '#1d1d1e', 'lining' => '#1d1d1e'], 'marks' => ['top_wordmark' => ['side' => 'back', 'x' => 0, 'y' => 0.53]], 'layers' => []],
         'footballShorts' => ['main' => '#2a56b4', 'secondary' => '#2a56b4', 'accent' => '#1f8a3c', 'patternColor' => '#2a56b4', 'pattern' => 'None', 'number' => '', 'zoneColors' => ['footballShorts' => '#2a56b4', 'brandInk' => '#ffffff'], 'marks' => ['shorts_number' => ['hidden' => true], 'shorts_crest' => ['x' => -0.12, 'y' => 0.1, 'scale' => 0.8], 'shorts_wordmark' => ['side' => 'front', 'x' => 0.15, 'y' => 0.07, 'scale' => 0.7]], 'layers' => []],
         'helmetModel' => ['main' => '#1c2433', 'secondary' => '#e3a81c', 'accent' => '#e3a81c', 'zoneColors' => ['helmetModel' => '#ffffff', 'helmetStripe' => '#e3a81c', 'faceMask' => '#2b2d31'], 'layers' => []],
@@ -670,7 +671,7 @@ $sports = [
         'prompt' => 'lawn bowls: a smart club polo with a collar, light sublimated patterns', 'tiles' => [
             $tile('Bowls polo', 'Smart club polo for the green.', 'polo'),
             $tile('Long-sleeve polo', 'Long-sleeve raglan polo for the green.', 'polo', 'polo') + ['design' => $look('longsleevePolo')],
-            $tile('Polo with pocket', 'Club polo with a chest pocket.', 'pocketpolo'),
+            $tile('Polo with pocket', 'Club polo with a chest pocket.', 'pocketpolo', 'pocketpolo') + ['design' => $look('poloPocket')],
             $tile('Club tee', 'Soft tee for social bowls.', 'tee'),
             $tile('Club hoodie', 'Warm hoodie for cool evenings.', 'hoodie', 'team-hoodie'),
             $tile('Club jacket', 'Full-zip jacket for the green.', 'trackjacket'),
@@ -734,7 +735,7 @@ $sports = [
     ['id' => 'workwear', 'name' => 'Workwear', 'description' => 'Hi-vis and work shirts with your business on them.', 'group' => 'apparel',
         'prompt' => 'workwear and hi-vis: a fluoro work shirt or polo with reflective tape bands and the business logo', 'tiles' => [
             $tile('Hi-vis polo', 'Fluoro polo with your business logo.', 'polo'),
-            $tile('Work polo with pocket', 'Hard-wearing polo with a chest pocket.', 'pocketpolo'),
+            $tile('Work polo with pocket', 'Hard-wearing polo with a chest pocket.', 'pocketpolo', 'pocketpolo') + ['design' => $look('poloPocket')],
             $tile('Work tee', 'Tough tee for every job.', 'tee'),
             $tile('Work shirt', 'Long-sleeve work shirt with your logo.', 'polo', 'jersey') + ['design' => $look('tribalPolo')],
             $tile('Work hoodie', 'Warm hoodie for cold sites.', 'hoodie', 'team-hoodie'),

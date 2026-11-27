@@ -1,0 +1,96 @@
+{
+  "about": "Polo with pocket (polo-pocket-textured.glb, POCKETPOLO 2026-11-25): as the Zip-up polo (polo-zip) with its chest pocket's own pieces: pocket -> the Chest pocket colour else the trim colour, pocket_band (its top hem) -> the collar piping colour else the trim colour; the zip line from the model's own neck zip down to the chest only (zipLine bottom, as the tile picture); data ownPocket: the made pocket polo's printed pocket (its stitching, band, shadow and Chest pocket area) is not printed on the model.",
+  "glbParts": {
+    "glb": "../../../tripo/polo-pocket-parts.glb",
+    "keys": {
+      "tripo_part_11": "part:rightCuff",
+      "tripo_part_15": "part:leftCuff",
+      "tripo_part_20": "area:leftSleeve",
+      "tripo_part_21": "area:rightSleeve",
+      "tripo_part_24": null,
+      "tripo_part_25": null,
+      "tripo_part_30": "collar",
+      "tripo_part_37": null,
+      "tripo_part_38": null,
+      "tripo_part_4": "area:leftSleeve",
+      "tripo_part_41": null,
+      "tripo_part_42": "area:rightSleeve",
+      "tripo_part_43": null,
+      "tripo_part_44": null,
+      "tripo_part_45": null,
+      "tripo_part_6": null,
+      "tripo_part_7": null,
+      "pocket": "zone:pocket|trim",
+      "pocket_band": "zone:collarPiping|trim"
+    },
+    "keysWhere": [
+      {
+        "part": "tripo_part_30",
+        "where": "y < 0.86 && z > 0.05",
+        "key": null
+      }
+    ],
+    "collar": "collar",
+    "sleeves": [
+      "area:leftSleeve",
+      "area:rightSleeve",
+      "part:leftCuff",
+      "part:rightCuff"
+    ],
+    "cuffOn": {
+      "part:leftCuff": "area:leftSleeve",
+      "part:rightCuff": "area:rightSleeve"
+    },
+    "sigma": 0.015,
+    "reach": 0.03,
+    "far": 0.03,
+    "island": 60,
+    "speck": 8,
+    "collarSigma": 0.015,
+    "stitches": {
+      "collarFoot": 0.006,
+      "cuff": 0.015,
+      "hem": 0.017,
+      "sigma": 0.03,
+      "cuffLongest": true
+    },
+    "evenCuffs": true,
+    "sleeveMap": {
+      "armhole": [
+        [
+          0.258,
+          0.688
+        ],
+        [
+          0.258,
+          0.53
+        ]
+      ],
+      "cuff": [
+        [
+          0.418,
+          0.566
+        ],
+        [
+          0.372,
+          0.476
+        ]
+      ]
+    },
+    "data": {
+      "insideCloth": true,
+      "ownPlacket": true,
+      "ownPocket": true
+    },
+    "cuffWidth": 0.017,
+    "evenCollar": true,
+    "zipLine": {
+      "top": 0.83,
+      "bottom": 0.7
+    },
+    "panels": [
+      "zone:pocket|trim",
+      "zone:collarPiping|trim"
+    ]
+  }
+}

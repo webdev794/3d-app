@@ -2080,7 +2080,7 @@ class AppController extends ChangeNotifier {
     );
     _resetDesign();
     mode = 'AI';
-    sport = design.sport;
+    sport = currentSportName(design.sport);
     applySpec(design);
     garment = design.garment;
     _undo.clear();
@@ -2107,7 +2107,7 @@ class AppController extends ChangeNotifier {
   }) {
     final concept = concepts[index];
     selectedConcept = index;
-    sport = concept.spec.sport;
+    sport = currentSportName(concept.spec.sport);
     applySpec(concept.spec);
     garment = reading.garment;
     final s = sportNamed(sport);
@@ -2181,7 +2181,7 @@ class AppController extends ChangeNotifier {
   void openConcept(int index) {
     final concept = concepts[index];
     selectedConcept = index;
-    sport = concept.spec.sport;
+    sport = currentSportName(concept.spec.sport);
     applySpec(concept.spec);
     garment = concept.spec.garment;
     _undo.clear();
@@ -2319,7 +2319,7 @@ class AppController extends ChangeNotifier {
   void loadProject(Project project) {
     _resetDesign();
     _restore(project.kit);
-    sport = project.sport;
+    sport = currentSportName(project.sport);
     mode = project.mode;
     brief = project.brief;
     renderFront = project.renderFront;

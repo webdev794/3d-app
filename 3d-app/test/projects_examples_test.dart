@@ -26,7 +26,7 @@ Future<void> _mount(WidgetTester tester, AppController c, Size size) async {
 Project _kit(AppController c, String title, String mode, {bool ok = false}) =>
     Project(
       title: title,
-      sport: 'Soccer',
+      sport: 'Football',
       garment: 'Jersey',
       mode: mode,
       updated: DateTime.now(),

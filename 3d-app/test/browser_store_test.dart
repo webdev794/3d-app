@@ -23,7 +23,7 @@ void main() {
       final p = Project(
         id: 'local-1',
         title: 'Home',
-        sport: 'Soccer',
+        sport: 'Football',
         garment: 'Jersey',
         mode: 'DYO',
         kit: c.kit,

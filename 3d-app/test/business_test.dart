@@ -92,7 +92,7 @@ void main() {
     await mountPhone(tester, c);
     Project kit(String title, {bool approved = false}) => Project(
       title: title,
-      sport: 'Soccer',
+      sport: 'Football',
       garment: 'Jersey',
       mode: 'DYO',
       updated: DateTime.now(),

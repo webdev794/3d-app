@@ -507,8 +507,8 @@ void main() {
           },
         ),
       );
-      // The same names and order as Design Your Own ("Soccer", not
-      // "Football"), then a sport only the website knows, then Custom.
+      // The same names and order as Design Your Own (the website's names,
+      // "Football" once), then a sport only the website knows, then Custom.
       final names = [
         for (final item
             in tester
@@ -526,8 +526,8 @@ void main() {
       expect(names.take(activities.length), activities);
       expect(names, isNot(contains('Headwear')));
       expect(names, containsAll(['Workwear', 'School Leavers']));
-      expect(names, contains('Soccer'));
-      expect(names, isNot(contains('Football')));
+      expect(names.where((n) => n == 'Football'), hasLength(1));
+      expect(names, isNot(contains('Soccer')));
       expect(names, contains('Pickleball'));
       // No sport yet: every garment, the ones the sports use first.
       await tap(tester, find.byKey(const Key('team-garments')));
@@ -571,8 +571,8 @@ void main() {
       // A saved request keeps reading well: the catalogue sport by its DYO
       // name, a typed sport as typed.
       expect(
-        teamSportName({'sport': 'football', 'sport_name': 'Football'}),
-        'Soccer',
+        teamSportName({'sport': 'hockey', 'sport_name': 'Ice Hockey'}),
+        'Hockey',
       );
       expect(teamSportName({'sport': 'Football'}), 'Football');
       expect(

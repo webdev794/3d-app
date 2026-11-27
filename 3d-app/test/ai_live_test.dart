@@ -15,7 +15,7 @@ void main() {
       final reference = File('assets/images/reference_3.png').readAsBytesSync();
 
       final spec = await ai.planDesign(
-        sport: 'Soccer',
+        sport: 'Football',
         garment: 'Jersey',
         brief: 'Home kit for the Harbour City Hawks, navy and gold, sharp.',
         reference: reference,
@@ -31,7 +31,7 @@ void main() {
 
       final front = await ai.renderFront(
         spec,
-        sport: 'Soccer',
+        sport: 'Football',
         garment: 'Jersey',
         reference: reference,
       );
@@ -42,7 +42,7 @@ void main() {
       File('${out.path}/back.jpg').writeAsBytesSync(back);
 
       final revised = await ai.planDesign(
-        sport: 'Soccer',
+        sport: 'Football',
         garment: 'Jersey',
         brief: '',
         current: spec,

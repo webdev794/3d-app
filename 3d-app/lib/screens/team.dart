@@ -1366,12 +1366,12 @@ typedef TeamSport = ({
 /// Catalogue entries that are a kind of garment, not a sport or activity
 /// (QA10 2026-11-11): Headwear's caps, bucket hats and beanies are picked under
 /// "Garments needed", which lists every garment. The apparel activities
-/// (Training / Gym, Workwear, School Leavers…) stay: they send the request's
+/// (Training, Workwear, School Leavers…) stay: they send the request's
 /// Apparel category, as on the website.
 const teamNotActivities = {'headwear', 'jackets'};
 
 /// The TEAM form's sports: Design Your Own's list (lib/sports_catalog.dart:
-/// the same names, e.g. "Soccer", and order), then any sport the website's
+/// the same names, e.g. "Football", and order), then any sport the website's
 /// catalogue [server] has that the app does not know yet. A sport without DYO
 /// garment tiles takes the website's garments.
 List<TeamSport> teamSportsFrom(List<Map> server) {
@@ -1406,7 +1406,7 @@ List<TeamSport> teamSportsFrom(List<Map> server) {
 }
 
 /// A request's sport as the app names it (Design Your Own's name for a
-/// catalogue sport, so "football" reads "Soccer"); otherwise the website's
+/// catalogue sport, so "hockey" reads "Hockey"); otherwise the website's
 /// name or the sport as typed.
 String teamSportName(Map r) {
   final id = '${r['sport'] ?? ''}';
